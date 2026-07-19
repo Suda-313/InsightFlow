@@ -1,0 +1,12 @@
+target/
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/dists/
+
+.idea/
+*.iml
+.vscode/
+
+.env
+data/
+*.log

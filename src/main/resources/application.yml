@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: insightflow
+  servlet:
+    multipart:
+      # CSV 是 V1 的唯一导入入口；限制在进入业务代码前拦住异常大的文件。
+      max-file-size: ${IMPORT_MAX_FILE_SIZE:10MB}
+      max-request-size: ${IMPORT_MAX_FILE_SIZE:10MB}
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/insightflow}
+    username: ${DB_USERNAME:insightflow}
+    password: ${DB_PASSWORD:insightflow}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+server:
+  error:
+    include-message: never
+
+# 原始文件只进入 MinIO；PostgreSQL 中仅保存已脱敏、可分析的反馈事件和文件元数据。
+insightflow:
+  storage:
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ROOT_USER:insightflow}
+      secret-key: ${MINIO_ROOT_PASSWORD:change-me-locally}
+      bucket: ${MINIO_BUCKET:insightflow-imports}
+  import:
+    preview-row-limit: ${IMPORT_PREVIEW_ROW_LIMIT:5}
+    task-error-limit: ${IMPORT_TASK_ERROR_LIMIT:10}
+    # 调度器从 PostgreSQL 扫描 queued/过期租约任务；它是进程重启后的恢复入口。
+    dispatch-delay-ms: ${IMPORT_DISPATCH_DELAY_MS:5000}
+    lease-seconds: ${IMPORT_TASK_LEASE_SECONDS:300}
+    max-dispatch-per-cycle: ${IMPORT_MAX_DISPATCH_PER_CYCLE:4}
