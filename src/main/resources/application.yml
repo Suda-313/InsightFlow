@@ -50,3 +50,9 @@ insightflow:
     dispatch-delay-ms: ${IMPORT_DISPATCH_DELAY_MS:5000}
     lease-seconds: ${IMPORT_TASK_LEASE_SECONDS:300}
     max-dispatch-per-cycle: ${IMPORT_MAX_DISPATCH_PER_CYCLE:4}
+  projection:
+    # 投影与导入共享持久任务表但拥有独立调度节奏，避免 CSV 解析积压阻塞看板状态闭环。
+    dispatch-delay-ms: ${PROJECTION_DISPATCH_DELAY_MS:5000}
+    lease-seconds: ${PROJECTION_TASK_LEASE_SECONDS:120}
+    max-dispatch-per-cycle: ${PROJECTION_MAX_DISPATCH_PER_CYCLE:2}
+    rule-version: ${PROJECTION_RULE_VERSION:rules:v1}
