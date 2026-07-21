@@ -66,7 +66,7 @@ public class WorkspaceProjectionCompletionService {
                 .forEach(link -> importFileRepository.findByIdAndWorkspaceId(link.getImportFileId(), task.getWorkspaceId())
                         .ifPresent(ImportFile::markProjected));
         task.markSucceeded("{\"projection\":\"state_only\"}");
-        projection.markSucceeded(null, null, OffsetDateTime.now());
+        projection.markSucceeded(projection.getSourceWindowStart(), projection.getSourceWindowEnd(), OffsetDateTime.now());
     }
 
     /**

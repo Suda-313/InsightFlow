@@ -10,3 +10,7 @@ target/
 .env
 data/
 *.log
+
+# Claude Code 本地配置（settings.local.json 等，非项目产物）
+.claude/
+

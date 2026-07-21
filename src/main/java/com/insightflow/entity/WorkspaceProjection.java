@@ -126,6 +126,19 @@ public class WorkspaceProjection {
         this.updatedAt = OffsetDateTime.now();
     }
 
+    /** 在执行事务内记录来源时间窗，供 completion 收口时写入 markSucceeded。 */
+    public void recordSourceWindow(OffsetDateTime start, OffsetDateTime end) {
+        this.sourceWindowStart = start;
+        this.sourceWindowEnd = end;
+        this.updatedAt = OffsetDateTime.now();
+    }
+
+    /** 返回当前投影读取的反馈最早业务发生时间。 */
+    public OffsetDateTime getSourceWindowStart() { return sourceWindowStart; }
+
+    /** 返回当前投影读取的反馈最晚业务发生时间。 */
+    public OffsetDateTime getSourceWindowEnd() { return sourceWindowEnd; }
+
     /** 返回内部键，只供投影关联表和仓储使用。 */
     public Long getId() { return id; }
 

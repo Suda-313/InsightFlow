@@ -149,4 +149,15 @@ public class FeedbackEvent {
     public String getExternalRefHash() {
         return externalRefHash;
     }
+
+    /** 返回内部主键，仅供投影关联与 cell_issue 样本引用。 */
+    public Long getId() { return id; }
+    /** 返回一级隔离键，投影读取必须二次过滤。 */
+    public Long getWorkspaceId() { return workspaceId; }
+    /** 返回脱敏文本，是规则与未来模型唯一可用的文本。 */
+    public String getSanitizedText() { return sanitizedText; }
+    /** 返回反馈发生时间，决定时间窗与排序。 */
+    public OffsetDateTime getOccurredAt() { return occurredAt; }
+    /** 返回来源分类，用于后续维度统计。 */
+    public String getSourceKind() { return sourceKind; }
 }

@@ -6,7 +6,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.insightflow.entity.AsyncTask;
+import com.insightflow.entity.WorkspaceProjection;
 import com.insightflow.repository.AsyncTaskRepository;
+import com.insightflow.repository.WorkspaceProjectionRepository;
+import com.insightflow.service.analysis.WorkspaceProjectionExecutionService;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -17,19 +20,30 @@ import org.junit.jupiter.api.Test;
 class WorkspaceProjectionTaskRunnerTest {
 
     /**
-     * 有效领取的 projection 任务应被交给独立完成服务，而不在 Runner 内直接写最终状态。
+     * 有效领取的 projection 任务应被交给执行服务与完成服务，而不在 Runner 内直接写最终状态。
      */
     @Test
     void delegatesClaimedProjectionToCompletionService() {
         AsyncTaskRepository taskRepository = mock(AsyncTaskRepository.class);
+        WorkspaceProjectionRepository projectionRepository = mock(WorkspaceProjectionRepository.class);
+        WorkspaceProjectionExecutionService executionService = mock(WorkspaceProjectionExecutionService.class);
         WorkspaceProjectionCompletionService completionService = mock(WorkspaceProjectionCompletionService.class);
+
         AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
         task.claim("projection-worker", OffsetDateTime.now().plusMinutes(1));
         when(taskRepository.findByPublicId(task.getPublicId())).thenReturn(Optional.of(task));
-        WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(taskRepository, completionService);
+
+        WorkspaceProjection projection = WorkspaceProjection.queued(7L, task.getId(), "rules:v1");
+        when(projectionRepository.findByAsyncTaskIdAndWorkspaceId(task.getId(), task.getWorkspaceId()))
+                .thenReturn(Optional.of(projection));
+        when(executionService.execute(projection.getId(), task.getWorkspaceId())).thenReturn(true);
+
+        WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(
+                taskRepository, projectionRepository, executionService, completionService);
 
         runner.run(task.getPublicId(), "projection-worker");
 
+        verify(executionService).execute(projection.getId(), task.getWorkspaceId());
         verify(completionService).complete(task.getPublicId(), "projection-worker");
     }
 
@@ -39,14 +53,20 @@ class WorkspaceProjectionTaskRunnerTest {
     @Test
     void ignoresProjectionClaimedByAnotherWorker() {
         AsyncTaskRepository taskRepository = mock(AsyncTaskRepository.class);
+        WorkspaceProjectionRepository projectionRepository = mock(WorkspaceProjectionRepository.class);
+        WorkspaceProjectionExecutionService executionService = mock(WorkspaceProjectionExecutionService.class);
         WorkspaceProjectionCompletionService completionService = mock(WorkspaceProjectionCompletionService.class);
+
         AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
         task.claim("new-worker", OffsetDateTime.now().plusMinutes(1));
         when(taskRepository.findByPublicId(task.getPublicId())).thenReturn(Optional.of(task));
-        WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(taskRepository, completionService);
+
+        WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(
+                taskRepository, projectionRepository, executionService, completionService);
 
         runner.run(task.getPublicId(), "old-worker");
 
-        verify(completionService, never()).complete(task.getPublicId(), "old-worker");
+        verify(executionService, never()).execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(completionService, never()).complete(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 }

@@ -15,4 +15,11 @@ public interface FeedbackEventRepository extends JpaRepository<FeedbackEvent, Lo
      */
     boolean existsByWorkspaceIdAndSourceIdAndExternalRefHash(
             Long workspaceId, Long sourceId, String externalRefHash);
+
+    /**
+     * 按投影来源文件对应的导入任务批量读取脱敏事件，按真实发生时间升序。
+     * 调用方必须带 workspaceId 做二次隔离。
+     */
+    java.util.List<FeedbackEvent> findByWorkspaceIdAndIngestedTaskIdInOrderByOccurredAtAsc(
+            Long workspaceId, java.util.Collection<Long> ingestedTaskIds);
 }

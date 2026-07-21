@@ -1,36 +1,42 @@
 package com.insightflow.task;
 
 import com.insightflow.entity.AsyncTask;
+import com.insightflow.entity.WorkspaceProjection;
 import com.insightflow.repository.AsyncTaskRepository;
+import com.insightflow.repository.WorkspaceProjectionRepository;
+import com.insightflow.service.analysis.WorkspaceProjectionExecutionService;
 import java.util.UUID;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
- * 自动投影 Worker 的单体内执行入口。
- *
- * <p>当前迭代只验证可靠的领取和状态收敛。主题归并、趋势、EWMA 与 Alert 会在此入口内按既有
- * WorkspaceProjection 事务边界逐步加入，而不会反向耦合到 CSV 导入线程。</p>
+ * 自动投影 Worker 单体内执行入口：先由执行服务写主题事实，再由完成服务收敛终态。
+ * 执行失败只标 projection_failed，不回滚已成功的 CSV 导入。
  */
 @Component
 public class WorkspaceProjectionTaskRunner {
 
     /** 任务仓储让 Worker 在异步线程开始时再次核验持有的租约。 */
     private final AsyncTaskRepository taskRepository;
-
-    /** 完成服务在独立事务中收敛最终状态，避免未来计算异常回滚失败标记。 */
+    /** 投影记录仓储，定位本次投影 id 与 workspace。 */
+    private final WorkspaceProjectionRepository projectionRepository;
+    /** 执行服务在单事务内写主题事实与 source window。 */
+    private final WorkspaceProjectionExecutionService executionService;
+    /** 完成服务在独立短事务中收敛最终状态。 */
     private final WorkspaceProjectionCompletionService completionService;
 
     /** 构造投影 Worker。 */
-    public WorkspaceProjectionTaskRunner(
-            AsyncTaskRepository taskRepository, WorkspaceProjectionCompletionService completionService) {
+    public WorkspaceProjectionTaskRunner(AsyncTaskRepository taskRepository,
+                                         WorkspaceProjectionRepository projectionRepository,
+                                         WorkspaceProjectionExecutionService executionService,
+                                         WorkspaceProjectionCompletionService completionService) {
         this.taskRepository = taskRepository;
+        this.projectionRepository = projectionRepository;
+        this.executionService = executionService;
         this.completionService = completionService;
     }
 
-    /**
-     * 在线程池执行状态投影；重复调度或租约已转移时安全返回，绝不再次推进文件状态。
-     */
+    /** 在线程池执行状态投影；重复调度或租约已转移时安全返回。 */
     @Async("projectionTaskExecutor")
     public void run(UUID taskPublicId, String workerId) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
@@ -38,6 +44,18 @@ public class WorkspaceProjectionTaskRunner {
             return;
         }
         try {
+            WorkspaceProjection projection = projectionRepository
+                    .findByAsyncTaskIdAndWorkspaceId(task.getId(), task.getWorkspaceId())
+                    .orElse(null);
+            if (projection == null) {
+                completionService.fail(taskPublicId, workerId, "PROJECTION_RECORD_NOT_FOUND", "投影状态记录不存在。");
+                return;
+            }
+            boolean hasEvents = executionService.execute(projection.getId(), task.getWorkspaceId());
+            if (!hasEvents) {
+                completionService.fail(taskPublicId, workerId, "PROJECTION_SOURCE_EMPTY", "投影来源事件为空。");
+                return;
+            }
             completionService.complete(taskPublicId, workerId);
         } catch (Exception exception) {
             completionService.fail(taskPublicId, workerId, "PROJECTION_EXECUTION_FAILED", "看板投影执行失败，请稍后重试。");
