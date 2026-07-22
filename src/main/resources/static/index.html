@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InsightFlow — 游戏客服舆情分析</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        primary: { DEFAULT: '#1E40AF', light: '#3B82F6', dark: '#1E3A8A' },
+        accent: '#D97706',
+        muted: '#E9EEF6', surface: '#F8FAFC',
+        destructive: '#DC2626',
+        status: { ok: '#16A34A', warn: '#D97706', bad: '#DC2626' }
+      },
+      fontFamily: { sans: ['Fira Sans', 'sans-serif'], mono: ['Fira Code', 'monospace'] }
+    }
+  }
+}
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+body { font-family: 'Fira Sans', sans-serif; }
+.sidebar-link { transition: all 150ms ease; }
+.sidebar-link:hover { background: rgba(30,64,175,0.1); }
+.sidebar-link.active { background: rgba(30,64,175,0.15); color: #1E40AF; font-weight: 600; }
+.card { transition: box-shadow 150ms ease; }
+.card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.loading { animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+</style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="flex h-screen overflow-hidden">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col shrink-0">
+    <div class="p-5 border-b border-slate-200 dark:border-slate-700">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center"><i data-lucide="activity" class="w-5 h-5 text-white"></i></div>
+        <span class="font-bold text-lg">InsightFlow</span>
+      </div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <a href="#" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm" data-page="dashboard">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i> 仪表盘
+      </a>
+      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm" data-page="issues">
+        <i data-lucide="tags" class="w-5 h-5"></i> 主题分析
+      </a>
+      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm" data-page="reports">
+        <i data-lucide="file-text" class="w-5 h-5"></i> 分析报告
+      </a>
+    </nav>
+    <div class="p-4 border-t border-slate-200 dark:border-slate-700">
+      <div class="text-xs text-slate-500 dark:text-slate-400">工作区</div>
+      <select id="workspace-select" class="mt-1 w-full text-sm bg-slate-100 dark:bg-slate-700 rounded-lg px-2 py-1.5 border-0 outline-none">
+        <option value="">加载中...</option>
+      </select>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-auto" id="main-content">
+    <!-- Dashboard -->
+    <div id="page-dashboard" class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div><h1 class="text-2xl font-bold">仪表盘</h1><p class="text-sm text-slate-500 dark:text-slate-400 mt-1" id="coverage-text">加载中...</p></div>
+        <button onclick="createReport()" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-dark transition flex items-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i> 生成报告
+        </button>
+      </div>
+      <!-- Metric Cards -->
+      <div class="grid grid-cols-4 gap-4 mb-6" id="metric-cards">
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700"><div class="text-xs text-slate-500 mb-1">总工单数</div><div class="text-2xl font-bold loading" id="total-events">--</div></div>
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700"><div class="text-xs text-slate-500 mb-1">主题数</div><div class="text-2xl font-bold loading" id="total-issues">--</div></div>
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700"><div class="text-xs text-slate-500 mb-1">活跃告警</div><div class="text-2xl font-bold loading" id="active-alerts">--</div></div>
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700"><div class="text-xs text-slate-500 mb-1">未分类</div><div class="text-2xl font-bold loading" id="unclassified">--</div></div>
+      </div>
+      <!-- Charts Row -->
+      <div class="grid grid-cols-2 gap-6 mb-6">
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
+          <h3 class="font-semibold mb-3 text-sm">主题分布 Top 5</h3>
+          <canvas id="issue-chart" height="200"></canvas>
+        </div>
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
+          <h3 class="font-semibold mb-3 text-sm">最近告警</h3>
+          <div id="alert-list" class="space-y-2 text-sm"></div>
+        </div>
+      </div>
+      <!-- Baseline Status -->
+      <div class="card bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700">
+        <h3 class="font-semibold mb-3 text-sm">基线状态</h3>
+        <div id="baseline-status" class="text-sm text-slate-500">加载中...</div>
+      </div>
+    </div>
+
+    <!-- Issues Page -->
+    <div id="page-issues" class="p-6" style="display:none">
+      <h1 class="text-2xl font-bold mb-6">主题分析</h1>
+      <div class="grid grid-cols-2 gap-4" id="issues-grid"></div>
+    </div>
+
+    <!-- Reports Page -->
+    <div id="page-reports" class="p-6" style="display:none">
+      <h1 class="text-2xl font-bold mb-6">分析报告</h1>
+      <div id="reports-list" class="space-y-3"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = '';
+let currentWorkspace = '';
+
+// ====== Navigation ======
+document.querySelectorAll('.sidebar-link').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+    link.classList.add('active');
+    document.querySelectorAll('[id^="page-"]').forEach(p => p.style.display = 'none');
+    document.getElementById('page-' + link.dataset.page).style.display = 'block';
+    if (link.dataset.page === 'dashboard') loadDashboard();
+    if (link.dataset.page === 'issues') loadIssues();
+    if (link.dataset.page === 'reports') loadReports();
+  });
+});
+
+// ====== Workspace ======
+async function initWorkspace() {
+  let resp = await fetch(API + '/api/v1/workspaces');
+  let data = await resp.json();
+  if (data.error) {
+    resp = await fetch(API + '/api/v1/workspaces', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name:'默认工作区'}) });
+    data = await resp.json();
+  }
+  currentWorkspace = data.publicId || data[0]?.publicId;
+  if (!currentWorkspace) {
+    // Create one
+    let r = await fetch(API + '/api/v1/workspaces', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name:'默认工作区'}) });
+    let d = await r.json();
+    currentWorkspace = d.publicId;
+  }
+  document.getElementById('workspace-select').innerHTML = `<option>${currentWorkspace}</option>`;
+  loadDashboard();
+}
+
+// ====== Dashboard ======
+async function loadDashboard() {
+  if (!currentWorkspace) return;
+  let resp = await fetch(API + '/api/v1/workspaces/' + currentWorkspace + '/dashboard');
+  let d = await resp.json();
+  document.getElementById('coverage-text').textContent = d.coverage?.windowStart
+    ? `数据覆盖：${d.coverage.windowStart?.slice(0,10)} ~ ${d.coverage.windowEnd?.slice(0,10)} · ${d.coverage.totalEvents} 条工单`
+    : '暂无数据，请先导入 CSV 文件';
+  document.getElementById('total-events').textContent = d.coverage?.totalEvents || 0;
+  document.getElementById('total-issues').textContent = d.topIssues?.length || 0;
+  document.getElementById('active-alerts').textContent = d.recentAlerts?.length || 0;
+  document.getElementById('unclassified').textContent = d.baselineStatus?.building || 0;
+  document.querySelectorAll('.loading').forEach(el => el.classList.remove('loading'));
+
+  // Issue chart
+  if (d.topIssues?.length) {
+    const ctx = document.getElementById('issue-chart').getContext('2d');
+    if (window._issueChart) window._issueChart.destroy();
+    window._issueChart = new Chart(ctx, {
+      type: 'bar', data: {
+        labels: d.topIssues.map(i => i.canonicalName),
+        datasets: [{ data: d.topIssues.map(i => i.feedbackCount), backgroundColor: ['#1E40AF','#3B82F6','#60A5FA','#93C5FD','#BFDBFE'] }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+  }
+
+  // Alert list
+  let alertHtml = d.recentAlerts?.length ? d.recentAlerts.map(a => `
+    <div class="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-red-500 rounded-full"></span><span>${a.alertId?.slice(0,8)}</span></div>
+      <span class="font-mono font-bold text-red-600">${a.currentCount} 条</span>
+    </div>`).join('') : '<div class="text-slate-400">暂无告警</div>';
+  document.getElementById('alert-list').innerHTML = alertHtml;
+
+  // Baseline
+  document.getElementById('baseline-status').innerHTML = d.baselineStatus
+    ? `已建立基线：${d.baselineStatus.active} 个主题 active · ${d.baselineStatus.building} 个 building`
+    : '暂无基线数据';
+}
+
+// ====== Issues ======
+async function loadIssues() {
+  if (!currentWorkspace) return;
+  let resp = await fetch(API + '/api/v1/workspaces/' + currentWorkspace + '/issues');
+  let issues = await resp.json();
+  if (issues.error) { document.getElementById('issues-grid').innerHTML = '<p class="text-slate-400">暂无数据</p>'; return; }
+  document.getElementById('issues-grid').innerHTML = issues.map(i => `
+    <div class="card bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+      <div class="font-semibold">${i.canonicalName}</div>
+      <div class="text-xs text-slate-500 mt-1">${i.canonicalKey}</div>
+      <div class="text-2xl font-bold mt-2">${i.feedbackCount}</div>
+      <div class="text-xs text-slate-400">条反馈</div>
+    </div>`).join('');
+}
+
+// ====== Reports ======
+async function createReport() {
+  if (!currentWorkspace) return alert('请先选择工作区');
+  let idemKey = 'web-' + Date.now();
+  let resp = await fetch(API + '/api/v1/workspaces/' + currentWorkspace + '/analysis-reports', {
+    method: 'POST', headers: {'Content-Type':'application/json','Idempotency-Key':idemKey},
+    body: JSON.stringify({time_range:{start:'2026-07-14T00:00:00Z',end:'2026-07-22T00:00:00Z'}})
+  });
+  let data = await resp.json();
+  alert('报告已创建！任务ID: ' + data.id + '\n请稍后在报告页面查看结果。');
+  loadReports();
+}
+
+async function loadReports() {
+  if (!currentWorkspace) return;
+  document.getElementById('reports-list').innerHTML = '<div class="text-slate-400">加载中...</div>';
+  // The report list API is not available, show create button
+  document.getElementById('reports-list').innerHTML = `
+    <div class="card bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700 text-center">
+      <i data-lucide="file-text" class="w-12 h-12 mx-auto text-slate-300 mb-3"></i>
+      <p class="text-slate-500 mb-4">点击下方按钮生成 AI 分析报告</p>
+      <button onclick="createReport()" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-dark transition inline-flex items-center gap-2">
+        <i data-lucide="sparkles" class="w-4 h-4"></i> 生成报告
+      </button>
+    </div>`;
+  lucide.createIcons();
+}
+
+// Init
+initWorkspace();
+lucide.createIcons();
+</script>
+</body>
+</html>
