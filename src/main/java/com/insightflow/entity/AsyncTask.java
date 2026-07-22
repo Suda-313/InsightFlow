@@ -166,7 +166,7 @@ public class AsyncTask {
      * 创建只读报告任务；报告任务复用租约和重试机制，但不拥有任何导入文件状态。
      */
     public static AsyncTask queuedReport(Long workspaceId, String idempotencyKey, String payloadJson) {
-        return queuedWorkspaceTask(workspaceId, idempotencyKey, payloadJson, "report");
+        return queuedWorkspaceTask(workspaceId, idempotencyKey, payloadJson, "analysis_report");
     }
 
     /**

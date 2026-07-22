@@ -9,6 +9,7 @@ import static org.mockito.Mockito.*;
 
 import com.insightflow.entity.WorkspaceProjection;
 import com.insightflow.repository.DataCellRepository;
+import com.insightflow.repository.IssueMetricBucketRepository;
 import com.insightflow.repository.WorkspaceProjectionRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -29,7 +30,9 @@ class WorkspaceProjectionExecutionServiceTest {
         ProjectionSourceLoader loader = mock(ProjectionSourceLoader.class);
         WorkspaceProjectionExecutionService service = new WorkspaceProjectionExecutionService(
                 projRepo, cellRepo, loader, mock(RuleFirstIssueClassifier.class),
-                mock(DataCellBuilder.class), mock(ProjectionFactWriter.class), mock(IssueRulesLoader.class));
+                mock(DataCellBuilder.class), mock(ProjectionFactWriter.class), mock(IssueRulesLoader.class),
+                mock(MetricBucketService.class), mock(IssueMetricBucketRepository.class),
+                mock(EwmaBaselineService.class), mock(AlertDetector.class));
 
         boolean result = service.execute(31L, 7L);
 
@@ -48,7 +51,9 @@ class WorkspaceProjectionExecutionServiceTest {
         when(loader.load(31L, 7L)).thenReturn(List.of());
         WorkspaceProjectionExecutionService service = new WorkspaceProjectionExecutionService(
                 projRepo, cellRepo, loader, mock(RuleFirstIssueClassifier.class),
-                mock(DataCellBuilder.class), mock(ProjectionFactWriter.class), mock(IssueRulesLoader.class));
+                mock(DataCellBuilder.class), mock(ProjectionFactWriter.class), mock(IssueRulesLoader.class),
+                mock(MetricBucketService.class), mock(IssueMetricBucketRepository.class),
+                mock(EwmaBaselineService.class), mock(AlertDetector.class));
 
         boolean result = service.execute(31L, 7L);
 
@@ -65,7 +70,7 @@ class WorkspaceProjectionExecutionServiceTest {
 
         ProjectionSourceLoader loader = mock(ProjectionSourceLoader.class);
         OffsetDateTime occurredAt = OffsetDateTime.now();
-        EventInput event = new EventInput(1L, occurredAt, "登录失败");
+        EventInput event = new EventInput(1L, occurredAt, "工单", "登录失败");
         when(loader.load(31L, 7L)).thenReturn(List.of(event));
 
         RuleFirstIssueClassifier classifier = mock(RuleFirstIssueClassifier.class);
@@ -79,9 +84,14 @@ class WorkspaceProjectionExecutionServiceTest {
         ProjectionFactWriter factWriter = mock(ProjectionFactWriter.class);
         IssueRulesLoader rulesLoader = new IssueRulesLoader();
         rulesLoader.load();
+        MetricBucketService metricBucketService = mock(MetricBucketService.class);
+        IssueMetricBucketRepository metricBucketRepository = mock(IssueMetricBucketRepository.class);
+        when(metricBucketRepository.findByWorkspaceProjectionIdAndWorkspaceId(31L, 7L)).thenReturn(List.of());
 
         WorkspaceProjectionExecutionService service = new WorkspaceProjectionExecutionService(
-                projRepo, cellRepo, loader, classifier, dataCellBuilder, factWriter, rulesLoader);
+                projRepo, cellRepo, loader, classifier, dataCellBuilder, factWriter, rulesLoader,
+                metricBucketService, metricBucketRepository, mock(EwmaBaselineService.class),
+                mock(AlertDetector.class));
 
         boolean result = service.execute(31L, 7L);
 
@@ -89,6 +99,7 @@ class WorkspaceProjectionExecutionServiceTest {
         assertThat(projection.getSourceWindowStart()).isNotNull();
         assertThat(projection.getSourceWindowEnd()).isNotNull();
         verify(factWriter).write(anyLong(), anyLong(), anyList(), anyMap(), anyMap());
+        verify(metricBucketService).write(anyLong(), anyLong(), anyList(), anyMap(), anyMap());
         verify(projRepo).saveAndFlush(projection);
     }
 }

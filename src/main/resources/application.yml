@@ -1,4 +1,12 @@
 spring:
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:}
+      chat:
+        model: qwen-plus
+        options:
+          temperature: 0.3
+          max-tokens: 2000
   application:
     name: insightflow
   servlet:
@@ -56,3 +64,19 @@ insightflow:
     lease-seconds: ${PROJECTION_TASK_LEASE_SECONDS:120}
     max-dispatch-per-cycle: ${PROJECTION_MAX_DISPATCH_PER_CYCLE:2}
     rule-version: ${PROJECTION_RULE_VERSION:rules:v1}
+  analysis:
+    ewma-alpha: ${ANALYSIS_EWMA_ALPHA:0.3}
+    min-history-days: ${ANALYSIS_MIN_HISTORY_DAYS:3}
+    surge-z: ${ANALYSIS_SURGE_Z:2.0}
+    surge-min: ${ANALYSIS_SURGE_MIN:5}
+    chronic-baseline: ${ANALYSIS_CHRONIC_BASELINE:5.0}
+    longtail-max: ${ANALYSIS_LONGTAIL_MAX:2}
+    alert-cooldown-hours: ${ANALYSIS_ALERT_COOLDOWN_HOURS:6}
+    global-alert-threshold: ${ANALYSIS_GLOBAL_ALERT_THRESHOLD:10}
+  agent:
+    enabled: ${AGENT_ENABLED:true}
+    max-retries: ${AGENT_MAX_RETRIES:2}
+    timeout-seconds: ${AGENT_TIMEOUT_SECONDS:30}
+  report:
+    dispatch-delay-ms: ${REPORT_DISPATCH_DELAY_MS:5000}
+    max-dispatch-per-cycle: ${REPORT_MAX_DISPATCH_PER_CYCLE:2}

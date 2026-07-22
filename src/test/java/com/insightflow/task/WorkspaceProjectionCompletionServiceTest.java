@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import org.springframework.context.ApplicationEventPublisher;
+
 import com.insightflow.entity.AsyncTask;
 import com.insightflow.entity.ImportFile;
 import com.insightflow.entity.ProjectionFile;
@@ -46,8 +48,10 @@ class WorkspaceProjectionCompletionServiceTest {
                 .thenReturn(List.of(ProjectionFile.of(31L, 7L, 11L)));
         when(fileRepository.findByIdAndWorkspaceId(11L, 7L)).thenReturn(Optional.of(file));
 
+        ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+
         WorkspaceProjectionCompletionService service = new WorkspaceProjectionCompletionService(
-                taskRepository, projectionRepository, projectionFileRepository, fileRepository);
+                taskRepository, projectionRepository, projectionFileRepository, fileRepository, eventPublisher);
 
         service.complete(task.getPublicId(), "projection-worker");
 

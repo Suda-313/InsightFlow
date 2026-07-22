@@ -139,6 +139,9 @@ public class WorkspaceProjection {
     /** 返回当前投影读取的反馈最晚业务发生时间。 */
     public OffsetDateTime getSourceWindowEnd() { return sourceWindowEnd; }
 
+    /** 返回事实成功写入后的完成时间。 */
+    public OffsetDateTime getProjectedAt() { return projectedAt; }
+
     /** 返回内部键，只供投影关联表和仓储使用。 */
     public Long getId() { return id; }
 

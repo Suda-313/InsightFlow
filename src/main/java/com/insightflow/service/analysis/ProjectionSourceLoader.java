@@ -78,6 +78,7 @@ public class ProjectionSourceLoader {
         for (FeedbackEvent event : events) {
             // 只携带 id / occurred_at / normalizedText 三字段，不暴露 sanitizedText 原文以外字段
             inputs.add(new EventInput(event.getId(), event.getOccurredAt(),
+                    event.getSourceKind(),
                     normalizer.normalize(event.getSanitizedText())));
         }
         return inputs;

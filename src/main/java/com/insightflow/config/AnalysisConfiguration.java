@@ -4,6 +4,12 @@ import com.insightflow.service.analysis.DataCellBuilder;
 import com.insightflow.service.analysis.IssueRulesLoader;
 import com.insightflow.service.analysis.IssueTextNormalizer;
 import com.insightflow.service.analysis.RuleFirstIssueClassifier;
+import com.insightflow.service.analysis.AlertDetector;
+import com.insightflow.service.analysis.EwmaBaselineService;
+import com.insightflow.repository.AlertRepository;
+import com.insightflow.repository.IssueBaselineProfileRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,6 +26,33 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class AnalysisConfiguration {
+
+    // ── 配置值注入 ────────────────────────────────────────────────────────────
+    @Value("${analysis.ewma-alpha}")
+    private double ewmaAlpha;
+
+    @Value("${analysis.min-history-days}")
+    private int minHistoryDays;
+
+    @Value("${analysis.surge-z}")
+    private double surgeZ;
+
+    @Value("${analysis.surge-min}")
+    private int surgeMin;
+
+    @Value("${analysis.chronic-baseline}")
+    private double chronicBaseline;
+
+    @Value("${analysis.longtail-max}")
+    private int longtailMax;
+
+    @Value("${analysis.alert-cooldown-hours}")
+    private int alertCooldownHours;
+
+    @Value("${analysis.global-alert-threshold}")
+    private int globalAlertThreshold;
+
+    // ── Bean 定义 ────────────────────────────────────────────────────────────
 
     /**
      * 规则加载器 Bean，通过 {@code new} + 显式 {@code load()} 手动控制生命周期，确保在
@@ -64,5 +97,25 @@ public class AnalysisConfiguration {
     @Bean
     DataCellBuilder dataCellBuilder() {
         return new DataCellBuilder(40, 60, 6000);
+    }
+
+    /**
+     * EWMA 基线服务 Bean，注入 IssueBaselineProfileRepository 和配置参数，
+     * 用于计算异常基线、检测 surge 与 chronic 模式。
+     */
+    @Bean
+    EwmaBaselineService ewmaBaselineService(IssueBaselineProfileRepository profileRepo) {
+        return new EwmaBaselineService(profileRepo, ewmaAlpha, minHistoryDays,
+                surgeZ, surgeMin, chronicBaseline, longtailMax);
+    }
+
+    /**
+     * 告警检测器 Bean，在 EWMA 基线之上叠加冷却期和全局阈值过滤。
+     * 使用新的 ObjectMapper() 实例，避免与 Spring 的 ObjectMapper 共享配置。
+     */
+    @Bean
+    AlertDetector alertDetector(AlertRepository alertRepo, EwmaBaselineService ewmaBaselineService) {
+        return new AlertDetector(alertRepo, ewmaBaselineService,
+                alertCooldownHours, globalAlertThreshold, surgeZ, new ObjectMapper());
     }
 }

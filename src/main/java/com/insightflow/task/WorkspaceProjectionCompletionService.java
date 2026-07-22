@@ -12,6 +12,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import com.insightflow.agent.event.ProjectionCompletedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 
 /**
  * 在独立短事务中收敛投影终态。
@@ -34,16 +36,21 @@ public class WorkspaceProjectionCompletionService {
     /** 文件仓储以 Workspace 条件限制最终状态更新。 */
     private final ImportFileRepository importFileRepository;
 
+    /** Spring 事件发布器用于触发投影完成事件。 */
+    private final ApplicationEventPublisher applicationEventPublisher;
+
     /** 构造投影完成服务。 */
     public WorkspaceProjectionCompletionService(
             AsyncTaskRepository taskRepository,
             WorkspaceProjectionRepository projectionRepository,
             ProjectionFileRepository projectionFileRepository,
-            ImportFileRepository importFileRepository) {
+            ImportFileRepository importFileRepository,
+            ApplicationEventPublisher applicationEventPublisher) {
         this.taskRepository = taskRepository;
         this.projectionRepository = projectionRepository;
         this.projectionFileRepository = projectionFileRepository;
         this.importFileRepository = importFileRepository;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     /**
@@ -67,6 +74,8 @@ public class WorkspaceProjectionCompletionService {
                         .ifPresent(ImportFile::markProjected));
         task.markSucceeded("{\"projection\":\"state_only\"}");
         projection.markSucceeded(projection.getSourceWindowStart(), projection.getSourceWindowEnd(), OffsetDateTime.now());
+        applicationEventPublisher.publishEvent(
+                new ProjectionCompletedEvent(this, String.valueOf(projection.getId()), String.valueOf(projection.getWorkspaceId())));
     }
 
     /**

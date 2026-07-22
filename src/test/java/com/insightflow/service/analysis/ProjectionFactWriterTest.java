@@ -37,7 +37,7 @@ class ProjectionFactWriterTest {
         ProjectionFactWriter writer = new ProjectionFactWriter(
                 linkRepo, cellRepo, cellIssueRepo, new ObjectMapper(), catalogService);
         OffsetDateTime now = OffsetDateTime.parse("2026-07-20T10:00:00Z");
-        List<EventInput> events = List.of(new EventInput(1L, now, "登录失败"));
+        List<EventInput> events = List.of(new EventInput(1L, now, "工单", "登录失败"));
         DataCellPlan plan = new DataCellPlan(now, now, "stream_end", events, 5);
         Map<Long, List<Classification>> classifications = Map.of(
                 1L, List.of(new Classification("login_failure", 1.0, "rule")));

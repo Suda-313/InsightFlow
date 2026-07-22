@@ -29,7 +29,7 @@ class AsyncTaskTypeFactoryTest {
     void createsQueuedReportWithoutAnImportFileReference() {
         AsyncTask task = AsyncTask.queuedReport(7L, "report:request:11", "{\"file_ids\":[\"x\"]}");
 
-        assertThat(task.getTaskType()).isEqualTo("report");
+        assertThat(task.getTaskType()).isEqualTo("analysis_report");
         assertThat(task.getStatus()).isEqualTo("queued");
         assertThat(task.getImportFileId()).isNull();
     }

@@ -1,7 +1,10 @@
 package com.insightflow.service.analysis;
 
+import com.insightflow.entity.IssueBaselineProfile;
+import com.insightflow.entity.IssueMetricBucket;
 import com.insightflow.entity.WorkspaceProjection;
 import com.insightflow.repository.DataCellRepository;
+import com.insightflow.repository.IssueMetricBucketRepository;
 import com.insightflow.repository.WorkspaceProjectionRepository;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +36,14 @@ public class WorkspaceProjectionExecutionService {
     private final ProjectionFactWriter factWriter;
     /** 规则加载器，提供 canonical name 映射。 */
     private final IssueRulesLoader rulesLoader;
+    /** 指标桶写入器，按日聚合分类结果。 */
+    private final MetricBucketService metricBucketService;
+    /** 日指标桶仓储，查询已写入的桶。 */
+    private final IssueMetricBucketRepository metricBucketRepository;
+    /** EWMA 基线服务，按日增量更新基线。 */
+    private final EwmaBaselineService ewmaBaselineService;
+    /** 告警检测器，根据基线与冷却期判断是否触发新告警。 */
+    private final AlertDetector alertDetector;
 
     /** 构造编排服务；所有依赖在调用方事务内执行。 */
     public WorkspaceProjectionExecutionService(WorkspaceProjectionRepository projectionRepository,
@@ -41,7 +52,11 @@ public class WorkspaceProjectionExecutionService {
                                                 RuleFirstIssueClassifier classifier,
                                                 DataCellBuilder dataCellBuilder,
                                                 ProjectionFactWriter factWriter,
-                                                IssueRulesLoader rulesLoader) {
+                                                IssueRulesLoader rulesLoader,
+                                                MetricBucketService metricBucketService,
+                                                IssueMetricBucketRepository metricBucketRepository,
+                                                EwmaBaselineService ewmaBaselineService,
+                                                AlertDetector alertDetector) {
         this.projectionRepository = projectionRepository;
         this.dataCellRepository = dataCellRepository;
         this.sourceLoader = sourceLoader;
@@ -49,6 +64,10 @@ public class WorkspaceProjectionExecutionService {
         this.dataCellBuilder = dataCellBuilder;
         this.factWriter = factWriter;
         this.rulesLoader = rulesLoader;
+        this.metricBucketService = metricBucketService;
+        this.metricBucketRepository = metricBucketRepository;
+        this.ewmaBaselineService = ewmaBaselineService;
+        this.alertDetector = alertDetector;
     }
 
     /**
@@ -83,6 +102,17 @@ public class WorkspaceProjectionExecutionService {
         rulesLoader.rules().forEach(r -> canonicalNames.put(r.canonicalKey(), r.name()));
         // 写入事实：cell + 分类 + 规则名；同一事务内，失败整体回滚
         factWriter.write(projectionId, workspaceId, cells, classificationsByEventId, canonicalNames);
+        // 按日聚合分类结果写入指标桶，用于 dashboard 趋势分析
+        metricBucketService.write(projectionId, workspaceId, events, classificationsByEventId, canonicalNames);
+        // 查询本次投影写入的日指标桶，更新基线并检测告警
+        List<IssueMetricBucket> buckets = metricBucketRepository
+                .findByWorkspaceProjectionIdAndWorkspaceId(projectionId, workspaceId);
+        for (IssueMetricBucket bucket : buckets) {
+            IssueBaselineProfile profile = ewmaBaselineService.update(
+                    workspaceId, bucket.getIssueId(), bucket.getBucketStart(), bucket.getFeedbackCount());
+            alertDetector.detect(workspaceId, bucket.getIssueId(), projectionId,
+                    bucket.getBucketStart(), bucket.getFeedbackCount(), profile);
+        }
         // 记录源时间窗口，用于后续增量计算边界
         projection.recordSourceWindow(cells.get(0).windowStart(),
                 cells.get(cells.size() - 1).windowEnd());

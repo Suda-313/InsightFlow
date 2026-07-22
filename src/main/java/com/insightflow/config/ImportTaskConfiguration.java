@@ -43,4 +43,19 @@ public class ImportTaskConfiguration {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * 报告生成任务使用独立线程池，避免 LLM 调用阻塞导入或投影任务。
+     */
+    @Bean("analysisReportTaskExecutor")
+    public ThreadPoolTaskExecutor analysisReportTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("analysis-report-task-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }

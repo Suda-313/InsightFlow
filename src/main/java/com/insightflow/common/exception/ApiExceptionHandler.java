@@ -35,6 +35,14 @@ public class ApiExceptionHandler {
     }
 
     /**
+     * 主题不存在时返回 404，复用统一的资源找不到错误码。
+     */
+    @ExceptionHandler(IssueNotFoundException.class)
+    public ResponseEntity<ErrorEnvelope> handleIssueNotFound(IssueNotFoundException exception) {
+        return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", exception.getMessage(), List.of());
+    }
+
+    /**
      * 文件不存在或不属于当前 Workspace 时复用 404 语义，不区分两种情况以避免越权探测。
      */
     @ExceptionHandler(ImportFileNotFoundException.class)

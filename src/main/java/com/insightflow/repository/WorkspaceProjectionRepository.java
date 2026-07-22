@@ -13,4 +13,7 @@ public interface WorkspaceProjectionRepository extends JpaRepository<WorkspacePr
 
     /** 返回指定 Workspace 内归属于任务的唯一投影记录。 */
     Optional<WorkspaceProjection> findByAsyncTaskIdAndWorkspaceId(Long asyncTaskId, Long workspaceId);
+
+    /** 返回工作区内最近创建的一次投影，用于看板展示最新投影状态。 */
+    Optional<WorkspaceProjection> findTopByWorkspaceIdOrderByCreatedAtDesc(Long workspaceId);
 }

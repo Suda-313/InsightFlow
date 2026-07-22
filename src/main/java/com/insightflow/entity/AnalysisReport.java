@@ -133,4 +133,81 @@ public class AnalysisReport {
     public String getReportJson() {
         return reportJson;
     }
+
+    /**
+     * 返回内部关联键，仅供仓储和关联表写入。
+     */
+    public Long getId() {
+        return id;
+    }
+
+    /**
+     * 返回用户可见的报告 UUIDv7。
+     */
+    public UUID getPublicId() {
+        return publicId;
+    }
+
+    /**
+     * 返回所属 Workspace 内部键，用于二次隔离校验。
+     */
+    public Long getWorkspaceId() {
+        return workspaceId;
+    }
+
+    /**
+     * 返回关联的通用异步任务内部键。
+     */
+    public Long getAsyncTaskId() {
+        return asyncTaskId;
+    }
+
+    /**
+     * 返回报告组装版本。
+     */
+    public String getReportVersion() {
+        return reportVersion;
+    }
+
+    /**
+     * 返回读取看板事实的截点。
+     */
+    public OffsetDateTime getSourceSnapshotAt() {
+        return sourceSnapshotAt;
+    }
+
+    /**
+     * 返回已冻结的范围 JSON。
+     */
+    public String getScopeJson() {
+        return scopeJson;
+    }
+
+    /**
+     * 返回受控失败码。
+     */
+    public String getErrorCode() {
+        return errorCode;
+    }
+
+    /**
+     * 返回无 PII 的失败说明。
+     */
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    /**
+     * 返回受理时间。
+     */
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    /**
+     * 返回状态最后变更时间。
+     */
+    public OffsetDateTime getUpdatedAt() {
+        return updatedAt;
+    }
 }
