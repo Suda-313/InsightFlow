@@ -2,6 +2,7 @@ package com.insightflow.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.entity.AnalysisReport;
 import com.insightflow.entity.AsyncTask;
 import com.insightflow.service.ReportCommandService;
@@ -11,8 +12,12 @@ import jakarta.validation.constraints.NotNull;
 import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,9 +38,11 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class ReportController {
 
     private final ReportCommandService reportCommandService;
+    private final ObjectMapper objectMapper;
 
-    public ReportController(ReportCommandService reportCommandService) {
+    public ReportController(ReportCommandService reportCommandService, ObjectMapper objectMapper) {
         this.reportCommandService = reportCommandService;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -69,10 +76,38 @@ public class ReportController {
     }
 
     /**
+     * 下载报告为 Markdown 文件。
+     */
+    @GetMapping("/{reportId}/download")
+    public ResponseEntity<byte[]> download(
+            @PathVariable UUID workspaceId,
+            @PathVariable UUID reportId) {
+        AnalysisReport report = reportCommandService.findReport(workspaceId, reportId);
+        if (!"succeeded".equals(report.getStatus())) {
+            throw new IllegalArgumentException("报告尚未生成完成，请稍后再试。");
+        }
+        try {
+            Map<String, Object> json = objectMapper.readValue(report.getReportJson(), Map.class);
+            String reportContent = (String) json.getOrDefault("report", "无报告内容");
+            byte[] content = reportContent.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("text/markdown; charset=UTF-8"));
+            headers.setContentDisposition(ContentDisposition.attachment()
+                    .filename("analysis-report.md", java.nio.charset.StandardCharsets.UTF_8)
+                    .build());
+            headers.setContentLength(content.length);
+            return ResponseEntity.ok().headers(headers).body(content);
+        } catch (Exception e) {
+            throw new RuntimeException("报告解析失败", e);
+        }
+    }
+
+    /**
      * 创建报告请求的最小契约。
      */
     public record CreateReportRequest(
-            @NotEmpty List<UUID> fileIds,
+            List<UUID> fileIds,
             @NotNull @JsonProperty("time_range") TimeRange timeRange) {
 
         public record TimeRange(@JsonProperty("start") OffsetDateTime start,

@@ -16,41 +16,32 @@ import org.springframework.web.bind.annotation.RestController;
  * 注入 {@link WorkspaceService} 仅用于校验工作区存在，业务聚合由 {@link DashboardService} 完成。</p>
  */
 @RestController
-@RequestMapping("/api/v1/workspaces/{workspaceId}/dashboard")
+@RequestMapping("/api/v1/workspaces/{workspaceId}")
 public class DashboardController {
 
     private final WorkspaceService workspaceService;
     private final DashboardService dashboardService;
 
-    /**
-     * 通过构造器注入依赖，保持 API 层可测试。
-     */
     public DashboardController(WorkspaceService workspaceService, DashboardService dashboardService) {
         this.workspaceService = workspaceService;
         this.dashboardService = dashboardService;
     }
 
-    /**
-     * 返回看板首页聚合数据。
-     */
-    @GetMapping
+    /** 看板首页聚合数据。 */
+    @GetMapping("/dashboard")
     public DashboardService.DashboardResponse getDashboard(@PathVariable UUID workspaceId) {
         workspaceService.get(workspaceId);
         return dashboardService.getDashboard(workspaceId);
     }
 
-    /**
-     * 返回工作区下所有 issue 列表。
-     */
+    /** 工作区下所有 issue 列表。 */
     @GetMapping("/issues")
     public List<DashboardService.IssueSummary> getIssues(@PathVariable UUID workspaceId) {
         workspaceService.get(workspaceId);
         return dashboardService.getIssues(workspaceId);
     }
 
-    /**
-     * 返回单个 issue 的详细趋势与告警历史。
-     */
+    /** 单个 issue 的详细趋势与告警历史。 */
     @GetMapping("/issues/{canonicalKey}")
     public DashboardService.IssueDetailResponse getIssueDetail(
             @PathVariable UUID workspaceId,

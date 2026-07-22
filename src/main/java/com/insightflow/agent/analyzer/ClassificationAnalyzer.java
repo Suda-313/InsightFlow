@@ -1,8 +1,11 @@
 package com.insightflow.agent.analyzer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.agent.InsightAgent;
+import com.insightflow.agent.LlmMetrics;
 import com.insightflow.agent.dto.ClassificationResult;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,27 +26,34 @@ public class ClassificationAnalyzer implements InsightAgent<ClassificationResult
             """;
 
     private final ChatClient chatClient;
+    private final ObjectMapper objectMapper;
 
-    public ClassificationAnalyzer(ChatClient chatClient) {
+    public ClassificationAnalyzer(ChatClient chatClient, ObjectMapper objectMapper) {
         this.chatClient = chatClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override
-    public String systemPrompt() {
-        return SYSTEM_PROMPT;
-    }
+    public String systemPrompt() { return SYSTEM_PROMPT; }
 
     @Override
-    public Class<ClassificationResult> outputSchema() {
-        return ClassificationResult.class;
-    }
+    public Class<ClassificationResult> outputSchema() { return ClassificationResult.class; }
 
     @Override
     public ClassificationResult execute(String userInput) {
-        return chatClient.prompt()
+        long start = System.currentTimeMillis();
+        ChatResponse response = chatClient.prompt()
                 .system(systemPrompt())
                 .user(userInput)
                 .call()
-                .entity(outputSchema());
+                .chatResponse();
+        LlmMetrics.log("Classification", start, response);
+        try {
+            String content = response.getResult().getOutput().getContent();
+            String json = LlmMetrics.extractJson(content);
+            return objectMapper.readValue(json, outputSchema());
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

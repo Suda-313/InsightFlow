@@ -28,28 +28,28 @@ import org.springframework.context.annotation.Configuration;
 public class AnalysisConfiguration {
 
     // ── 配置值注入 ────────────────────────────────────────────────────────────
-    @Value("${analysis.ewma-alpha}")
+    @Value("${insightflow.analysis.ewma-alpha}")
     private double ewmaAlpha;
 
-    @Value("${analysis.min-history-days}")
+    @Value("${insightflow.analysis.min-history-days}")
     private int minHistoryDays;
 
-    @Value("${analysis.surge-z}")
+    @Value("${insightflow.analysis.surge-z}")
     private double surgeZ;
 
-    @Value("${analysis.surge-min}")
+    @Value("${insightflow.analysis.surge-min}")
     private int surgeMin;
 
-    @Value("${analysis.chronic-baseline}")
+    @Value("${insightflow.analysis.chronic-baseline}")
     private double chronicBaseline;
 
-    @Value("${analysis.longtail-max}")
+    @Value("${insightflow.analysis.longtail-max}")
     private int longtailMax;
 
-    @Value("${analysis.alert-cooldown-hours}")
+    @Value("${insightflow.analysis.alert-cooldown-hours}")
     private int alertCooldownHours;
 
-    @Value("${analysis.global-alert-threshold}")
+    @Value("${insightflow.analysis.global-alert-threshold}")
     private int globalAlertThreshold;
 
     // ── Bean 定义 ────────────────────────────────────────────────────────────

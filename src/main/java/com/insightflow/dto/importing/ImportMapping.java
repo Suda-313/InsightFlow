@@ -1,5 +1,6 @@
 package com.insightflow.dto.importing;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -16,6 +17,23 @@ public record ImportMapping(
         @JsonProperty("source") String source,
         @JsonProperty("external_ref") String externalRef,
         @JsonProperty("dimensions") Map<String, String> dimensions) {
+
+    /**
+     * JSON 反序列化构造器；dimensions 缺失时默认为空 Map。
+     */
+    @JsonCreator
+    public ImportMapping(
+            @JsonProperty("feedback_text") String feedbackText,
+            @JsonProperty("occurred_at") String occurredAt,
+            @JsonProperty("source") String source,
+            @JsonProperty("external_ref") String externalRef,
+            @JsonProperty("dimensions") Map<String, String> dimensions) {
+        this.feedbackText = feedbackText;
+        this.occurredAt = occurredAt;
+        this.source = source;
+        this.externalRef = externalRef;
+        this.dimensions = dimensions != null ? dimensions : Map.of();
+    }
 
     /**
      * 返回所有被映射的 CSV 列，便于统一检查其是否出现在当前文件表头中。

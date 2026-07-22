@@ -15,6 +15,7 @@ import com.insightflow.repository.IssueCatalogRepository;
 import com.insightflow.repository.IssueMetricBucketRepository;
 import com.insightflow.repository.WorkspaceProjectionRepository;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +91,8 @@ public class DashboardService {
         Long workspaceId = workspace.getId();
 
         Map<Long, List<IssueMetricBucket>> bucketsByIssue = issueMetricBucketRepository
-                .findByWorkspaceIdAndBucketStartGreaterThanEqual(workspaceId, OffsetDateTime.MIN)
+                .findByWorkspaceIdAndBucketStartGreaterThanEqual(workspaceId,
+                        OffsetDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
                 .stream()
                 .collect(Collectors.groupingBy(IssueMetricBucket::getIssueId));
 

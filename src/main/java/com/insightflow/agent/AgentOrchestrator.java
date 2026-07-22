@@ -36,8 +36,8 @@ public class AgentOrchestrator {
     /**
      * 并行执行一组 Agent，返回与入参顺序一致的结果列表。
      * 执行失败的 Agent 其对应位置为 null。
+     * 内部使用 CompletableFuture 并行执行，调用方已异步则无需额外 @Async。
      */
-    @Async
     public <T> List<T> parallel(List<? extends InsightAgent<? extends T>> agents, String userInput) {
         List<CompletableFuture<T>> futures = agents.stream()
                 .map(agent -> CompletableFuture.supplyAsync(() -> {

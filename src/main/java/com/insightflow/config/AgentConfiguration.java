@@ -1,7 +1,7 @@
 package com.insightflow.config;
 
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.dashscope.DashscopeChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -12,13 +12,10 @@ import org.springframework.context.annotation.Configuration;
 public class AgentConfiguration {
 
     /**
-     * 基于 DashScope 的 ChatClient Bean，供各类 Analyzer 注入使用。
-     *
-     * @param chatModel DashScope 聊天模型
-     * @return ChatClient 实例
+     * 基于 OpenAI 兼容接口的 ChatClient Bean（对接百炼平台 DeepSeek 模型）。
      */
     @Bean
-    ChatClient chatClient(DashscopeChatModel chatModel) {
+    ChatClient chatClient(OpenAiChatModel chatModel) {
         return ChatClient.create(chatModel);
     }
 }

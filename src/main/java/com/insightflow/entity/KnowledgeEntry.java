@@ -7,6 +7,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 知识库条目；RAG 检索的最小单元，当前阶段使用 LIKE 模糊搜索，
@@ -38,7 +40,7 @@ public class KnowledgeEntry {
     /**
      * 条目正文。
      */
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
     /**
@@ -56,13 +58,14 @@ public class KnowledgeEntry {
     /**
      * 向量嵌入（预留，当前阶段未使用）。
      */
-    @Column(length = 10000)
+    @Column(columnDefinition = "TEXT")
     private String embedding;
 
     /**
      * 扩展元数据 JSON 字符串。
      */
-    @Column(name = "metadata_json", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata_json", columnDefinition = "jsonb")
     private String metadataJson;
 
     /**

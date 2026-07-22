@@ -7,6 +7,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 单主题单日的指标聚合桶；是看板趋势、报告和 EWMA 的共同事实来源。
@@ -44,6 +46,7 @@ public class IssueMetricBucket {
     private int feedbackCount;
 
     /** JSONB 维度摘要，如 {"工单":12,"评价":5}。 */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "dimension_summary_json", nullable = false, columnDefinition = "jsonb")
     private String dimensionSummaryJson;
 

@@ -15,6 +15,9 @@ import com.insightflow.service.DashboardService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.time.OffsetDateTime;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +29,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class AnalysisReportTaskRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(AnalysisReportTaskRunner.class);
 
     private final AsyncTaskRepository taskRepository;
     private final AnalysisReportRepository reportRepository;
@@ -79,11 +84,13 @@ public class AnalysisReportTaskRunner {
             }
 
             MergedData mergedData = buildMergedData(workspace.getPublicId());
-            ReportResult result = reportAgent.generate(mergedData);
-            String reportJson = objectMapper.writeValueAsString(result);
+            String reportContent = reportAgent.generate(mergedData);
+            String reportJson = objectMapper.writeValueAsString(
+                    Map.of("report", reportContent, "generatedAt", OffsetDateTime.now().toString()));
 
             completionService.complete(taskPublicId, workerId, reportJson);
         } catch (Exception exception) {
+            log.error("报告生成失败: {}", exception.getMessage(), exception);
             completionService.fail(taskPublicId, workerId, "REPORT_GENERATION_FAILED", "报告生成失败，请稍后重试。");
         }
     }

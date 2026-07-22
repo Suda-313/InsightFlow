@@ -62,7 +62,9 @@ public class ReportCommandService {
             throw new ImportValidationException("Idempotency-Key 不能为空。");
         }
         if (fileIds == null || fileIds.isEmpty()) {
-            throw new ImportValidationException("报告至少需要选择一个来源文件。");
+            if (timeRange == null || timeRange.start() == null || timeRange.end() == null) {
+                throw new ImportValidationException("报告至少需要选择来源文件或指定时间范围。");
+            }
         }
         if (timeRange == null || timeRange.start() == null || timeRange.end() == null) {
             throw new ImportValidationException("报告时间范围不能为空。");
@@ -78,7 +80,7 @@ public class ReportCommandService {
             return existing;
         }
 
-        List<ImportFile> files = resolveFiles(workspaceId, fileIds);
+        List<ImportFile> files = fileIds != null && !fileIds.isEmpty() ? resolveFiles(workspaceId, fileIds) : List.of();
         OffsetDateTime snapshotAt = OffsetDateTime.now();
         String scopeJson = writeScope(fileIds, timeRange, snapshotAt);
 
@@ -117,7 +119,9 @@ public class ReportCommandService {
     private String writeScope(List<UUID> fileIds, TimeRange timeRange, OffsetDateTime snapshotAt) {
         try {
             Map<String, Object> scope = new LinkedHashMap<>();
-            scope.put("fileIds", fileIds);
+            if (fileIds != null && !fileIds.isEmpty()) {
+                scope.put("fileIds", fileIds);
+            }
             scope.put("timeRange", Map.of("start", timeRange.start(), "end", timeRange.end()));
             scope.put("snapshotAt", snapshotAt);
             return objectMapper.writeValueAsString(scope);

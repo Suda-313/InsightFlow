@@ -103,7 +103,7 @@ public class FileImportController {
     /**
      * 映射请求外层契约，与 API 文档的 mapping JSON 对象保持一致。
      */
-    public record MappingRequest(@Valid @JsonProperty("mapping") ImportMapping mapping) {
+    public record MappingRequest(@Valid ImportMapping mapping) {
     }
 
     /**

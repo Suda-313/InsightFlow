@@ -1,6 +1,7 @@
 package com.insightflow.repository;
 
 import com.insightflow.entity.ImportFile;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import jakarta.persistence.LockModeType;
@@ -41,4 +42,9 @@ public interface ImportFileRepository extends JpaRepository<ImportFile, Long> {
     @Query("select file from ImportFile file where file.id = :fileId and file.workspaceId = :workspaceId")
     Optional<ImportFile> findByIdAndWorkspaceIdForUpdate(
             @Param("fileId") Long fileId, @Param("workspaceId") Long workspaceId);
+
+    /**
+     * 扫描投影 pending 且导入成功的文件，供调度器创建投影任务。
+     */
+    List<ImportFile> findByProjectionStatusAndStatus(String projectionStatus, String status);
 }
