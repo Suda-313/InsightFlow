@@ -53,6 +53,9 @@ body { font-family: 'Fira Sans', sans-serif; }
       <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm" data-page="issues">
         <i data-lucide="tags" class="w-5 h-5"></i> 主题分析
       </a>
+      <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm" data-page="import">
+        <i data-lucide="upload" class="w-5 h-5"></i> 数据导入
+      </a>
       <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm" data-page="reports">
         <i data-lucide="file-text" class="w-5 h-5"></i> 分析报告
       </a>
@@ -111,6 +114,35 @@ body { font-family: 'Fira Sans', sans-serif; }
       <h1 class="text-2xl font-bold mb-6">分析报告</h1>
       <div id="reports-list" class="space-y-3"></div>
     </div>
+
+    <!-- Import Page -->
+    <div id="page-import" class="p-6" style="display:none">
+      <h1 class="text-2xl font-bold mb-6">数据导入</h1>
+      <div id="import-step-1">
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
+          <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-12 text-center cursor-pointer hover:border-primary transition" id="drop-zone">
+            <i data-lucide="upload-cloud" class="w-12 h-12 mx-auto text-slate-400 mb-4"></i>
+            <p class="text-slate-600 dark:text-slate-300 font-medium mb-1">点击或拖拽上传 CSV 文件</p>
+            <p class="text-xs text-slate-400">支持 UTF-8 编码的 CSV 文件</p>
+            <input type="file" id="file-input" accept=".csv" class="hidden">
+          </div>
+          <div id="upload-status" class="mt-4 text-center text-sm hidden"></div>
+        </div>
+      </div>
+      <div id="import-step-2" class="hidden">
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 mb-4">
+          <h3 class="font-semibold mb-3">字段映射</h3>
+          <div class="grid grid-cols-2 gap-3" id="mapping-form"></div>
+          <button onclick="submitMapping()" class="mt-4 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-dark transition">确认映射</button>
+        </div>
+      </div>
+      <div id="import-step-3" class="hidden">
+        <div class="card bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 text-center">
+          <div id="import-progress" class="text-sm text-slate-500">准备导入...</div>
+          <button onclick="startImport()" id="start-import-btn" class="mt-4 bg-accent text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-amber-600 transition">开始导入</button>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -128,6 +160,7 @@ document.querySelectorAll('.sidebar-link').forEach(link => {
     document.getElementById('page-' + link.dataset.page).style.display = 'block';
     if (link.dataset.page === 'dashboard') loadDashboard();
     if (link.dataset.page === 'issues') loadIssues();
+    if (link.dataset.page === 'import') initImport();
     if (link.dataset.page === 'reports') loadReports();
   });
 });
@@ -233,6 +266,87 @@ async function loadReports() {
       </button>
     </div>`;
   lucide.createIcons();
+}
+
+// ====== Import ======
+let importFileId = null, importHeaders = [];
+
+function initImport() {
+  const dz = document.getElementById('drop-zone');
+  const input = document.getElementById('file-input');
+  dz.onclick = () => input.click();
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('border-primary'); };
+  dz.ondragleave = () => dz.classList.remove('border-primary');
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('border-primary'); uploadFile(e.dataTransfer.files[0]); };
+  input.onchange = () => uploadFile(input.files[0]);
+}
+
+async function uploadFile(file) {
+  if (!file || !currentWorkspace) return;
+  let status = document.getElementById('upload-status');
+  status.classList.remove('hidden');
+  status.innerHTML = '<span class="text-primary">上传中...</span>';
+
+  let form = new FormData(); form.append('file', file);
+  let resp = await fetch(API + '/api/v1/workspaces/' + currentWorkspace + '/imports/files', { method: 'POST', body: form });
+  let data = await resp.json();
+  if (data.error) { status.innerHTML = '<span class="text-red-500">上传失败: ' + data.error.message + '</span>'; return; }
+
+  importFileId = data.id;
+  importHeaders = data.headers;
+  status.innerHTML = '<span class="text-green-500">✅ 上传成功！' + data.size_bytes + ' 字节，' + data.headers.length + ' 列</span>';
+
+  // Show step 2: mapping
+  let form = document.getElementById('mapping-form');
+  let fields = ['feedback_text:反馈内容', 'occurred_at:发生时间', 'source:来源', 'external_ref:工单号'];
+  form.innerHTML = fields.map(f => {
+    let [key, label] = f.split(':');
+    return `<div class="flex items-center gap-2"><label class="text-xs text-slate-500 w-24">${label}</label>
+      <select class="flex-1 bg-slate-100 dark:bg-slate-700 rounded-lg px-2 py-1.5 text-sm border-0 outline-none mapping-select" data-key="${key}">
+        <option value="">-- 选择列 --</option>
+        ${importHeaders.map(h => `<option value="${h}">${h}</option>`).join('')}
+      </select></div>`;
+  }).join('');
+
+  // Auto-match
+  document.querySelectorAll('.mapping-select').forEach(sel => {
+    let key = sel.dataset.key;
+    let match = importHeaders.find(h => h.includes(key === 'feedback_text' ? '反馈' : key === 'occurred_at' ? '时间' : key === 'source' ? '来源' : '工单'));
+    if (match) sel.value = match;
+  });
+
+  document.getElementById('import-step-1').classList.add('hidden');
+  document.getElementById('import-step-2').classList.remove('hidden');
+}
+
+async function submitMapping() {
+  if (!importFileId || !currentWorkspace) return;
+  let mapping = {};
+  document.querySelectorAll('.mapping-select').forEach(sel => { mapping[sel.dataset.key] = sel.value; });
+  let resp = await fetch(API + '/api/v1/workspaces/' + currentWorkspace + '/imports/files/' + importFileId + '/mapping', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({mapping: {...mapping, dimensions:{}}})
+  });
+  let data = await resp.json();
+  if (data.error) { alert('映射失败: ' + data.error.message); return; }
+  document.getElementById('import-step-2').classList.add('hidden');
+  document.getElementById('import-step-3').classList.remove('hidden');
+  document.getElementById('import-progress').innerHTML = '<span class="text-green-500">✅ 映射保存成功！</span>';
+}
+
+async function startImport() {
+  if (!importFileId || !currentWorkspace) return;
+  let btn = document.getElementById('start-import-btn');
+  btn.disabled = true; btn.textContent = '导入中...';
+  let idemKey = 'import-' + Date.now();
+  let resp = await fetch(API + '/api/v1/workspaces/' + currentWorkspace + '/imports/files/' + importFileId + '/start', {
+    method: 'POST', headers: {'Idempotency-Key': idemKey}
+  });
+  let data = await resp.json();
+  if (data.error) { alert('导入失败: ' + data.error.message); btn.disabled = false; btn.textContent = '开始导入'; return; }
+  document.getElementById('import-progress').innerHTML = '<span class="text-primary">⏳ 导入任务已启动，正在后台处理...</span>';
+  btn.textContent = '已完成';
+  setTimeout(() => loadDashboard(), 5000);
 }
 
 // Init
