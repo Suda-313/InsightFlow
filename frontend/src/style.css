@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
+body { font-family: 'Fira Sans', sans-serif; }
+.card { @apply bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700; transition: box-shadow 150ms; }
+.card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.btn-primary { @apply bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-dark transition cursor-pointer disabled:opacity-50; }
+.btn-accent { @apply bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 transition cursor-pointer disabled:opacity-50; }
