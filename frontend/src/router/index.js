@@ -1,7 +1,7 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 export default createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     { path: '/', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
     { path: '/issues', name: 'Issues', component: () => import('../views/Issues.vue') },
