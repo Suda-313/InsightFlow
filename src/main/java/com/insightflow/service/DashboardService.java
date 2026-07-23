@@ -1,15 +1,21 @@
 package com.insightflow.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.common.exception.IssueNotFoundException;
 import com.insightflow.entity.Alert;
+import com.insightflow.entity.CellIssue;
 import com.insightflow.entity.DataCell;
+import com.insightflow.entity.FeedbackEvent;
 import com.insightflow.entity.IssueBaselineProfile;
 import com.insightflow.entity.IssueCatalog;
 import com.insightflow.entity.IssueMetricBucket;
 import com.insightflow.entity.Workspace;
 import com.insightflow.entity.WorkspaceProjection;
 import com.insightflow.repository.AlertRepository;
+import com.insightflow.repository.CellIssueRepository;
 import com.insightflow.repository.DataCellRepository;
+import com.insightflow.repository.FeedbackEventRepository;
 import com.insightflow.repository.IssueBaselineProfileRepository;
 import com.insightflow.repository.IssueCatalogRepository;
 import com.insightflow.repository.IssueMetricBucketRepository;
@@ -46,6 +52,9 @@ public class DashboardService {
     private final IssueBaselineProfileRepository issueBaselineProfileRepository;
     private final IssueCatalogRepository issueCatalogRepository;
     private final WorkspaceProjectionRepository workspaceProjectionRepository;
+    private final CellIssueRepository cellIssueRepository;
+    private final FeedbackEventRepository feedbackEventRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * 通过构造器注入所有依赖，便于单元测试替换为 mock。
@@ -57,7 +66,10 @@ public class DashboardService {
             AlertRepository alertRepository,
             IssueBaselineProfileRepository issueBaselineProfileRepository,
             IssueCatalogRepository issueCatalogRepository,
-            WorkspaceProjectionRepository workspaceProjectionRepository) {
+            WorkspaceProjectionRepository workspaceProjectionRepository,
+            CellIssueRepository cellIssueRepository,
+            FeedbackEventRepository feedbackEventRepository,
+            ObjectMapper objectMapper) {
         this.workspaceService = workspaceService;
         this.dataCellRepository = dataCellRepository;
         this.issueMetricBucketRepository = issueMetricBucketRepository;
@@ -65,6 +77,9 @@ public class DashboardService {
         this.issueBaselineProfileRepository = issueBaselineProfileRepository;
         this.issueCatalogRepository = issueCatalogRepository;
         this.workspaceProjectionRepository = workspaceProjectionRepository;
+        this.cellIssueRepository = cellIssueRepository;
+        this.feedbackEventRepository = feedbackEventRepository;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -132,6 +147,18 @@ public class DashboardService {
                 .map(this::toBaselineInfo)
                 .orElse(null);
 
+        // Sample texts from cell_issue sample_event_ids
+        List<String> sampleTexts = cellIssueRepository.findByIssueId(catalog.getId()).stream()
+                .flatMap(ci -> {
+                    try {
+                        return objectMapper.readValue(ci.getSampleEventIdsJson(), new TypeReference<List<Long>>() {}).stream();
+                    } catch (Exception e) { return java.util.stream.Stream.empty(); }
+                })
+                .distinct().limit(5)
+                .map(eventId -> feedbackEventRepository.findById(eventId).map(FeedbackEvent::getSanitizedText).orElse(null))
+                .filter(t -> t != null)
+                .toList();
+
         return new IssueDetailResponse(
                 catalog.getPublicId(),
                 catalog.getCanonicalKey(),
@@ -141,7 +168,8 @@ public class DashboardService {
                         .map(bucket -> new TrendPoint(bucket.getBucketStart(), bucket.getFeedbackCount()))
                         .toList(),
                 alerts,
-                baseline);
+                baseline,
+                sampleTexts);
     }
 
     private DataCoverage buildDataCoverage(Long workspaceId) {
@@ -300,7 +328,8 @@ public class DashboardService {
             String status,
             List<TrendPoint> recentTrend,
             List<AlertSummary> alerts,
-            BaselineInfo baseline) {
+            BaselineInfo baseline,
+            List<String> sampleTexts) {
     }
 
     /**
