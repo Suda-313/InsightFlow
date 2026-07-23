@@ -205,8 +205,14 @@ public class DashboardService {
     }
 
     private AlertSummary toAlertSummary(Alert alert) {
+        String issueName = issueCatalogRepository.findById(alert.getIssueId())
+                .map(IssueCatalog::getCanonicalName).orElse("未知");
+        String issueKey = issueCatalogRepository.findById(alert.getIssueId())
+                .map(IssueCatalog::getCanonicalKey).orElse("unknown");
         return new AlertSummary(
                 alert.getPublicId(),
+                issueName,
+                issueKey,
                 alert.getCurrentCount(),
                 alert.getCreatedAt());
     }
@@ -269,7 +275,7 @@ public class DashboardService {
     /**
      * 告警摘要；不包含内部 issue 键，前端通过 canonicalKey 路由。
      */
-    public record AlertSummary(UUID alertId, int currentCount, OffsetDateTime createdAt) {
+    public record AlertSummary(UUID alertId, String issueName, String issueKey, int currentCount, OffsetDateTime createdAt) {
     }
 
     /**

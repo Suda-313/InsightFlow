@@ -48,7 +48,7 @@
           <h3 class="font-semibold mb-4">最近告警</h3>
           <div v-if="!data.alerts.length" class="text-center py-10"><ShieldCheck class="w-10 h-10 mx-auto text-emerald-400 mb-2" /><p class="text-sm text-slate-400">暂无告警</p></div>
           <div v-for="a in data.alerts" :key="a.alertId" class="mb-3 p-3 bg-red-50 dark:bg-red-950/50 border border-red-100 dark:border-red-900/50 rounded-lg">
-            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-red-600">{{ a.alertId?.slice(0,8) }}</span><span class="text-xs text-slate-400">{{ a.createdAt?.slice(5,16) }}</span></div>
+            <div class="flex items-center justify-between mb-1"><router-link :to="'/issues/' + (a.issueKey || '')" class="text-sm font-medium text-red-700 hover:underline">{{ a.issueName || a.alertId?.slice(0,8) }}</router-link><span class="text-xs text-slate-400">{{ a.createdAt?.slice(5,16) }}</span></div>
             <div class="flex items-center justify-between"><span class="text-sm font-medium">{{ a.currentCount }} 条异常反馈</span><span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">触发告警</span></div>
           </div>
         </div>
