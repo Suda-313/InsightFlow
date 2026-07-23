@@ -8,16 +8,16 @@
         </div>
       </div>
       <nav class="flex-1 p-3 space-y-1">
-        <router-link to="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10 transition" active-class="!bg-primary/15 !text-primary !font-semibold">
+        <router-link to="/" class="nav-link" active-class="active">
           <LayoutDashboard class="w-5 h-5" /> 仪表盘
         </router-link>
-        <router-link to="/issues" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10 transition" active-class="!bg-primary/15 !text-primary !font-semibold">
+        <router-link to="/issues" class="nav-link" active-class="active">
           <Tags class="w-5 h-5" /> 主题分析
         </router-link>
-        <router-link to="/import" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10 transition" active-class="!bg-primary/15 !text-primary !font-semibold">
+        <router-link to="/import" class="nav-link" active-class="active">
           <Upload class="w-5 h-5" /> 数据导入
         </router-link>
-        <router-link to="/reports" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10 transition" active-class="!bg-primary/15 !text-primary !font-semibold">
+        <router-link to="/reports" class="nav-link" active-class="active">
           <FileText class="w-5 h-5" /> 分析报告
         </router-link>
       </nav>
