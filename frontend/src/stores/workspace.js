@@ -9,8 +9,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     try {
       let r = await fetch('/api/v1/workspaces', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '默认工作区' }) })
       let d = await r.json()
-      workspaceId.value = d.publicId
-      localStorage.setItem('wsid', d.publicId)
+      if (d.publicId) {
+        workspaceId.value = d.publicId
+        localStorage.setItem('wsid', d.publicId)
+      }
     } catch (e) { console.error('Workspace init failed:', e) }
   }
 
