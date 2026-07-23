@@ -3,6 +3,7 @@ package com.insightflow.service;
 import com.insightflow.entity.Workspace;
 import com.insightflow.common.exception.WorkspaceNotFoundException;
 import com.insightflow.repository.WorkspaceRepository;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
