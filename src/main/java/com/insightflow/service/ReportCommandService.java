@@ -106,6 +106,12 @@ public class ReportCommandService {
                 .orElseThrow(() -> new ImportValidationException("报告不存在或不属于当前工作区。"));
     }
 
+    /** 列出工作区下所有报告，按创建时间倒序。 */
+    public List<AnalysisReport> listReports(UUID workspacePublicId) {
+        Workspace workspace = workspaceService.get(workspacePublicId);
+        return reportRepository.findByWorkspaceIdOrderByCreatedAtDesc(workspace.getId());
+    }
+
     private List<ImportFile> resolveFiles(Long workspaceId, List<UUID> fileIds) {
         List<ImportFile> files = new ArrayList<>(fileIds.size());
         for (UUID fileId : fileIds) {

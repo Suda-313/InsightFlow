@@ -104,6 +104,16 @@ public class ReportController {
     }
 
     /**
+     * 列出工作区下所有报告，按创建时间倒序。
+     */
+    @GetMapping
+    public List<ReportResponse> list(@PathVariable UUID workspaceId) {
+        return reportCommandService.listReports(workspaceId).stream()
+                .map(ReportResponse::from)
+                .toList();
+    }
+
+    /**
      * 创建报告请求的最小契约。
      */
     public record CreateReportRequest(
