@@ -47,4 +47,8 @@ public class WorkspaceService {
         return workspaceRepository.findByPublicId(publicId)
                 .orElseThrow(() -> new WorkspaceNotFoundException(publicId));
     }
+
+    public List<Workspace> listAll() {
+        return workspaceRepository.findAllByOrderByCreatedAtDesc();
+    }
 }

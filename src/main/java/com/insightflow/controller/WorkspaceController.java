@@ -62,6 +62,12 @@ public class WorkspaceController {
         return WorkspaceResponse.from(workspaceService.get(workspaceId));
     }
 
+    /** 列出所有工作区，按创建时间倒序。 */
+    @GetMapping
+    public List<WorkspaceResponse> list() {
+        return workspaceService.listAll().stream().map(WorkspaceResponse::from).toList();
+    }
+
     /**
      * 创建请求的最小契约；名称不允许为空或超过数据库可存储上限。
      */
