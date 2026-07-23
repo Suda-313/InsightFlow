@@ -105,20 +105,37 @@ async function loadData() {
 
 async function send(preset) {
   const text = preset || input.value.trim()
-  if (!text || loading.value) return
+  if (!text || loading.value || !store.workspaceId) return
   messages.value.push({ role: 'user', content: text })
   input.value = ''
   loading.value = true
-  await new Promise(r => setTimeout(r, 500))
-  // Mock AI response - will be replaced with real LLM later
-  const replies = {
-    '玩法Bug': '根据数据分析，7/14-7/18 期间玩法Bug 从日均 15 条激增到 40 条（+167%），与 7/14 版本更新高度相关。建议排查"暗影之塔"副本和技能释放逻辑。',
-    '周报': '报告已生成！请前往 [分析报告] 页面查看和下载。',
-    '对比': '本周工单总量 1530 条，较上周上升 12%。主要增长来自玩法Bug（+167%）和登录失败（+15%）。'
+  messages.value.push({ role: 'assistant', content: '' })
+  const idx = messages.value.length - 1
+  try {
+    const resp = await fetch('/api/v1/workspaces/' + store.workspaceId + '/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    })
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      // Parse SSE events
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (line.startsWith('data:')) {
+          messages.value[idx].content += line.slice(5).trim()
+        }
+      }
+    }
+    if (!messages.value[idx].content) messages.value[idx].content = '抱歉，暂时无法回答。请稍后重试。'
+  } catch (e) {
+    messages.value[idx].content = '网络错误: ' + e.message
   }
-  let reply = '抱歉，我暂时无法回答这个问题。请尝试其他问题。'
-  for (const [k, v] of Object.entries(replies)) { if (text.includes(k)) { reply = v; break } }
-  messages.value.push({ role: 'assistant', content: reply })
   loading.value = false
   nextTick(() => { if (chatRef.value) chatRef.value.scrollTop = chatRef.value.scrollHeight })
 }
