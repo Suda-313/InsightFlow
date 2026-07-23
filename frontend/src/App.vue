@@ -23,7 +23,7 @@
       </nav>
       <div class="p-4 border-t border-slate-200 dark:border-slate-700">
         <div class="text-xs text-slate-500">工作区</div>
-        <input v-model="store.workspaceId" placeholder="UUID" class="mt-1 w-full text-xs bg-slate-100 dark:bg-slate-700 rounded px-2 py-1.5 border-0 outline-none">
+        <div class="text-xs font-mono mt-1 truncate">{{ store.workspaceId || '初始化中...' }}</div>
       </div>
     </aside>
     <main class="flex-1 overflow-auto">
