@@ -6,7 +6,7 @@ spring:
     dashscope:
       api-key: ${DASHSCOPE_API_KEY:sk-633f610ba92c4d0187dd214c72ff2608}
       chat:
-        model: deepseek-v4-flash
+        model: qwen3.7-max-2026-05-20
         options:
           temperature: 0.3
           max-tokens: 2000
