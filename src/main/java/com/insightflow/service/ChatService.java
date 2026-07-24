@@ -52,7 +52,13 @@ public class ChatService {
         Long workspaceId = workspaceService.get(workspacePublicId).getId();
         String context = buildContext(workspaceId);
 
-        String systemPrompt = "你是游戏客服舆情分析助手。根据以下当前数据上下文，用中文回答用户问题。回答要简洁、有数据支撑。\n\n" + context;
+        String systemPrompt = "你是游戏客服舆情分析助手。根据以下当前数据上下文，用中文回答用户问题。\n\n" +
+                "要求：\n" +
+                "1. 必须引用具体数字（如\"从日均15条激增到40条，+167%\"）\n" +
+                "2. 必须指出具体时间点（如\"7/14版本更新后\"）\n" +
+                "3. 如果涉及异常，说明z-score和基线对比\n" +
+                "4. 结尾给出1-2条可执行的建议\n" +
+                "5. 不要用\"可能是\"\"建议排查\"等模糊表述，要用数据说话\n\n" + context;
 
         ChatResponse response = chatClient.prompt()
                 .system(systemPrompt)

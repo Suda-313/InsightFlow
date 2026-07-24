@@ -2,8 +2,9 @@
   <div class="flex h-full">
     <!-- AI Chat Panel (Left 40%) -->
     <div class="w-2/5 border-r border-slate-200 dark:border-slate-700 flex flex-col bg-white dark:bg-slate-850">
-      <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
         <h2 class="font-semibold text-sm flex items-center gap-2"><Sparkles class="w-4 h-4 text-primary" /> AI 助手</h2>
+        <button @click="messages = []" class="text-xs text-slate-400 hover:text-slate-600" v-if="messages.length">清空对话</button>
       </div>
       <div class="flex-1 overflow-auto p-4 space-y-4" ref="chatRef">
         <div class="card p-4 bg-gradient-to-br from-primary/5 to-primary-light/5">
@@ -17,12 +18,19 @@
         </div>
         <div v-for="(m, i) in messages" :key="i" :class="m.role === 'user' ? 'flex justify-end' : ''">
           <div :class="m.role === 'user' ? 'bg-primary text-white rounded-xl rounded-br-md px-3 py-2 text-sm max-w-[85%]' : 'card p-3 text-sm max-w-[85%]'">
-            <div class="flex items-center gap-2 mb-1" v-if="m.role === 'assistant'"><Sparkles class="w-3 h-3 text-primary" /><span class="text-xs text-primary font-medium">AI 助手</span></div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-2" v-if="m.role === 'assistant'"><Sparkles class="w-3 h-3 text-primary" /><span class="text-xs text-primary font-medium">AI 助手</span></div>
+              <span class="text-xs text-slate-400">{{ m.time }}</span>
+            </div>
             <details v-if="m.thinking" class="mb-2">
               <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-600">💭 思考过程</summary>
               <div class="mt-1 p-2 bg-slate-50 dark:bg-slate-800 rounded text-xs text-slate-500 whitespace-pre-wrap leading-relaxed">{{ m.thinking }}</div>
             </details>
             <div class="whitespace-pre-wrap leading-relaxed">{{ m.content }}</div>
+            <div v-if="m.role === 'assistant' && m.content" class="flex gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+              <router-link to="/data" class="text-xs px-2 py-1 rounded bg-primary/5 text-primary hover:bg-primary/10 transition">📊 查看数据</router-link>
+              <router-link to="/reports" class="text-xs px-2 py-1 rounded bg-accent/5 text-accent hover:bg-accent/10 transition">📄 生成报告</router-link>
+            </div>
           </div>
         </div>
         <div v-if="loading" class="flex items-center gap-2 text-sm text-slate-400"><div class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>思考中...</div>
@@ -110,10 +118,11 @@ async function loadData() {
 async function send(preset) {
   const text = preset || input.value.trim()
   if (!text || loading.value || !store.workspaceId) return
-  messages.value.push({ role: 'user', content: text })
+  const now = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  messages.value.push({ role: 'user', content: text, time: now })
   input.value = ''
   loading.value = true
-  messages.value.push({ role: 'assistant', content: '' })
+  messages.value.push({ role: 'assistant', content: '', time: now })
   const idx = messages.value.length - 1
   try {
     const resp = await fetch('/api/v1/workspaces/' + store.workspaceId + '/chat', {
