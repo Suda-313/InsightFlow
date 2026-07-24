@@ -4,7 +4,7 @@
     <div class="w-2/5 border-r border-slate-200 dark:border-slate-700 flex flex-col bg-white dark:bg-slate-850">
       <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
         <h2 class="font-semibold text-sm flex items-center gap-2"><Sparkles class="w-4 h-4 text-primary" /> AI 助手</h2>
-        <button @click="messages = []" class="text-xs text-slate-400 hover:text-slate-600" v-if="messages.length">清空对话</button>
+        <button @click="chatStore.clear()" class="text-xs text-slate-400 hover:text-slate-600" v-if="messages.length">清空对话</button>
       </div>
       <div class="flex-1 overflow-auto p-4 space-y-4" ref="chatRef">
         <div class="card p-4 bg-gradient-to-br from-primary/5 to-primary-light/5">
@@ -91,9 +91,9 @@ import { Chart, BarController, CategoryScale, LinearScale, BarElement, Tooltip }
 import { useWorkspaceStore } from '../stores/workspace'
 Chart.register(BarController, CategoryScale, LinearScale, BarElement, Tooltip)
 
-const store = useWorkspaceStore()
-const loading = ref(false), isEmpty = ref(false)
-const messages = ref([]), input = ref(''), chatRef = ref(null)
+import { useChatStore } from '../stores/chat'
+const chatStore = useChatStore()
+const messages = chatStore.messages, input = ref(''), chatRef = ref(null)
 const barRef = ref(null)
 let barChart = null
 const data = ref({ totalEvents: 0, issueCount: 0, alertCount: 0, alerts: [], topIssues: [], projectionStatus: '' })
@@ -119,10 +119,10 @@ async function send(preset) {
   const text = preset || input.value.trim()
   if (!text || loading.value || !store.workspaceId) return
   const now = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  messages.value.push({ role: 'user', content: text, time: now })
+  chatStore.addMessage({ role: 'user', content: text, time: now })
   input.value = ''
   loading.value = true
-  messages.value.push({ role: 'assistant', content: '', time: now })
+  chatStore.addMessage({ role: 'assistant', content: '', time: now })
   const idx = messages.value.length - 1
   try {
     const resp = await fetch('/api/v1/workspaces/' + store.workspaceId + '/chat', {
@@ -133,9 +133,9 @@ async function send(preset) {
     try {
       const data = JSON.parse(fullText)
       if (data.thinking) {
-        messages.value[idx].thinking = data.thinking
+        chatStore.updateLastAssistant(null, data.thinking)
       }
-      messages.value[idx].content = data.content || '抱歉，暂时无法回答。'
+      chatStore.updateLastAssistant(data.content || '抱歉，暂时无法回答。', null)
     } catch {
       messages.value[idx].content = fullText
     }
