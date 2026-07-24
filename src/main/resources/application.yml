@@ -3,11 +3,12 @@ spring:
     exclude:
       - org.springframework.cloud.function.context.config.ContextFunctionCatalogAutoConfiguration
   ai:
-    dashscope:
+    openai:
       api-key: ${DASHSCOPE_API_KEY:sk-633f610ba92c4d0187dd214c72ff2608}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
       chat:
-        model: qwen-max
         options:
+          model: deepseek-v4-flash
           temperature: 0.3
           max-tokens: 2000
   application:
