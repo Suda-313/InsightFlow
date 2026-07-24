@@ -1,17 +1,13 @@
 package com.insightflow.controller;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.insightflow.service.ChatService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import java.util.Map;
-import java.util.UUID;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
+import java.util.UUID;
 
 /**
  * AI 对话的 HTTP 边界，使用 SSE 流式输出。
@@ -34,5 +30,5 @@ public class ChatController {
         return chatService.chat(workspaceId, request.message());
     }
 
-    public record ChatRequest(@NotBlank String message) {}
+    public record ChatRequest(@NotBlank @JsonProperty("message") String message) {}
 }
