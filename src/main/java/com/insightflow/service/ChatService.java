@@ -1,5 +1,6 @@
 package com.insightflow.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.entity.Alert;
 import com.insightflow.entity.IssueBaselineProfile;
 import com.insightflow.entity.IssueCatalog;
@@ -9,11 +10,12 @@ import com.insightflow.repository.IssueBaselineProfileRepository;
 import com.insightflow.repository.IssueCatalogRepository;
 import com.insightflow.repository.IssueMetricBucketRepository;
 import java.time.OffsetDateTime;
-import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -29,18 +31,21 @@ public class ChatService {
     private final AlertRepository alertRepository;
     private final IssueBaselineProfileRepository baselineRepository;
     private final IssueCatalogRepository catalogRepository;
+    private final ObjectMapper objectMapper;
 
     public ChatService(ChatClient chatClient, WorkspaceService workspaceService,
                        IssueMetricBucketRepository metricBucketRepository,
                        AlertRepository alertRepository,
                        IssueBaselineProfileRepository baselineRepository,
-                       IssueCatalogRepository catalogRepository) {
+                       IssueCatalogRepository catalogRepository,
+                       ObjectMapper objectMapper) {
         this.chatClient = chatClient;
         this.workspaceService = workspaceService;
         this.metricBucketRepository = metricBucketRepository;
         this.alertRepository = alertRepository;
         this.baselineRepository = baselineRepository;
         this.catalogRepository = catalogRepository;
+        this.objectMapper = objectMapper;
     }
 
     public Flux<String> chat(UUID workspacePublicId, String message) {
@@ -49,14 +54,28 @@ public class ChatService {
 
         String systemPrompt = "你是游戏客服舆情分析助手。根据以下当前数据上下文，用中文回答用户问题。回答要简洁、有数据支撑。\n\n" + context;
 
-        return Flux.just(chatClient.prompt()
+        ChatResponse response = chatClient.prompt()
                 .system(systemPrompt)
                 .user(message)
                 .call()
-                .chatResponse()
-                .getResult()
-                .getOutput()
-                .getContent());
+                .chatResponse();
+
+        String content = response.getResult().getOutput().getContent();
+        String reasoning = null;
+        try {
+            Object rawReasoning = response.getResult().getOutput().getMetadata().get("reasoning_content");
+            if (rawReasoning != null) reasoning = rawReasoning.toString();
+        } catch (Exception ignored) {}
+
+        Map<String, String> result = new LinkedHashMap<>();
+        if (reasoning != null && !reasoning.isBlank()) result.put("thinking", reasoning);
+        result.put("content", content != null ? content : "抱歉，暂时无法回答。");
+
+        try {
+            return Flux.just(objectMapper.writeValueAsString(result));
+        } catch (Exception e) {
+            return Flux.just("{\"content\":\"抱歉，系统错误。\"}");
+        }
     }
 
     private String buildContext(Long workspaceId) {

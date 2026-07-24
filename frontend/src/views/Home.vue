@@ -18,6 +18,10 @@
         <div v-for="(m, i) in messages" :key="i" :class="m.role === 'user' ? 'flex justify-end' : ''">
           <div :class="m.role === 'user' ? 'bg-primary text-white rounded-xl rounded-br-md px-3 py-2 text-sm max-w-[85%]' : 'card p-3 text-sm max-w-[85%]'">
             <div class="flex items-center gap-2 mb-1" v-if="m.role === 'assistant'"><Sparkles class="w-3 h-3 text-primary" /><span class="text-xs text-primary font-medium">AI 助手</span></div>
+            <details v-if="m.thinking" class="mb-2">
+              <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-600">💭 思考过程</summary>
+              <div class="mt-1 p-2 bg-slate-50 dark:bg-slate-800 rounded text-xs text-slate-500 whitespace-pre-wrap leading-relaxed">{{ m.thinking }}</div>
+            </details>
             <div class="whitespace-pre-wrap leading-relaxed">{{ m.content }}</div>
           </div>
         </div>
@@ -117,16 +121,15 @@ async function send(preset) {
       body: JSON.stringify({ message: text })
     })
     const fullText = await resp.text()
-    // Parse SSE or plain text
-    if (fullText.includes('data:')) {
-      const lines = fullText.split('\n')
-      for (const line of lines) {
-        if (line.startsWith('data:')) messages.value[idx].content += line.slice(5).trim()
+    try {
+      const data = JSON.parse(fullText)
+      if (data.thinking) {
+        messages.value[idx].thinking = data.thinking
       }
-    } else {
+      messages.value[idx].content = data.content || '抱歉，暂时无法回答。'
+    } catch {
       messages.value[idx].content = fullText
     }
-    if (!messages.value[idx].content) messages.value[idx].content = '抱歉，暂时无法回答。请稍后重试。'
   } catch (e) {
     messages.value[idx].content = '网络错误: ' + e.message
   }
