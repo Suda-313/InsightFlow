@@ -49,11 +49,15 @@ public class ChatService {
 
         String systemPrompt = "你是游戏客服舆情分析助手。根据以下当前数据上下文，用中文回答用户问题。回答要简洁、有数据支撑。\n\n" + context;
 
-        return chatClient.prompt()
+        // Use non-streaming call for better compatibility with DashScope
+        return Flux.just(chatClient.prompt()
                 .system(systemPrompt)
                 .user(message)
-                .stream()
-                .content();
+                .call()
+                .chatResponse()
+                .getResult()
+                .getOutput()
+                .getContent());
     }
 
     private String buildContext(Long workspaceId) {

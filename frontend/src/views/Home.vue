@@ -116,21 +116,15 @@ async function send(preset) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: text })
     })
-    const reader = resp.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      // Parse SSE events
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
+    const fullText = await resp.text()
+    // Parse SSE or plain text
+    if (fullText.includes('data:')) {
+      const lines = fullText.split('\n')
       for (const line of lines) {
-        if (line.startsWith('data:')) {
-          messages.value[idx].content += line.slice(5).trim()
-        }
+        if (line.startsWith('data:')) messages.value[idx].content += line.slice(5).trim()
       }
+    } else {
+      messages.value[idx].content = fullText
     }
     if (!messages.value[idx].content) messages.value[idx].content = '抱歉，暂时无法回答。请稍后重试。'
   } catch (e) {
