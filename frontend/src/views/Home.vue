@@ -3,8 +3,16 @@
     <!-- AI Chat Panel (Left 40%) -->
     <div class="w-2/5 border-r border-slate-200 dark:border-slate-700 flex flex-col bg-white dark:bg-slate-850">
       <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-        <h2 class="font-semibold text-sm flex items-center gap-2"><Sparkles class="w-4 h-4 text-primary" /> AI 助手</h2>
-        <button @click="chatStore.clear()" class="text-xs text-slate-400 hover:text-slate-600" v-if="messages.length">清空对话</button>
+        <div class="min-w-0">
+          <h2 class="font-semibold text-sm flex items-center gap-2"><Sparkles class="w-4 h-4 text-primary" /> AI 助手</h2>
+          <select v-if="sessions.length" v-model="activeSessionId" @change="switchSession" class="mt-1 max-w-44 text-xs text-slate-500 bg-transparent border-0 outline-none">
+            <option v-for="session in sessions" :key="session.id" :value="session.id">{{ session.title }}</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <button @click="newSession" class="text-xs text-primary hover:underline">新对话</button>
+          <button @click="clearSession" class="text-xs text-slate-400 hover:text-slate-600" v-if="messages.length">清空对话</button>
+        </div>
       </div>
       <div class="flex-1 overflow-auto p-4 space-y-4" ref="chatRef">
         <div class="card p-4 bg-gradient-to-br from-primary/5 to-primary-light/5">
@@ -16,24 +24,27 @@
             <button @click="send('对比本周和上周的数据变化')" class="block w-full text-left text-xs px-3 py-2 rounded-lg bg-white dark:bg-slate-800 hover:bg-primary/5 transition">💬 对比本周和上周的数据变化</button>
           </div>
         </div>
-        <div v-for="(m, i) in messages" :key="i" :class="m.role === 'user' ? 'flex justify-end' : ''">
+        <div v-for="m in messages" :key="m.id" :class="m.role === 'user' ? 'flex justify-end' : ''">
           <div :class="m.role === 'user' ? 'bg-primary text-white rounded-xl rounded-br-md px-3 py-2 text-sm max-w-[85%]' : 'card p-3 text-sm max-w-[85%]'">
             <div class="flex items-center justify-between mb-1">
               <div class="flex items-center gap-2" v-if="m.role === 'assistant'"><Sparkles class="w-3 h-3 text-primary" /><span class="text-xs text-primary font-medium">AI 助手</span></div>
               <span class="text-xs text-slate-400">{{ m.time }}</span>
             </div>
-            <details v-if="m.thinking" class="mb-2">
-              <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-600">💭 思考过程</summary>
-              <div class="mt-1 p-2 bg-slate-50 dark:bg-slate-800 rounded text-xs text-slate-500 whitespace-pre-wrap leading-relaxed">{{ m.thinking }}</div>
-            </details>
             <div class="whitespace-pre-wrap leading-relaxed">{{ m.content }}</div>
+            <details v-if="m.role === 'assistant' && m.evidence?.length" class="mt-2 rounded bg-slate-50 dark:bg-slate-800 px-2 py-1.5 text-xs text-slate-500">
+              <summary class="cursor-pointer text-primary">查看本次调查证据（{{ m.evidence.length }} 项）</summary>
+              <ul class="mt-2 space-y-1">
+                <li v-for="item in m.evidence" :key="item.id"><span class="font-medium">{{ item.title }}</span>：{{ item.content }}</li>
+              </ul>
+            </details>
             <div v-if="m.role === 'assistant' && m.content" class="flex gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
               <router-link to="/data" class="text-xs px-2 py-1 rounded bg-primary/5 text-primary hover:bg-primary/10 transition">📊 查看数据</router-link>
               <router-link to="/reports" class="text-xs px-2 py-1 rounded bg-accent/5 text-accent hover:bg-accent/10 transition">📄 生成报告</router-link>
             </div>
           </div>
         </div>
-        <div v-if="loading" class="flex items-center gap-2 text-sm text-slate-400"><div class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>思考中...</div>
+        <div v-if="loading" class="flex items-center gap-2 text-sm text-slate-400"><div class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>生成回答中...</div>
+        <div v-if="chatError" class="text-xs text-red-500">{{ chatError }}</div>
       </div>
       <div class="p-3 border-t border-slate-200 dark:border-slate-700">
         <div class="flex gap-2">
@@ -53,7 +64,7 @@
       <div v-if="isEmpty" class="card p-12 text-center">
         <Database class="w-12 h-12 mx-auto text-slate-300 mb-3" />
         <p class="text-slate-500 mb-4">暂无数据</p>
-        <router-link to="/?import=1" class="btn-primary inline-flex items-center gap-2"><Upload class="w-4 h-4" />导入数据</router-link>
+        <router-link to="/import" class="btn-primary inline-flex items-center gap-2"><Upload class="w-4 h-4" />导入数据</router-link>
       </div>
 
       <template v-else>
@@ -77,7 +88,7 @@
 
         <div class="card p-5 border-dashed border-2 border-slate-300 dark:border-slate-600 text-center">
           <p class="text-sm text-slate-500 mb-2">拖拽 CSV 文件到此处上传</p>
-          <p class="text-xs text-slate-400">或点击 <router-link to="/?import=1" class="text-primary hover:underline">导入 CSV</router-link> 选择文件</p>
+          <p class="text-xs text-slate-400">或点击 <router-link to="/import" class="text-primary hover:underline">导入 CSV</router-link> 选择文件</p>
         </div>
       </template>
     </div>
@@ -86,14 +97,21 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Sparkles, Send, ArrowRight, Database, Upload } from 'lucide-vue-next'
 import { Chart, BarController, CategoryScale, LinearScale, BarElement, Tooltip } from 'chart.js'
 import { useWorkspaceStore } from '../stores/workspace'
 Chart.register(BarController, CategoryScale, LinearScale, BarElement, Tooltip)
 
 import { useChatStore } from '../stores/chat'
+const store = useWorkspaceStore()
+// 看板与聊天请求必须使用应用启动后选定的同一个工作区。
+const loading = ref(false), isEmpty = ref(false)
+// loading 防止重复发送；isEmpty 控制看板无数据状态。
 const chatStore = useChatStore()
-const messages = chatStore.messages, input = ref(''), chatRef = ref(null)
+// storeToRefs 保持 Pinia 状态的响应式引用，避免解构后丢失刷新恢复结果。
+const { messages, sessions, activeSessionId } = storeToRefs(chatStore)
+const input = ref(''), chatRef = ref(null), chatError = ref('')
 const barRef = ref(null)
 let barChart = null
 const data = ref({ totalEvents: 0, issueCount: 0, alertCount: 0, alerts: [], topIssues: [], projectionStatus: '' })
@@ -118,34 +136,52 @@ async function loadData() {
 async function send(preset) {
   const text = preset || input.value.trim()
   if (!text || loading.value || !store.workspaceId) return
-  const now = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  chatStore.addMessage({ role: 'user', content: text, time: now })
   input.value = ''
+  chatError.value = ''
   loading.value = true
-  chatStore.addMessage({ role: 'assistant', content: '', time: now })
-  const idx = messages.value.length - 1
   try {
-    const resp = await fetch('/api/v1/workspaces/' + store.workspaceId + '/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text })
-    })
-    const fullText = await resp.text()
-    try {
-      const data = JSON.parse(fullText)
-      if (data.thinking) {
-        chatStore.updateLastAssistant(null, data.thinking)
-      }
-      chatStore.updateLastAssistant(data.content || '抱歉，暂时无法回答。', null)
-    } catch {
-      messages.value[idx].content = fullText
-    }
+    await chatStore.send(store.workspaceId, text)
   } catch (e) {
-    messages.value[idx].content = '网络错误: ' + e.message
+    chatError.value = '回答生成失败，请稍后重试。'
   }
   loading.value = false
   nextTick(() => { if (chatRef.value) chatRef.value.scrollTop = chatRef.value.scrollHeight })
 }
 
-onMounted(loadData)
-watch(() => store.workspaceId, loadData)
+async function restoreChat() {
+  try {
+    await chatStore.restore(store.workspaceId)
+    await nextTick()
+    if (chatRef.value) chatRef.value.scrollTop = chatRef.value.scrollHeight
+  } catch (e) {
+    chatError.value = '历史对话加载失败，请刷新后重试。'
+  }
+}
+
+async function switchSession() {
+  try {
+    await chatStore.selectSession(store.workspaceId, activeSessionId.value)
+  } catch (e) {
+    chatError.value = '历史对话加载失败，请刷新后重试。'
+  }
+}
+
+async function newSession() {
+  try {
+    await chatStore.createSession(store.workspaceId)
+  } catch (e) {
+    chatError.value = '新建对话失败，请稍后重试。'
+  }
+}
+
+async function clearSession() {
+  try {
+    await chatStore.archiveAndStartNew(store.workspaceId)
+  } catch (e) {
+    chatError.value = '清空对话失败，请稍后重试。'
+  }
+}
+
+onMounted(() => { loadData(); restoreChat() })
+watch(() => store.workspaceId, () => { loadData(); restoreChat() })
 </script>

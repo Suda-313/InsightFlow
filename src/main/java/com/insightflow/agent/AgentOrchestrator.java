@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +61,35 @@ public class AgentOrchestrator {
                 results.add(null);
             } catch (ExecutionException | TimeoutException e) {
                 log.warn("Agent at index {} failed or timed out: {}", i, e.getMessage());
+                results.add(null);
+            }
+        }
+        return Collections.unmodifiableList(results);
+    }
+
+    /**
+     * 并行执行已绑定工作区上下文的任务；调用方在 Supplier 内负责 AgentRun 生命周期，
+     * 因此不使用无上下文的 fallback 重新发起一次不可审计调用。
+     */
+    public <T> List<T> parallelTasks(List<? extends Supplier<? extends T>> tasks) {
+        List<CompletableFuture<T>> futures = tasks.stream()
+                .map(task -> CompletableFuture.<T>supplyAsync(() -> {
+                    try {
+                        return task.get();
+                    } catch (RuntimeException exception) {
+                        log.warn("Agent task failed with exception_type={}", exception.getClass().getSimpleName());
+                        return null;
+                    }
+                }))
+                .toList();
+        List<T> results = new ArrayList<>(futures.size());
+        for (int index = 0; index < futures.size(); index++) {
+            try {
+                results.add(futures.get(index).get(timeoutSeconds, SECONDS));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                results.add(null);
+            } catch (ExecutionException | TimeoutException exception) {
                 results.add(null);
             }
         }

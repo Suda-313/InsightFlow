@@ -7,17 +7,21 @@ import com.insightflow.agent.dto.CellInsight;
 import com.insightflow.agent.dto.ClassificationResult;
 import com.insightflow.agent.dto.RiskResult;
 import com.insightflow.agent.dto.SentimentResult;
+import com.insightflow.config.AgentApiKeyPresentCondition;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 单元格分析 Agent，并行编排分类、情感和风险三个 Analyzer，
  * 将结果合并为统一的 {@link CellInsight}。
  */
 @Component
+@Conditional(AgentApiKeyPresentCondition.class)
 public class CellAnalysisAgent {
 
     private final AgentOrchestrator orchestrator;
@@ -43,13 +47,18 @@ public class CellAnalysisAgent {
      */
     @SuppressWarnings("unchecked")
     public CellInsight analyze(String cellText) {
-        List<InsightAgent<Object>> agents = List.of(
-                (InsightAgent<Object>) (InsightAgent<?>) classificationAnalyzer,
-                (InsightAgent<Object>) (InsightAgent<?>) sentimentAnalyzer,
-                (InsightAgent<Object>) (InsightAgent<?>) riskAnalyzer
-        );
+        return analyze(null, cellText);
+    }
 
-        List<Object> results = orchestrator.parallel(agents, cellText);
+    /**
+     * 在已验证的工作区上下文中并行调用三个 Analyzer，使每个模型调用均能写入独立 AgentRun Trace。
+     */
+    @SuppressWarnings("unchecked")
+    public CellInsight analyze(UUID workspacePublicId, String cellText) {
+        List<Object> results = orchestrator.parallelTasks(List.of(
+                () -> classificationAnalyzer.execute(workspacePublicId, cellText),
+                () -> sentimentAnalyzer.execute(workspacePublicId, cellText),
+                () -> riskAnalyzer.execute(workspacePublicId, cellText)));
 
         ClassificationResult classification = (ClassificationResult) results.get(0);
         SentimentResult sentiment = (SentimentResult) results.get(1);

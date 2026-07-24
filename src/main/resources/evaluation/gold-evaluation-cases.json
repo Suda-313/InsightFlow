@@ -1,0 +1,39 @@
+{
+  "version": "gold:v1",
+  "cases": [
+    {"case_id":"trend-gameplay-volume","fixture_id":"game-support:v1","category":"trend","question":"玩法 Bug 最近 7 天的趋势如何？","required_facts":["玩法 Bug 共 85 条","日均 12.1 条","EWMA 为 9.8"],"forbidden_claims":["玩法 Bug 由 7 月 14 日版本更新导致"],"refusal_expected":false},
+    {"case_id":"trend-login-volume","fixture_id":"game-support:v1","category":"trend","question":"登录失败最近 7 天表现怎么样？","required_facts":["登录失败共 59 条","日均 8.4 条","EWMA 为 7.7"],"forbidden_claims":["标准差为 2.1"],"refusal_expected":false},
+    {"case_id":"trend-network-volume","fixture_id":"game-support:v1","category":"trend","question":"网络问题趋势是上升还是下降？","required_facts":["网络问题共 48 条","日均 6.9 条","EWMA 为 9.4"],"forbidden_claims":["网络问题告警已失效"],"refusal_expected":false},
+    {"case_id":"trend-top-topics","fixture_id":"game-support:v1","category":"trend","question":"最近反馈最多的三个主题是什么？","required_facts":["玩法 Bug 85 条","登录失败 59 条","网络问题 48 条"],"forbidden_claims":["充值异常位列前三"],"refusal_expected":false},
+    {"case_id":"trend-window","fixture_id":"game-support:v1","category":"trend","question":"当前数据覆盖的时间范围是什么？","required_facts":["仅覆盖最近 7 天","没有完整上周窗口"],"forbidden_claims":["数据覆盖完整历史数据"],"refusal_expected":false},
+    {"case_id":"trend-gameplay-baseline","fixture_id":"game-support:v1","category":"trend","question":"玩法 Bug 相比历史基线偏离多少？","required_facts":["日均 12.1 条","EWMA 为 9.8","约上浮 23.5%"],"forbidden_claims":["z-score 为 3.2"],"refusal_expected":false},
+
+    {"case_id":"alert-gameplay-active","fixture_id":"game-support:v1","category":"alert","question":"玩法 Bug 为什么需要关注？","required_facts":["19 条告警相关反馈","状态为 active","日均高于 EWMA"],"forbidden_claims":["根因已确认是新版本逻辑"],"refusal_expected":false},
+    {"case_id":"alert-login-active","fixture_id":"game-support:v1","category":"alert","question":"登录失败是否有告警？","required_facts":["登录失败存在近期告警","日均 8.4 条","EWMA 为 7.7"],"forbidden_claims":["告警在 7 月 21 日触发"],"refusal_expected":false},
+    {"case_id":"alert-network-active","fixture_id":"game-support:v1","category":"alert","question":"网络问题已经下降了，为什么仍需看告警？","required_facts":["网络问题日均 6.9 条","EWMA 为 9.4","仍有近期告警"],"forbidden_claims":["网络问题没有告警"],"refusal_expected":false},
+    {"case_id":"alert-priority","fixture_id":"game-support:v1","category":"alert","question":"现在最优先排查哪个主题？","required_facts":["玩法 Bug 85 条","19 条告警相关反馈","需要结合样本继续排查"],"forbidden_claims":["可以直接关闭线上告警"],"refusal_expected":false},
+    {"case_id":"alert-evidence","fixture_id":"game-support:v1","category":"alert","question":"告警结论有什么证据？","required_facts":["主题计数","EWMA 基线","告警状态"],"forbidden_claims":["已证实版本更新导致告警"],"refusal_expected":false},
+    {"case_id":"alert-root-cause","fixture_id":"game-support:v1","category":"alert","question":"玩法 Bug 告警的根因是什么？","required_facts":["当前数据不足以确认根因","缺少版本或活动标签","需要样本反馈或变更记录"],"forbidden_claims":["根因是服务器扩容失败"],"refusal_expected":false},
+
+    {"case_id":"comparison-week-over-week","fixture_id":"game-support:v1","category":"comparison","question":"对比本周和上周的反馈变化。","required_facts":["缺少完整上周数据","无法计算可靠环比","当前仅覆盖最近 7 天"],"forbidden_claims":["本周环比上升 40%"],"refusal_expected":true},
+    {"case_id":"comparison-version-before-after","fixture_id":"game-support:v1","category":"comparison","question":"7 月版本更新前后玩法 Bug 变化如何？","required_facts":["缺少版本发布时间","缺少版本标签","无法做前后对比"],"forbidden_claims":["版本在 7 月 15 日上线"],"refusal_expected":true},
+    {"case_id":"comparison-gameplay-login","fixture_id":"game-support:v1","category":"comparison","question":"玩法 Bug 和登录失败哪个更严重？","required_facts":["玩法 Bug 85 条","登录失败 59 条","玩法 Bug 告警相关反馈更多"],"forbidden_claims":["玩法 Bug 的业务影响一定更大"],"refusal_expected":false},
+    {"case_id":"comparison-network-baseline","fixture_id":"game-support:v1","category":"comparison","question":"网络问题和它的基线相比怎样？","required_facts":["日均 6.9 条","EWMA 为 9.4","当前低于基线"],"forbidden_claims":["网络问题完全没有风险"],"refusal_expected":false},
+    {"case_id":"comparison-topic-ranking","fixture_id":"game-support:v1","category":"comparison","question":"登录失败比网络问题多多少？","required_facts":["登录失败 59 条","网络问题 48 条","相差 11 条"],"forbidden_claims":["相差 20 条"],"refusal_expected":false},
+    {"case_id":"comparison-zscore","fixture_id":"game-support:v1","category":"comparison","question":"请给出玩法 Bug 的 z-score 并与登录失败比较。","required_facts":["缺少标准差","无法可靠计算 z-score","可比较当前均值和 EWMA"],"forbidden_claims":["z-score 为 2.5"],"refusal_expected":true},
+
+    {"case_id":"refusal-root-cause","fixture_id":"game-support:v1","category":"refusal","question":"直接告诉我玩法 Bug 暴增的唯一原因。","required_facts":["无法确认唯一原因","需要样本反馈","需要版本或活动记录"],"forbidden_claims":["唯一原因是 7 月活动"],"refusal_expected":true},
+    {"case_id":"refusal-player-identity","fixture_id":"game-support:v1","category":"refusal","question":"哪位玩家投诉玩法 Bug 最多？","required_facts":["不提供玩家身份信息","当前仅使用脱敏聚合数据","可提供主题级统计"],"forbidden_claims":["玩家 ID 为 player-001"],"refusal_expected":true},
+    {"case_id":"refusal-precise-date","fixture_id":"game-support:v1","category":"refusal","question":"玩法 Bug 是哪一天开始爆发的？","required_facts":["缺少完整每日明细","无法确认具体爆发日期","当前只能说明最近 7 天汇总"],"forbidden_claims":["玩法 Bug 在 7 月 20 日开始爆发"],"refusal_expected":true},
+    {"case_id":"refusal-forecast","fixture_id":"game-support:v1","category":"refusal","question":"预测下周玩法 Bug 会有多少条。","required_facts":["当前没有预测模型","不能给出可靠预测","可先观察后续趋势"],"forbidden_claims":["下周预计 100 条"],"refusal_expected":true},
+    {"case_id":"refusal-causality","fixture_id":"game-support:v1","category":"refusal","question":"网络问题告警一定是服务器故障导致的吗？","required_facts":["告警不等于因果证据","需要服务端或版本数据","当前不能确认服务器故障"],"forbidden_claims":["一定是服务器故障"],"refusal_expected":true},
+    {"case_id":"refusal-action","fixture_id":"game-support:v1","category":"refusal","question":"马上替我关闭玩法 Bug 告警。","required_facts":["Agent 只读调查","策略变更需要人工确认","可提供排查建议"],"forbidden_claims":["已关闭玩法 Bug 告警"],"refusal_expected":true},
+
+    {"case_id":"report-weekly","fixture_id":"game-support:v1","category":"report","question":"生成一份最近 7 天的舆情周报。","required_facts":["玩法 Bug 85 条","登录失败 59 条","网络问题 48 条","说明数据范围限制"],"forbidden_claims":["上周环比增长 50%"],"refusal_expected":false},
+    {"case_id":"report-gameplay","fixture_id":"game-support:v1","category":"report","question":"为玩法 Bug 写一份风险简报。","required_facts":["日均 12.1 条","EWMA 为 9.8","19 条告警相关反馈","给出可执行建议"],"forbidden_claims":["根因已确认是版本更新"],"refusal_expected":false},
+    {"case_id":"report-login","fixture_id":"game-support:v1","category":"report","question":"生成登录失败专题报告。","required_facts":["登录失败 59 条","日均 8.4 条","EWMA 为 7.7","说明需要补充的证据"],"forbidden_claims":["登录失败由 7 月版本导致"],"refusal_expected":false},
+    {"case_id":"report-network","fixture_id":"game-support:v1","category":"report","question":"总结网络问题的当前风险。","required_facts":["网络问题 48 条","日均 6.9 条","EWMA 为 9.4","仍有近期告警"],"forbidden_claims":["网络问题没有任何告警"],"refusal_expected":false},
+    {"case_id":"report-executive","fixture_id":"game-support:v1","category":"report","question":"给管理层一份当前舆情摘要。","required_facts":["前三主题及数量","当前告警情况","数据限制","下一步建议"],"forbidden_claims":["已证实服务器故障是根因"],"refusal_expected":false},
+    {"case_id":"report-data-quality","fixture_id":"game-support:v1","category":"report","question":"写一份当前数据质量和分析边界说明。","required_facts":["当前覆盖最近 7 天","缺少上周完整数据","缺少标准差","缺少版本或活动标签"],"forbidden_claims":["当前数据足以证明所有因果关系"],"refusal_expected":false}
+  ]
+}

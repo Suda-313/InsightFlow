@@ -1,7 +1,9 @@
 package com.insightflow.service;
 
 import com.insightflow.entity.Workspace;
+import com.insightflow.entity.Organization;
 import com.insightflow.common.exception.WorkspaceNotFoundException;
+import com.insightflow.repository.OrganizationRepository;
 import com.insightflow.repository.WorkspaceRepository;
 import java.util.List;
 import java.util.UUID;
@@ -24,10 +26,18 @@ public class WorkspaceService {
     private final WorkspaceRepository workspaceRepository;
 
     /**
+     * P3 仅用默认组织建立 Workspace 与企业知识的共同归属，不向外部请求暴露可伪造的 organizationId。
+     */
+    private final OrganizationRepository organizationRepository;
+
+    /**
      * 通过构造器注入依赖，确保服务可被单元测试替换为 mock。
      */
-    public WorkspaceService(WorkspaceRepository workspaceRepository) {
+    public WorkspaceService(
+            WorkspaceRepository workspaceRepository,
+            OrganizationRepository organizationRepository) {
         this.workspaceRepository = workspaceRepository;
+        this.organizationRepository = organizationRepository;
     }
 
     /**
@@ -38,7 +48,9 @@ public class WorkspaceService {
      */
     @Transactional
     public Workspace create(String name) {
-        return workspaceRepository.save(new Workspace(name.trim()));
+        Organization organization = organizationRepository.findByDefaultOrganizationTrue()
+                .orElseThrow(() -> new IllegalStateException("默认组织不存在，拒绝创建无归属工作区"));
+        return workspaceRepository.save(new Workspace(name.trim(), organization.getId()));
     }
 
     /**

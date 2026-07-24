@@ -19,6 +19,19 @@ public final class LlmMetrics {
     private LlmMetrics() {}
 
     /**
+     * 在调用模型前记录可观测边界；只保留输入长度，禁止将脱敏反馈正文写入应用日志。
+     */
+    public static void logStarted(String agentName, String input) {
+        log.info("LLM[{}] status=started, input_chars={}", agentName, input == null ? 0 : input.length());
+    }
+
+    /** 记录带 Prompt 版本的调用开始事件，使同一 Agent 的提示词迭代可在日志中直接区分。 */
+    public static void logStarted(String agentName, String promptVersion, String input) {
+        log.info("LLM[{}] status=started, prompt_version={}, input_chars={}",
+                agentName, promptVersion, input == null ? 0 : input.length());
+    }
+
+    /**
      * 从 ChatResponse 中提取 token 用量并记录日志。
      *
      * @param agentName Agent 名称（如 ClassificationAnalyzer）
@@ -29,14 +42,42 @@ public final class LlmMetrics {
         long elapsed = System.currentTimeMillis() - startMs;
         Usage usage = response.getMetadata() != null ? response.getMetadata().getUsage() : null;
         if (usage != null) {
-            log.info("LLM[{}] 耗时={}ms, promptTokens={}, generationTokens={}, totalTokens={}",
+            log.info("LLM[{}] status=succeeded, latency_ms={}, prompt_tokens={}, completion_tokens={}, total_tokens={}",
                     agentName, elapsed,
                     usage.getPromptTokens(),
                     usage.getGenerationTokens(),
                     usage.getTotalTokens());
         } else {
-            log.info("LLM[{}] 耗时={}ms (token 信息不可用)", agentName, elapsed);
+            log.info("LLM[{}] status=succeeded, latency_ms={}, token 信息不可用", agentName, elapsed);
         }
+    }
+
+    /**
+     * 模型请求或结构化结果解析失败时只记录阶段和耗时，异常文本可能包含输入或模型输出，不能直接透传。
+     */
+    /** 成功日志同时记录 Prompt 版本与用量，缺失 Usage 时仍不伪造 Token 成本。 */
+    public static void log(String agentName, String promptVersion, long startMs, ChatResponse response) {
+        long elapsed = System.currentTimeMillis() - startMs;
+        Usage usage = response.getMetadata() != null ? response.getMetadata().getUsage() : null;
+        if (usage != null) {
+            log.info("LLM[{}] status=succeeded, prompt_version={}, latency_ms={}, prompt_tokens={}, completion_tokens={}, total_tokens={}",
+                    agentName, promptVersion, elapsed,
+                    usage.getPromptTokens(), usage.getGenerationTokens(), usage.getTotalTokens());
+        } else {
+            log.info("LLM[{}] status=succeeded, prompt_version={}, latency_ms={}, token 信息不可用",
+                    agentName, promptVersion, elapsed);
+        }
+    }
+
+    public static void logFailure(String agentName, long startMs, String stage) {
+        log.warn("LLM[{}] status=failed, stage={}, latency_ms={}",
+                agentName, stage, System.currentTimeMillis() - startMs);
+    }
+
+    /** 失败事件也保留版本维度，避免无法判断故障是否只发生在某次 Prompt 迭代。 */
+    public static void logFailure(String agentName, String promptVersion, long startMs, String stage) {
+        log.warn("LLM[{}] status=failed, prompt_version={}, stage={}, latency_ms={}",
+                agentName, promptVersion, stage, System.currentTimeMillis() - startMs);
     }
 
     /**

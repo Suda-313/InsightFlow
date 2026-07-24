@@ -1,10 +1,16 @@
 spring:
+  profiles:
+    # 本机默认读取 application-local.yml；该文件仅保存开发机私有配置且不进入 Git。
+    default: local
   autoconfigure:
     exclude:
       - org.springframework.cloud.function.context.config.ContextFunctionCatalogAutoConfiguration
+      # Spring AI 1.1.0 会无条件装配未使用的音频模型；聊天模型由 AgentConfiguration 按开关和密钥显式创建。
+      - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
   ai:
     openai:
-      api-key: ${DASHSCOPE_API_KEY:sk-633f610ba92c4d0187dd214c72ff2608}
+      # 密钥只能由部署环境注入；空值允许在未启用 Agent 的本地场景运行基础分析功能。
+      api-key: ${DASHSCOPE_API_KEY:}
       base-url: https://dashscope.aliyuncs.com/compatible-mode
       chat:
         options:
@@ -78,9 +84,16 @@ insightflow:
     alert-cooldown-hours: ${ANALYSIS_ALERT_COOLDOWN_HOURS:6}
     global-alert-threshold: ${ANALYSIS_GLOBAL_ALERT_THRESHOLD:10}
   agent:
-    enabled: ${AGENT_ENABLED:true}
+    # 基础分析可在无模型密钥的本地环境运行；Agent 是显式开启的可选能力。
+    enabled: ${AGENT_ENABLED:false}
     max-retries: ${AGENT_MAX_RETRIES:2}
     timeout-seconds: ${AGENT_TIMEOUT_SECONDS:120}
+  knowledge:
+    # P3 固定嵌入维度必须与 V13 的 vector(1024) 一致，修改模型或维度需要新的迁移和全量重建。
+    embedding-model: ${KNOWLEDGE_EMBEDDING_MODEL:text-embedding-v3}
+    embedding-dimensions: ${KNOWLEDGE_EMBEDDING_DIMENSIONS:1024}
+    # 首版同步发布小型 Markdown/TXT；窗口改变会影响可复现的切片与 RAG 金标结果。
+    chunk-max-characters: ${KNOWLEDGE_CHUNK_MAX_CHARACTERS:1000}
 
 logging:
   level:

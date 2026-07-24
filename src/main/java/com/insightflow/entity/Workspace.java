@@ -28,6 +28,14 @@ public class Workspace {
     private Long id;
 
     /**
+     * Workspace 所属组织的内部关系键；P3 的所有 Workspace 都绑定默认组织，P4 才会由受控管理流程选择组织。
+     *
+     * <p>该字段不能被外部 API 接受或返回；知识检索以它收敛组织通用和当前 Workspace 专属文档。</p>
+     */
+    @Column(name = "organization_id", nullable = false, updatable = false)
+    private Long organizationId;
+
+    /**
      * 面向外部的稳定标识；由 UUIDv7 生成器创建，具备按生成时间大致有序的特性。
      */
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
@@ -56,9 +64,10 @@ public class Workspace {
      *
      * <p>UUIDv7 由成熟库生成，避免自行实现时间位、随机位和并发单调性逻辑。</p>
      */
-    public Workspace(String name) {
+    public Workspace(String name, Long organizationId) {
         this.publicId = UuidCreator.getTimeOrdered();
         this.name = name;
+        this.organizationId = organizationId;
         this.createdAt = OffsetDateTime.now();
     }
 
@@ -67,6 +76,13 @@ public class Workspace {
      */
     public Long getId() {
         return id;
+    }
+
+    /**
+     * 返回内部组织关系键，供服务层在保持 Workspace 隔离前提下解析知识文档可见范围。
+     */
+    public Long getOrganizationId() {
+        return organizationId;
     }
 
     /**

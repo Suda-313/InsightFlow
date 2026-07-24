@@ -18,6 +18,13 @@ public interface InsightAgent<T> {
 
     String systemPrompt();
 
+    /**
+     * 返回当前系统提示词的可追踪版本；未迁移的实现保留受控默认值，避免接口升级影响非 LLM 适配器。
+     */
+    default String promptVersion() {
+        return "unversioned";
+    }
+
     default List<ToolCallback> tools() {
         return List.of();
     }

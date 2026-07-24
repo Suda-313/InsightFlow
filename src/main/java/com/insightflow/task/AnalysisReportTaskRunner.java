@@ -84,7 +84,7 @@ public class AnalysisReportTaskRunner {
             }
 
             MergedData mergedData = buildMergedData(workspace.getPublicId());
-            String reportContent = reportAgent.generate(mergedData);
+            String reportContent = reportAgent.generate(workspace.getPublicId(), mergedData);
             String reportJson = objectMapper.writeValueAsString(
                     Map.of("report", reportContent, "generatedAt", OffsetDateTime.now().toString()));
 

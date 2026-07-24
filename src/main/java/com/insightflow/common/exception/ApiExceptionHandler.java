@@ -43,6 +43,20 @@ public class ApiExceptionHandler {
     }
 
     /**
+     * 会话不存在与会话不属于当前工作区统一返回 404，避免利用差异响应探测其他工作区的对话。
+     */
+    @ExceptionHandler(ChatSessionNotFoundException.class)
+    public ResponseEntity<ErrorEnvelope> handleChatSessionNotFound(ChatSessionNotFoundException exception) {
+        return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "对话会话不存在。", List.of());
+    }
+
+    /** AgentRun Trace 不存在或不属于当前工作区时统一返回 404，阻断跨工作区运行记录探测。 */
+    @ExceptionHandler(AgentRunNotFoundException.class)
+    public ResponseEntity<ErrorEnvelope> handleAgentRunNotFound(AgentRunNotFoundException exception) {
+        return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Agent 运行记录不存在。", List.of());
+    }
+
+    /**
      * 文件不存在或不属于当前 Workspace 时复用 404 语义，不区分两种情况以避免越权探测。
      */
     @ExceptionHandler(ImportFileNotFoundException.class)
