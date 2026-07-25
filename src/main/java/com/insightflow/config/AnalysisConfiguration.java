@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.ApplicationEventPublisher;
 
 /**
  * 集中装配分析层所有 Bean，将非 {@code @Component} 的 analysis 类纳入 Spring 容器管理。
@@ -114,8 +115,9 @@ public class AnalysisConfiguration {
      * 使用新的 ObjectMapper() 实例，避免与 Spring 的 ObjectMapper 共享配置。
      */
     @Bean
-    AlertDetector alertDetector(AlertRepository alertRepo, EwmaBaselineService ewmaBaselineService) {
+    AlertDetector alertDetector(
+            AlertRepository alertRepo, EwmaBaselineService ewmaBaselineService, ApplicationEventPublisher eventPublisher) {
         return new AlertDetector(alertRepo, ewmaBaselineService,
-                alertCooldownHours, globalAlertThreshold, surgeZ, new ObjectMapper());
+                alertCooldownHours, globalAlertThreshold, surgeZ, new ObjectMapper(), eventPublisher);
     }
 }

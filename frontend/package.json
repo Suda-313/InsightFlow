@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/home-runtime-state.test.mjs test/knowledge-runtime-state.test.mjs test/rag-evaluation-runtime-state.test.mjs"
+    "test": "node --test test/home-runtime-state.test.mjs test/knowledge-runtime-state.test.mjs test/rag-evaluation-runtime-state.test.mjs test/investigation-runtime-state.test.mjs"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

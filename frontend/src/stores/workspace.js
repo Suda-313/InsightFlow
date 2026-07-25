@@ -13,12 +13,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         return
       }
     } catch (e) {}
-    // 没有工作区则创建
-    try {
-      let r = await fetch('/api/v1/workspaces', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '默认工作区' }) })
-      let d = await r.json()
-      workspaceId.value = d.publicId || d.id
-    } catch (e) {}
+    // Workspace 只能由有组织权限的后端命令创建；前端没有可见工作区时保持空态而不擅自创建。
+    workspaceId.value = ''
   }
 
   return { workspaceId, init }

@@ -170,6 +170,13 @@ public class AsyncTask {
     }
 
     /**
+     * 创建告警触发的只读调查任务；任务只负责装配快照和生成待复核结论，绝不直接执行任何业务处置。
+     */
+    public static AsyncTask queuedInvestigation(Long workspaceId, String idempotencyKey, String payloadJson) {
+        return queuedWorkspaceTask(workspaceId, idempotencyKey, payloadJson, "investigation");
+    }
+
+    /**
      * 统一初始化 Workspace 级异步命令，保证三类任务使用相同的公开 ID、重试上限与初始状态。
      */
     private static AsyncTask queuedWorkspaceTask(

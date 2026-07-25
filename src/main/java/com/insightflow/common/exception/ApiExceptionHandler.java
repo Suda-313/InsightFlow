@@ -1,6 +1,10 @@
 package com.insightflow.common.exception;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.insightflow.security.AuthenticationRequiredException;
+import com.insightflow.security.InvalidJwtTokenException;
+import com.insightflow.security.MembershipConflictException;
+import com.insightflow.security.WorkspaceAccessDeniedException;
 import com.insightflow.storage.RawObjectStorageException;
 import java.util.List;
 import java.util.UUID;
@@ -102,6 +106,38 @@ public class ApiExceptionHandler {
     /**
      * 未预期异常只返回固定 500 契约；详细异常留在服务器日志，避免把存储或 SQL 细节泄漏给调用方。
      */
+    /**
+     * 未登录、Token 无效或账号被禁用统一返回 401；不区分密码、账户或签名的具体失败原因。
+     */
+    @ExceptionHandler({AuthenticationRequiredException.class, InvalidJwtTokenException.class})
+    public ResponseEntity<ErrorEnvelope> handleAuthentication(RuntimeException exception) {
+        return error(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "需要有效的登录凭证", List.of());
+    }
+
+    /**
+     * 组织归属、Workspace 范围或角色不满足时统一返回 403，避免借错误差异探测成员关系。
+     */
+    @ExceptionHandler(WorkspaceAccessDeniedException.class)
+    public ResponseEntity<ErrorEnvelope> handleAccessDenied(WorkspaceAccessDeniedException exception) {
+        return error(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "无权访问当前工作区资源", List.of());
+    }
+
+    /**
+     * 重复登录名是调用方可修正的资源冲突，使用 409 而不是把数据库唯一约束异常暴露为 500。
+     */
+    @ExceptionHandler(MembershipConflictException.class)
+    public ResponseEntity<ErrorEnvelope> handleMembershipConflict(MembershipConflictException exception) {
+        return error(HttpStatus.CONFLICT, "MEMBERSHIP_CONFLICT", exception.getMessage(), List.of());
+    }
+
+    /**
+     * 服务层对边界参数的防御性校验统一返回 422，保持与请求体校验相同的客户端可修复语义。
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorEnvelope> handleIllegalArgument(IllegalArgumentException exception) {
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", exception.getMessage(), List.of());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorEnvelope> handleUnexpected(Exception exception) {
         String traceId = UUID.randomUUID().toString();

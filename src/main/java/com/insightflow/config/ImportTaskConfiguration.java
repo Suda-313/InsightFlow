@@ -58,4 +58,19 @@ public class ImportTaskConfiguration {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * 调查取证使用单独的小线程池，避免告警突发时与 CSV 导入、LLM 报告争夺执行资源。
+     */
+    @Bean("investigationTaskExecutor")
+    public ThreadPoolTaskExecutor investigationTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("investigation-task-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }

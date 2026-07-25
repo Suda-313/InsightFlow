@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.entity.Alert;
 import com.insightflow.entity.IssueBaselineProfile;
 import com.insightflow.repository.AlertRepository;
+import com.insightflow.investigation.AlertCreatedEvent;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.context.ApplicationEventPublisher;
 
 /**
  * 告警检测器：根据当日计数、EWMA 基线和冷却期判断是否触发新告警。
@@ -24,16 +26,27 @@ public class AlertDetector {
     private final int globalAlertThreshold;
     private final double surgeZ;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AlertDetector(AlertRepository alertRepository, EwmaBaselineService ewmaBaselineService,
                          int cooldownHours, int globalAlertThreshold, double surgeZ,
                          ObjectMapper objectMapper) {
+        this(alertRepository, ewmaBaselineService, cooldownHours, globalAlertThreshold, surgeZ, objectMapper, null);
+    }
+
+    /**
+     * 生产构造器额外接收进程内事件发布器，使告警提交后能够异步创建调查；旧构造器保留给纯检测单测，避免测试引入异步副作用。
+     */
+    public AlertDetector(AlertRepository alertRepository, EwmaBaselineService ewmaBaselineService,
+                         int cooldownHours, int globalAlertThreshold, double surgeZ,
+                         ObjectMapper objectMapper, ApplicationEventPublisher eventPublisher) {
         this.alertRepository = alertRepository;
         this.ewmaBaselineService = ewmaBaselineService;
         this.cooldownHours = cooldownHours;
         this.globalAlertThreshold = globalAlertThreshold;
         this.surgeZ = surgeZ;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -77,7 +90,12 @@ public class AlertDetector {
         Alert alert = Alert.active(
                 workspaceId, issueId, projectionId, bucketStart, todayCount,
                 ewma, std, zScore, effectiveThreshold, evidenceJson);
-        return Optional.of(alertRepository.save(alert));
+        Alert savedAlert = alertRepository.save(alert);
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new AlertCreatedEvent(
+                    savedAlert.getWorkspaceId(), savedAlert.getId(), savedAlert.getPublicId()));
+        }
+        return Optional.of(savedAlert);
     }
 
     private String buildEvidenceJson(OffsetDateTime bucketStart, int todayCount,

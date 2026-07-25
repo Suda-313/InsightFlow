@@ -2,9 +2,9 @@
   <div class="p-6">
     <div class="flex items-center justify-between mb-6">
       <div><h1 class="text-2xl font-bold">分析报告</h1><p class="text-sm text-slate-500 mt-1">{{ reports.length }} 份报告</p></div>
-      <button @click="createReport" :disabled="creating" class="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-primary-light text-white rounded-xl font-medium hover:shadow-lg transition disabled:opacity-50">
+      <div class="flex items-center gap-3"><select v-model="scope" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="DAILY">日报</option><option value="WEEKLY">周报</option><option value="VERSION_REVIEW">版本复盘</option></select><button @click="createReport" :disabled="creating" class="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-primary-light text-white rounded-xl font-medium hover:shadow-lg transition disabled:opacity-50">
         <Sparkles class="w-4 h-4" />{{ creating ? '创建中...' : '生成新报告' }}
-      </button>
+      </button></div>
     </div>
 
     <div v-if="loading" class="space-y-3"><div v-for="i in 3" :key="i" class="card p-4 animate-pulse"><div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-48 mb-2"></div><div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24"></div></div></div>
@@ -42,7 +42,7 @@ import { ref, onMounted, watch } from 'vue'
 import { Sparkles, FileText, Eye, Download, FileDown } from 'lucide-vue-next'
 import { useWorkspaceStore } from '../stores/workspace'
 const store = useWorkspaceStore()
-const reports = ref([]), loading = ref(true), creating = ref(false)
+const reports = ref([]), loading = ref(true), creating = ref(false), scope = ref('WEEKLY')
 
 function reportName(r) {
   const date = (r.created_at || '').slice(0, 10)
@@ -66,7 +66,8 @@ async function createReport() {
   creating.value = true
   await fetch('/api/v1/workspaces/' + store.workspaceId + '/analysis-reports', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'rpt-' + Date.now() },
-    body: JSON.stringify({ time_range: { start: '2026-07-08T00:00:00Z', end: '2026-07-22T00:00:00Z' } })
+    // 报告范围由用户显式选择；服务端仍以冻结的已确认调查证据作为唯一正式来源。
+    body: JSON.stringify({ time_range: { start: '2026-07-08T00:00:00Z', end: '2026-07-22T00:00:00Z' }, scope: scope.value })
   })
   creating.value = false
   setTimeout(load, 3000)

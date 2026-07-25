@@ -12,6 +12,7 @@ import com.insightflow.repository.AnalysisReportFileRepository;
 import com.insightflow.repository.AnalysisReportRepository;
 import com.insightflow.repository.AsyncTaskRepository;
 import com.insightflow.repository.ImportFileRepository;
+import com.insightflow.report.OperationalReportScope;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -58,6 +59,12 @@ public class ReportCommandService {
      */
     @Transactional
     public AsyncTask createReport(UUID workspacePublicId, List<UUID> fileIds, TimeRange timeRange, String idempotencyKey) {
+        return createReport(workspacePublicId, fileIds, timeRange, idempotencyKey, OperationalReportScope.WEEKLY);
+    }
+
+    /** 创建指定运营范围的报告；范围属于服务端枚举，不把报告语义交给自由文本。 */
+    @Transactional
+    public AsyncTask createReport(UUID workspacePublicId, List<UUID> fileIds, TimeRange timeRange, String idempotencyKey, OperationalReportScope scope) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new ImportValidationException("Idempotency-Key 不能为空。");
         }
@@ -82,13 +89,13 @@ public class ReportCommandService {
 
         List<ImportFile> files = fileIds != null && !fileIds.isEmpty() ? resolveFiles(workspaceId, fileIds) : List.of();
         OffsetDateTime snapshotAt = OffsetDateTime.now();
-        String scopeJson = writeScope(fileIds, timeRange, snapshotAt);
+        String scopeJson = writeScope(fileIds, timeRange, snapshotAt, scope == null ? OperationalReportScope.WEEKLY : scope);
 
         AsyncTask task = taskRepository.saveAndFlush(
                 AsyncTask.queuedReport(workspaceId, idempotencyKey.trim(), scopeJson));
 
         AnalysisReport report = reportRepository.saveAndFlush(
-                AnalysisReport.queued(workspaceId, task.getId(), REPORT_VERSION, snapshotAt, scopeJson));
+                AnalysisReport.queued(workspaceId, task.getId(), REPORT_VERSION, snapshotAt, scopeJson, scope == null ? OperationalReportScope.WEEKLY : scope));
 
         for (ImportFile file : files) {
             reportFileRepository.saveAndFlush(AnalysisReportFile.of(report.getId(), workspaceId, file.getId()));
@@ -122,7 +129,7 @@ public class ReportCommandService {
         return files;
     }
 
-    private String writeScope(List<UUID> fileIds, TimeRange timeRange, OffsetDateTime snapshotAt) {
+    private String writeScope(List<UUID> fileIds, TimeRange timeRange, OffsetDateTime snapshotAt, OperationalReportScope operationalScope) {
         try {
             Map<String, Object> scope = new LinkedHashMap<>();
             if (fileIds != null && !fileIds.isEmpty()) {
@@ -130,6 +137,7 @@ public class ReportCommandService {
             }
             scope.put("timeRange", Map.of("start", timeRange.start(), "end", timeRange.end()));
             scope.put("snapshotAt", snapshotAt);
+            scope.put("operationalScope", operationalScope.name());
             return objectMapper.writeValueAsString(scope);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Unable to serialize report scope", exception);

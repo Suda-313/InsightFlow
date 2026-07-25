@@ -2,6 +2,7 @@ package com.insightflow.controller;
 
 import com.insightflow.entity.Workspace;
 import com.insightflow.service.WorkspaceService;
+import com.insightflow.security.WorkspaceAccessService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -33,11 +34,15 @@ public class WorkspaceController {
      */
     private final WorkspaceService workspaceService;
 
+    /** Workspace 列表和单项读取必须使用成员授权范围，而不是全局仓储结果。 */
+    private final WorkspaceAccessService workspaceAccessService;
+
     /**
      * 使用构造器注入，保持 API 层依赖显式且容易测试。
      */
-    public WorkspaceController(WorkspaceService workspaceService) {
+    public WorkspaceController(WorkspaceService workspaceService, WorkspaceAccessService workspaceAccessService) {
         this.workspaceService = workspaceService;
+        this.workspaceAccessService = workspaceAccessService;
     }
 
     /**
@@ -47,6 +52,8 @@ public class WorkspaceController {
      */
     @PostMapping
     public ResponseEntity<WorkspaceResponse> create(@Valid @RequestBody CreateWorkspaceRequest request) {
+        // 创建不带 workspaceId 的资源也必须在服务层完成组织 Owner 授权，不能依赖路径拦截器兜底。
+        workspaceAccessService.requireCanCreateDefaultWorkspace();
         Workspace workspace = workspaceService.create(request.name());
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{workspaceId}")
@@ -60,13 +67,13 @@ public class WorkspaceController {
      */
     @GetMapping("/{workspaceId}")
     public WorkspaceResponse get(@PathVariable UUID workspaceId) {
-        return WorkspaceResponse.from(workspaceService.get(workspaceId));
+        return WorkspaceResponse.from(workspaceAccessService.requireRead(workspaceId));
     }
 
     /** 列出所有工作区，按创建时间倒序。 */
     @GetMapping
     public List<WorkspaceResponse> list() {
-        return workspaceService.listAll().stream().map(WorkspaceResponse::from).toList();
+        return workspaceAccessService.listReadable().stream().map(WorkspaceResponse::from).toList();
     }
 
     /**

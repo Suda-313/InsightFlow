@@ -28,6 +28,15 @@ public class AnalysisReportCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId, String reportJson) {
+        complete(taskPublicId, workerId, reportJson, null);
+    }
+
+    /**
+     * 成功关闭报告任务时一并保存冻结证据，保证报告正文和其依据在同一终态事务中落库。
+     * 保留三参数重载给既有调用方，避免本次范围外的异步任务测试和调用受到影响。
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void complete(UUID taskPublicId, String workerId, String reportJson, String evidenceJson) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
         if (task == null || !task.isLeaseOwnedBy(workerId) || !"analysis_report".equals(task.getTaskType())) {
             return;
@@ -40,6 +49,9 @@ public class AnalysisReportCompletionService {
             return;
         }
         task.markSucceeded("{\"report\":\"" + report.getPublicId() + "\"}");
+        if (evidenceJson != null) {
+            report.setReportEvidenceJson(evidenceJson);
+        }
         report.markSucceeded(reportJson);
     }
 

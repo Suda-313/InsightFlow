@@ -12,6 +12,7 @@ import com.insightflow.repository.AnalysisReportRepository;
 import com.insightflow.repository.AsyncTaskRepository;
 import com.insightflow.repository.WorkspaceRepository;
 import com.insightflow.service.DashboardService;
+import com.insightflow.report.OperationalReportEvidenceAssembler;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -39,6 +40,8 @@ public class AnalysisReportTaskRunner {
     private final DashboardService dashboardService;
     private final AnalysisReportCompletionService completionService;
     private final ObjectMapper objectMapper;
+    /** 只装配已确认调查的冻结证据，报告任务不重跑 Agent 或 Tool。 */
+    private final OperationalReportEvidenceAssembler reportEvidenceAssembler;
 
     public AnalysisReportTaskRunner(
             AsyncTaskRepository taskRepository,
@@ -47,7 +50,8 @@ public class AnalysisReportTaskRunner {
             ReportAgent reportAgent,
             DashboardService dashboardService,
             AnalysisReportCompletionService completionService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            OperationalReportEvidenceAssembler reportEvidenceAssembler) {
         this.taskRepository = taskRepository;
         this.reportRepository = reportRepository;
         this.workspaceRepository = workspaceRepository;
@@ -55,6 +59,7 @@ public class AnalysisReportTaskRunner {
         this.dashboardService = dashboardService;
         this.completionService = completionService;
         this.objectMapper = objectMapper;
+        this.reportEvidenceAssembler = reportEvidenceAssembler;
     }
 
     /**
@@ -84,11 +89,14 @@ public class AnalysisReportTaskRunner {
             }
 
             MergedData mergedData = buildMergedData(workspace.getPublicId());
-            String reportContent = reportAgent.generate(workspace.getPublicId(), mergedData);
+            var evidence = reportEvidenceAssembler.forScope(workspace.getPublicId(), report.getOperationalScope());
+            String evidenceJson = objectMapper.writeValueAsString(evidence);
+            String reportContent = scopeBoundaryNote(report.getOperationalScope())
+                    + reportAgent.generate(workspace.getPublicId(), mergedData);
             String reportJson = objectMapper.writeValueAsString(
-                    Map.of("report", reportContent, "generatedAt", OffsetDateTime.now().toString()));
+                    Map.of("report", reportContent, "generatedAt", OffsetDateTime.now().toString(), "evidence", evidence));
 
-            completionService.complete(taskPublicId, workerId, reportJson);
+            completionService.complete(taskPublicId, workerId, reportJson, evidenceJson);
         } catch (Exception exception) {
             log.error("报告生成失败: {}", exception.getMessage(), exception);
             completionService.fail(taskPublicId, workerId, "REPORT_GENERATION_FAILED", "报告生成失败，请稍后重试。");
@@ -104,5 +112,15 @@ public class AnalysisReportTaskRunner {
         }
         String summary = "看板数据聚合摘要";
         return new MergedData(summary, totalTickets, issueMentions);
+    }
+
+    /**
+     * 版本复盘尚未接入版本和活动事件源，必须在产物中显式说明边界，避免模型把时间相关性写成版本因果。
+     */
+    private String scopeBoundaryNote(com.insightflow.report.OperationalReportScope scope) {
+        if (scope == com.insightflow.report.OperationalReportScope.VERSION_REVIEW) {
+            return "## 版本复盘边界\n当前未接入版本或活动事件数据；下文仅引用已确认调查证据，不可据此推断版本因果。\n\n";
+        }
+        return "";
     }
 }

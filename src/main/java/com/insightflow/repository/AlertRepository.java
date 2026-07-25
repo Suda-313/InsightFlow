@@ -3,6 +3,7 @@ package com.insightflow.repository;
 import com.insightflow.entity.Alert;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -39,4 +40,9 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
      * @return 预警列表
      */
     List<Alert> findByWorkspaceIdAndIssueIdOrderByCreatedAtDesc(Long workspaceId, Long issueId);
+
+    /**
+     * 通过外部告警 UUID 读取时仍必须携带 Workspace 内部键，避免跨工作区调查同一公开标识。
+     */
+    Optional<Alert> findByWorkspaceIdAndPublicId(Long workspaceId, UUID publicId);
 }

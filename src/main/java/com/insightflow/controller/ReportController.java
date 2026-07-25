@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.entity.AnalysisReport;
 import com.insightflow.entity.AsyncTask;
 import com.insightflow.service.ReportCommandService;
+import com.insightflow.report.OperationalReportScope;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -55,8 +56,10 @@ public class ReportController {
             @Valid @RequestBody CreateReportRequest request) {
         ReportCommandService.TimeRange serviceTimeRange = new ReportCommandService.TimeRange(
                 request.timeRange().start(), request.timeRange().end());
-        AsyncTask task = reportCommandService.createReport(
-                workspaceId, request.fileIds(), serviceTimeRange, idempotencyKey);
+        // 未传 scope 的老客户端继续使用周报默认值，避免一次 API 扩展破坏已有请求。
+        AsyncTask task = request.scope() == null
+                ? reportCommandService.createReport(workspaceId, request.fileIds(), serviceTimeRange, idempotencyKey)
+                : reportCommandService.createReport(workspaceId, request.fileIds(), serviceTimeRange, idempotencyKey, request.scope());
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{reportId}")
                 .buildAndExpand(task.getPublicId())
@@ -118,7 +121,8 @@ public class ReportController {
      */
     public record CreateReportRequest(
             List<UUID> fileIds,
-            @NotNull @JsonProperty("time_range") TimeRange timeRange) {
+            @NotNull @JsonProperty("time_range") TimeRange timeRange,
+            OperationalReportScope scope) {
 
         public record TimeRange(@JsonProperty("start") OffsetDateTime start,
                                 @JsonProperty("end") OffsetDateTime end) {
@@ -148,6 +152,7 @@ public class ReportController {
             @JsonRawValue String report,
             String errorCode,
             String errorMessage,
+            OperationalReportScope scope,
             @JsonProperty("created_at") OffsetDateTime createdAt,
             @JsonProperty("updated_at") OffsetDateTime updatedAt) {
 
@@ -158,6 +163,7 @@ public class ReportController {
                     report.getReportJson(),
                     report.getErrorCode(),
                     report.getErrorMessage(),
+                    report.getOperationalScope(),
                     report.getCreatedAt(),
                     report.getUpdatedAt());
         }

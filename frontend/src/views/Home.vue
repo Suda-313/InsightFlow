@@ -37,10 +37,6 @@
                 <li v-for="item in m.evidence" :key="item.id"><span class="font-medium">{{ item.title }}</span>：{{ item.content }}</li>
               </ul>
             </details>
-            <div v-if="m.role === 'assistant' && m.content" class="flex gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-              <router-link to="/data" class="text-xs px-2 py-1 rounded bg-primary/5 text-primary hover:bg-primary/10 transition">📊 查看数据</router-link>
-              <router-link to="/reports" class="text-xs px-2 py-1 rounded bg-accent/5 text-accent hover:bg-accent/10 transition">📄 生成报告</router-link>
-            </div>
           </div>
         </div>
         <div v-if="loading" class="flex items-center gap-2 text-sm text-slate-400"><div class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>生成回答中...</div>
@@ -80,7 +76,7 @@
           <div class="card p-5"><h3 class="font-semibold text-sm mb-3">最近告警</h3>
             <div v-if="!data.alerts.length" class="text-sm text-slate-400 py-8 text-center">暂无告警</div>
             <div v-for="a in data.alerts" :key="a.alertId" class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg mb-2">
-              <router-link :to="'/data?issue=' + (a.issueKey || '')" class="text-sm font-medium text-red-700 hover:underline">{{ a.issueName || a.alertId?.slice(0,8) }}</router-link>
+              <router-link to="/investigations" class="text-sm font-medium text-red-700 hover:underline">{{ a.issueName || a.alertId?.slice(0,8) }}</router-link>
               <div class="text-xs text-slate-400 mt-0.5">{{ a.createdAt?.slice(5,16) }} · {{ a.currentCount }} 条</div>
             </div>
           </div>

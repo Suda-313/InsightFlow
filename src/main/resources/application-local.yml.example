@@ -8,3 +8,8 @@ spring:
 insightflow:
   agent:
     enabled: true
+  security:
+    # 本地生成至少 32 字节的随机字符串；不要使用示例值，也不要提交真实密钥。
+    jwt-secret: replace-with-a-local-random-secret-at-least-32-bytes
+    # 仅首次创建 Owner 时使用；创建完成后可从本地配置删除或更换。
+    bootstrap-token: replace-with-a-one-time-local-bootstrap-token

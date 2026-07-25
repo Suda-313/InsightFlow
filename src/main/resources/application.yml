@@ -83,6 +83,11 @@ insightflow:
     longtail-max: ${ANALYSIS_LONGTAIL_MAX:2}
     alert-cooldown-hours: ${ANALYSIS_ALERT_COOLDOWN_HOURS:6}
     global-alert-threshold: ${ANALYSIS_GLOBAL_ALERT_THRESHOLD:10}
+  investigation:
+    # 调查任务只读取告警与受控 Tool 证据；独立租约避免与导入、报告任务相互阻塞。
+    dispatch-delay-ms: ${INVESTIGATION_DISPATCH_DELAY_MS:5000}
+    lease-seconds: ${INVESTIGATION_TASK_LEASE_SECONDS:180}
+    max-dispatch-per-cycle: ${INVESTIGATION_MAX_DISPATCH_PER_CYCLE:2}
   agent:
     # 基础分析可在无模型密钥的本地环境运行；Agent 是显式开启的可选能力。
     enabled: ${AGENT_ENABLED:false}
@@ -94,6 +99,11 @@ insightflow:
     embedding-dimensions: ${KNOWLEDGE_EMBEDDING_DIMENSIONS:1024}
     # 首版同步发布小型 Markdown/TXT；窗口改变会影响可复现的切片与 RAG 金标结果。
     chunk-max-characters: ${KNOWLEDGE_CHUNK_MAX_CHARACTERS:1000}
+  security:
+    # 密钥和首个 Owner 初始化口令必须由部署环境提供；空值使应用启动失败，避免出现默认可登录账号。
+    jwt-secret: ${INSIGHTFLOW_JWT_SECRET:}
+    jwt-expiration-minutes: ${INSIGHTFLOW_JWT_EXPIRATION_MINUTES:60}
+    bootstrap-token: ${INSIGHTFLOW_BOOTSTRAP_TOKEN:}
 
 logging:
   level:

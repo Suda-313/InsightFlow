@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import com.insightflow.report.OperationalReportScope;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -56,6 +57,16 @@ public class AnalysisReport {
     @JdbcTypeCode(SqlTypes.JSON)
     private String scopeJson;
 
+    /** 运营报告范围固定为日报、周报或版本复盘，避免时间范围之外的语义由客户端自由定义。 */
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "operational_scope", nullable = false, length = 30, updatable = false)
+    private OperationalReportScope operationalScope;
+
+    /** 已确认调查的冻结证据 JSON；Worker 生成一次后不随调查状态或指标变化回写。 */
+    @Column(name = "report_evidence_json", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String reportEvidenceJson;
+
     /** 只读结构化报告内容；初始 queued 状态保持 null。 */
     @Column(name = "report_json", columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
@@ -84,6 +95,12 @@ public class AnalysisReport {
     /** 创建冻结范围但尚未生成内容的只读报告。 */
     public static AnalysisReport queued(
             Long workspaceId, Long asyncTaskId, String reportVersion, OffsetDateTime sourceSnapshotAt, String scopeJson) {
+        return queued(workspaceId, asyncTaskId, reportVersion, sourceSnapshotAt, scopeJson, OperationalReportScope.WEEKLY);
+    }
+
+    /** 创建范围已冻结的运营报告；默认工厂保留旧调用兼容，新增范围只由服务端枚举接受。 */
+    public static AnalysisReport queued(
+            Long workspaceId, Long asyncTaskId, String reportVersion, OffsetDateTime sourceSnapshotAt, String scopeJson, OperationalReportScope operationalScope) {
         AnalysisReport report = new AnalysisReport();
         report.publicId = UuidCreator.getTimeOrdered();
         report.workspaceId = workspaceId;
@@ -92,6 +109,7 @@ public class AnalysisReport {
         report.reportVersion = reportVersion;
         report.sourceSnapshotAt = sourceSnapshotAt;
         report.scopeJson = scopeJson;
+        report.operationalScope = operationalScope;
         report.createdAt = OffsetDateTime.now();
         report.updatedAt = report.createdAt;
         return report;
@@ -111,6 +129,9 @@ public class AnalysisReport {
         this.errorMessage = null;
         this.updatedAt = OffsetDateTime.now();
     }
+
+    /** Worker 仅保存已序列化的冻结证据，报告正文和证据可独立被前端或下载接口读取。 */
+    public void setReportEvidenceJson(String reportEvidenceJson) { this.reportEvidenceJson = reportEvidenceJson; }
 
     /** 收敛报告失败，同时保留之前的看板事实不变。 */
     public void markFailed(String code, String message) {
@@ -182,6 +203,12 @@ public class AnalysisReport {
     public String getScopeJson() {
         return scopeJson;
     }
+
+    /** 返回固定运营范围，不允许从历史 scopeJson 中猜测。 */
+    public OperationalReportScope getOperationalScope() { return operationalScope; }
+
+    /** 返回生成时冻结的确认调查证据。 */
+    public String getReportEvidenceJson() { return reportEvidenceJson; }
 
     /**
      * 返回受控失败码。
