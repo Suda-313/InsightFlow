@@ -1,8 +1,10 @@
 package com.insightflow.evaluation;
 
 import java.util.Locale;
+import org.springframework.stereotype.Component;
 
 /** P1 金标集的确定性评分器，P2 增加证据引用格式覆盖率以观察 Prompt 回归。 */
+@Component
 public class EvaluationCaseScorer {
 
     /** 只匹配题目维护的精确事实与禁止断言，避免第二个模型引入额外随机性。 */

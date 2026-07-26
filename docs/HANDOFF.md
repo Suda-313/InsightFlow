@@ -1,111 +1,94 @@
-# InsightFlow 开发交接手册
+# InsightFlow 开发交接
 
-> 最后更新：2026-07-22
+> 最后更新：2026-07-26
+>
 > 当前分支：`feature/data-cell-rule-issue-merging`
+>
 > 远程仓库：`https://github.com/Suda-313/yuqiagent.git`
 
-## 1. 给下一位开发者的任务说明
+## 先说结论
 
-```text
-请继续开发 D:\yuqiagent 的 InsightFlow 项目。先完整阅读 AGENTS.md、docs/HANDOFF.md 和本文件。
+可以切换到另一台电脑继续开发，但**当前工作区有大量未提交改动和未跟踪文件**。另一台电脑仅拉取当前分支，无法获得这些改动、知识库样例、前端构建产物或本地数据库数据。
 
-技术栈固定为 Java 17 + Spring Boot 3.5 + PostgreSQL 16 + Flyway + MinIO + Docker Compose；
-保持模块化单体和 MVC 风格包结构，不改成 Python，不引入 Kafka、微服务或真实爬虫。
+切换前应二选一：
 
-当前已完成全部核心功能：CSV 导入、自动投影、DataCell+规则分类、日指标聚合、EWMA基线、
-z-score告警、Spring AI Agent层（DeepSeek-v4-flash）、看板API、报告API（含下载）。
+1. 先审查并提交、推送本次确认要保留的代码与文档；此前约定的测试类不提交，应继续遵守。
+2. 若暂不提交，则完整、私密地复制当前工作目录和本地运行配置到新电脑；不要把密钥写入 Git 或交接文档。
 
-每个新增业务、实体、任务和迁移模块的有效注释行数不得少于非空代码行数的 1/2；先写失败测试，
-再写最小实现；不要提交或推送，除非用户明确要求。完成后运行 mvnw.cmd test 和 mvnw.cmd package。
+不建议直接在新电脑重新开始：当前未提交内容混有多个阶段的改动，容易遗漏。
+
+## 当前目标与卡点
+
+当前正在收口 RAG 评测链路，目标是建立一份可复跑、可比较的真实 RAG 质量基线。
+
+### 已完成
+
+- RAG 长评测已改为异步任务：创建接口返回 `202 + task_id`，前端轮询任务状态，避免 HTTP 请求超时。
+- 每道 RAG 用例均输出 `RAG_EVAL` 日志，包含用例 ID、执行状态、失败阶段、检索/生成/总耗时；无法从现有 Spring AI 网关取得 token 时明确记录 `unavailable`，不伪造指标。
+- 增加 50 秒模型 HTTP 读取超时和 55 秒单用例评测超时，防止后台任务无限占用线程。
+- 评测任务只有在**全部用例成功**时才会保存为质量基线；任一用例失败即为 `partial_failed`，不生成可比较的 `run_id`。
+- 修正了生成阶段失败的耗时归因，避免将模型生成耗时错误记为检索耗时。
+- 已补充相关开发记录与 Todo：`docs/project-development-log.md`、`docs/agent-optimization-todo.md`。
+
+### 当前外部卡点
+
+真实模型调用仍不稳定：部分 RAG 用例在约 50 秒后于 `generation_failed` 结束。最近一次真实任务已正确返回 `partial_failed`，且没有写入新的质量基线。
+
+这不是“评测代码已通过”的结论，而是当前保护逻辑生效的证明。尚不能使用历史 RAG 指标做模型、Prompt 或检索策略的优劣比较。
+
+另有一份早期历史 RAG 记录是在“部分用例成功即可保存”旧逻辑下生成的，其中多道用例失败；它仅可作为排障证据，**不能作为质量基线**，未经确认不要删除。
+
+## 下一步建议（按优先级）
+
+1. 启动本地服务后再次触发 RAG 评测，观察每道 `RAG_EVAL` 日志，确认失败集中在检索、重排还是模型生成阶段。
+2. 优先排查百炼/DashScope 的模型响应：模型选择、网络连通性、服务端限流和生成长度。不要为了“跑通”而静默缩短答案、删除用例或放宽成功标准。
+3. 当 5 道用例全部 `succeeded` 后，保存该次结果为第一份有效 RAG 基线；再以相同数据集和同一配置比较 Prompt、检索和后续向量库改动。
+4. 有了有效基线后，再继续 Todo 中的 Agent 只读工具、组织级知识库与工作区范围检索等能力；写操作仍必须人工确认。
+
+## 本地恢复清单
+
+### 代码与依赖
+
+1. 安装 JDK 17、Docker Desktop、Git；Maven 使用项目自带的 `mvnw.cmd`。
+2. 获取已同步的代码后切换到 `feature/data-cell-rule-issue-merging`。
+3. 运行 `docker compose up -d` 启动 PostgreSQL、MinIO 等依赖。
+4. 按项目的本地配置示例重新设置 API Key、JWT 密钥和本地存储配置；密钥只通过环境变量或受控本地配置提供。
+5. 启动后访问 `http://localhost:8080/actuator/health`。
+
+### 数据与知识库
+
+- 当前本地数据库中的工作区、导入评论、对话、评测历史和知识库索引不会随 Git 同步。若要保留现状，需要迁移本地数据库/卷；若只需重新验证功能，可在新电脑重新导入 CSV 并重新上传知识库文档。
+- 知识库样例与来源材料位于 `docs/knowledge-sources/`，属于当前未跟踪文件，切换前需确认是否随代码一起保留。
+- 不迁移本地数据时，不应期待新电脑能看到旧工作区、旧 RAG 任务或旧对话记录。
+
+## 关键实现位置
+
+- RAG 异步任务与严格成功判定：`src/main/java/com/insightflow/evaluation/rag/RagEvaluationTaskRunner.java`
+- 单用例超时与耗时归因：`src/main/java/com/insightflow/evaluation/rag/RagEvaluationCaseExecutor.java`
+- 逐题日志与指标汇总：`src/main/java/com/insightflow/evaluation/rag/RagLiveEvaluationRunner.java`
+- 任务创建、轮询接口：`src/main/java/com/insightflow/controller/EvaluationController.java`
+- 模型 HTTP 超时：`src/main/java/com/insightflow/config/AgentConfiguration.java`
+- 配置项：`src/main/resources/application.yml`
+- RAG 后续事项：`docs/agent-optimization-todo.md`
+- 关键决策与验证记录：`docs/project-development-log.md`
+
+## 已验证范围
+
+以下命令在本机最近一次执行通过：
+
+```powershell
+.\mvnw.cmd '-Dtest=AgentConfigurationTest,EvaluationControllerTest,RagEvaluationControllerTest,RagEvaluationTaskCommandServiceTest,RagEvaluationTaskQueryServiceTest,RagEvaluationTaskRunnerTest,RagEvaluationCaseExecutorTest,RagLiveEvaluationRunnerTest' test
+npm --prefix frontend run build
+.\mvnw.cmd -DskipTests package
+git diff --check
 ```
 
-## 2. 新电脑恢复步骤
+说明：未执行全量 Maven 测试；前端构建存在既有的 Vite CSS `@import` 顺序警告，构建本身成功。
 
-1. 安装 JDK 17+、Docker Desktop（启用 WSL 2）和 Git；Maven 使用项目自带的 `mvnw.cmd`
-2. 克隆仓库：
-   ```powershell
-   git clone https://github.com/Suda-313/yuqiagent.git D:\yuqiagent
-   cd D:\yuqiagent
-   git checkout feature/data-cell-rule-issue-merging
-   ```
-3. 从 `.env.example` 创建本地 `.env`，配置 API Key
-4. 启动依赖：
-   ```powershell
-   docker compose up -d
-   ```
-5. 启动应用：
-   ```powershell
-   $env:DASHSCOPE_API_KEY = "sk-xxx"
-   ./mvnw.cmd spring-boot:run
-   ```
-6. 访问 `http://localhost:8080/actuator/health`
+## 不可突破的约束
 
-## 3. 已完成能力
-
-### 确定性管线
-- **CSV 导入**：上传 → 表头预览 → 字段映射 → 异步导入 → 脱敏入库
-- **自动投影**：导入成功 → 创建投影任务 → Scheduler 领取 → Worker 执行
-- **DataCell 切分**：40 条/60 分钟/6000 token 三护栏
-- **规则优先分类**：8 条种子规则，TOML 配置，最多 2 主题，未命中返回 unclassified
-- **日指标聚合**：按 (issue, 日期) 聚合，source_kind 分布，UPSERT 幂等
-- **EWMA 基线**：α=0.3，3 天基线建立，二维象限分类（surge/escalating/chronic/longtail/normal）
-- **z-score 告警**：动态阈值 + 6 小时冷却期
-
-### Agent 增强层
-- **Spring AI 集成**：OpenAI 兼容模式对接阿里云百炼 DeepSeek-v4-flash
-- **CellAnalysisAgent**：3 个并行 Analyzer（分类补充 + 情感分析 + 风险分析）
-- **ReportAgent**：LLM 生成运营周报，支持 Markdown 下载
-- **LLM 指标**：每次调用的 token 消耗和耗时日志
-
-### REST API
-- `GET /dashboard` — 看板摘要
-- `GET /issues` — 主题列表
-- `GET /issues/{key}` — 主题详情
-- `POST /analysis-reports` — 创建报告
-- `GET /analysis-reports/{id}` — 查询报告
-- `GET /analysis-reports/{id}/download` — 下载报告
-
-### 数据库
-- Flyway V1-V8 迁移
-- 19 张表，12 个 JPA Repository
-- 74+ 个单元测试
-
-## 4. 当前目录与关键文件
-
-```text
-src/main/java/com/insightflow/
-  agent/                      # Agent 增强层（Spring AI）
-    InsightAgent.java         # Agent 接口
-    AgentOrchestrator.java    # 并行编排器
-    AgentFallbackManager.java # 降级管理
-    CellAnalysisAgent.java    # Cell 分析编排
-    AgentAnalysisScheduler.java # 事件监听 + 异步调度
-    LlmMetrics.java           # Token 指标
-    analyzer/                 # 三个并行 Analyzer
-    report/                   # 报告生成 + 对账引擎
-    dto/                      # 结构化输出
-    event/                    # 投影完成事件
-  controller/                 # HTTP 边界
-  service/
-    analysis/                 # 分析管线（规则分类/切分/聚合/基线/告警）
-    importing/                # CSV 解析/PII 脱敏/哈希
-  task/                       # 异步任务（导入/投影/报告）
-  entity/                     # JPA 实体（19 张表）
-  repository/                 # Spring Data 仓储（12 个）
-  config/                     # 配置（Agent/Analysis/Import/MinIO）
-  storage/                    # MinIO 对象存储
-  common/exception/           # 异常处理
-  dto/                        # 传输对象
-```
-
-## 5. 数据库状态
-
-Flyway 当前版本为 V8。不要修改 V1-V8；新增表或字段必须创建新的前向迁移。
-
-## 6. 不可突破的边界
-
-- 不保存原始 CSV、真实工单号、手机号、邮箱或未脱敏文本到 PostgreSQL
-- 不让 LLM 直接写数据库、创建 Alert 或修改基线
-- 不将 Report 的重新生成与数据重建混为一谈
-- 不在子类或 Controller 内手写跨层 SQL、主题计算或状态机
-- 不执行 `git reset --hard`、不删除用户已有的未提交修改
+- 遵循 `AGENTS.md`：KISS/YAGNI、默认外科手术式修改，跨文件设计先说明取舍再实施。
+- 外部 API 仅暴露 `public_id`；业务读写按 `workspace_id` 隔离；Agent 当前仅做只读调查，策略或数据写入必须人工确认。
+- 不保存或展示模型原始思维链；只保存用户消息、最终回答、可核验依据与必要的调用指标。
+- 不将 API Key、密码、Token、个人信息或未脱敏业务数据写入源码、测试、日志或文档。
+- 不执行 `git reset --hard`，不擅自清理当前未提交文件。

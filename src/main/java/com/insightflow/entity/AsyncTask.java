@@ -177,6 +177,16 @@ public class AsyncTask {
     }
 
     /**
+     * 创建一次受控 RAG 评测任务。
+     *
+     * <p>评测题集和知识范围由 Worker 在领取后按任务所属 Workspace 重新解析，
+     * 因此 payload 不携带用户问题、知识正文或模型参数，也不允许客户端借此改变评测范围。</p>
+     */
+    public static AsyncTask queuedRagEvaluation(Long workspaceId, String idempotencyKey) {
+        return queuedWorkspaceTask(workspaceId, idempotencyKey, "{}", "rag_evaluation");
+    }
+
+    /**
      * 统一初始化 Workspace 级异步命令，保证三类任务使用相同的公开 ID、重试上限与初始状态。
      */
     private static AsyncTask queuedWorkspaceTask(

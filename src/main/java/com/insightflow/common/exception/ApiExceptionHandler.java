@@ -60,6 +60,12 @@ public class ApiExceptionHandler {
         return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Agent 运行记录不存在。", List.of());
     }
 
+    /** RAG 任务不属于当前工作区与任务不存在统一返回 404，避免公开 UUID 被用于资源探测。 */
+    @ExceptionHandler(RagEvaluationTaskNotFoundException.class)
+    public ResponseEntity<ErrorEnvelope> handleRagEvaluationTaskNotFound(RagEvaluationTaskNotFoundException exception) {
+        return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "RAG 评测任务不存在。", List.of());
+    }
+
     /**
      * 文件不存在或不属于当前 Workspace 时复用 404 语义，不区分两种情况以避免越权探测。
      */

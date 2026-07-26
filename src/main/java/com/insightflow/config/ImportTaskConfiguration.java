@@ -73,4 +73,30 @@ public class ImportTaskConfiguration {
         executor.initialize();
         return executor;
     }
+
+    /** RAG 单题模型调用独立限流；最多两条卡住请求，避免耗尽其他业务 Worker。*/
+    @Bean("ragEvaluationCallExecutor")
+    public ThreadPoolTaskExecutor ragEvaluationCallExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(0);
+        executor.setThreadNamePrefix("rag-evaluation-call-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.initialize();
+        return executor;
+    }
+
+    /** RAG 整批任务独立于单题调用池，调度线程只负责领取，不被模型请求阻塞。*/
+    @Bean("ragEvaluationTaskExecutor")
+    public ThreadPoolTaskExecutor ragEvaluationTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(10);
+        executor.setThreadNamePrefix("rag-evaluation-task-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }

@@ -1,11 +1,12 @@
 package com.insightflow.controller;
 
 import com.insightflow.config.AgentApiKeyPresentCondition;
+import com.insightflow.entity.AsyncTask;
 import com.insightflow.entity.EvaluationRun;
 import com.insightflow.evaluation.GoldEvaluationRunResult;
 import com.insightflow.evaluation.GoldEvaluationRunner;
-import com.insightflow.evaluation.rag.RagEvaluationRunResult;
-import com.insightflow.evaluation.rag.RagLiveEvaluationRunner;
+import com.insightflow.evaluation.rag.RagEvaluationTaskCommandService;
+import com.insightflow.evaluation.rag.RagEvaluationTaskQueryService;
 import com.insightflow.service.EvaluationHistoryService;
 import com.insightflow.service.RagEvaluationHistoryService;
 import com.insightflow.entity.RagEvaluationRun;
@@ -13,10 +14,12 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Conditional;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -37,21 +40,26 @@ public class EvaluationController {
     private final EvaluationHistoryService evaluationHistoryService;
 
     /** RAG 运行器复用线上受控检索和 Prompt 护栏，不能由 Controller 自行拼接模型调用。 */
-    private final RagLiveEvaluationRunner ragEvaluationRunner;
-
     /** RAG 专项历史独立于通用金标历史，避免不同 JSON 指标口径混存。 */
     private final RagEvaluationHistoryService ragEvaluationHistoryService;
+
+    /** RAG 评测命令负责完成授权检查和持久化受理，Controller 不能在 HTTP 线程调用模型。*/
+    private final RagEvaluationTaskCommandService ragEvaluationTaskCommandService;
+    /** 轮询查询必须经由授权服务，任务 UUID 不能单独作为读取凭证。*/
+    private final RagEvaluationTaskQueryService ragEvaluationTaskQueryService;
 
     /** 通过构造器明确 HTTP 校验与评测执行的职责边界，便于单测替换模型运行器。 */
     public EvaluationController(
             GoldEvaluationRunner evaluationRunner,
             EvaluationHistoryService evaluationHistoryService,
-            RagLiveEvaluationRunner ragEvaluationRunner,
-            RagEvaluationHistoryService ragEvaluationHistoryService) {
+            RagEvaluationHistoryService ragEvaluationHistoryService,
+            RagEvaluationTaskCommandService ragEvaluationTaskCommandService,
+            RagEvaluationTaskQueryService ragEvaluationTaskQueryService) {
         this.evaluationRunner = evaluationRunner;
         this.evaluationHistoryService = evaluationHistoryService;
-        this.ragEvaluationRunner = ragEvaluationRunner;
         this.ragEvaluationHistoryService = ragEvaluationHistoryService;
+        this.ragEvaluationTaskCommandService = ragEvaluationTaskCommandService;
+        this.ragEvaluationTaskQueryService = ragEvaluationTaskQueryService;
     }
 
     /**
@@ -84,10 +92,16 @@ public class EvaluationController {
      * 返回和持久化内容仅包含脱敏指标、证据计数与批次 UUID。</p>
      */
     @PostMapping("/rag")
-    public RagRunResponse runRagEvaluation(@PathVariable UUID workspaceId) {
-        RagEvaluationRunResult result = ragEvaluationRunner.run(workspaceId);
-        RagEvaluationRun persisted = ragEvaluationHistoryService.record(workspaceId, result);
-        return new RagRunResponse(persisted.getPublicId(), result);
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public RagTaskResponse runRagEvaluation(@PathVariable UUID workspaceId) {
+        AsyncTask task = ragEvaluationTaskCommandService.enqueue(workspaceId);
+        return RagTaskResponse.from(task);
+    }
+
+    /** 读取任务终态供前端轮询；只公开状态、对应运行 UUID 和受控错误码。*/
+    @GetMapping("/rag/tasks/{taskId}")
+    public RagTaskStatusResponse getRagEvaluationTask(@PathVariable UUID workspaceId, @PathVariable UUID taskId) {
+        return RagTaskStatusResponse.from(ragEvaluationTaskQueryService.get(workspaceId, taskId));
     }
 
     /** 返回当前 Workspace 的 RAG 历史摘要，供页面了解知识库变化后的评测趋势。 */
@@ -131,9 +145,29 @@ public class EvaluationController {
     }
 
     /** RAG 运行响应不暴露内部数据库键、文档正文或模型原始回答。 */
-    public record RagRunResponse(
-            @com.fasterxml.jackson.annotation.JsonProperty("run_id") UUID runId,
-            RagEvaluationRunResult result) {
+    public record RagTaskResponse(
+            @com.fasterxml.jackson.annotation.JsonProperty("task_id") UUID taskId,
+            String status) {
+
+        /** 从任务实体显式投影，避免 API 暴露内部主键、租约或幂等键。*/
+        static RagTaskResponse from(AsyncTask task) {
+            return new RagTaskResponse(task.getPublicId(), task.getStatus());
+        }
+    }
+
+    /** 终态中的 run_id 指向既有 RAG 历史，不在轮询响应中重复暴露指标 JSON。*/
+    public record RagTaskStatusResponse(
+            @com.fasterxml.jackson.annotation.JsonProperty("task_id") UUID taskId,
+            String status,
+            @com.fasterxml.jackson.annotation.JsonProperty("run_id") String runId,
+            @com.fasterxml.jackson.annotation.JsonProperty("error_code") String errorCode) {
+        static RagTaskStatusResponse from(AsyncTask task) {
+            // 只有成功任务的 result_json 才约定包含历史批次 UUID；partial_failed 保存的是失败摘要。
+            String runId = "succeeded".equals(task.getStatus()) && task.getResultJson() != null
+                    ? task.getResultJson().replaceAll(".*\\\"run\\\"\\s*:\\s*\\\"([^\\\"]+)\\\".*", "$1")
+                    : null;
+            return new RagTaskStatusResponse(task.getPublicId(), task.getStatus(), runId, task.getErrorCode());
+        }
     }
 
     /** RAG 历史摘要仅提供选择和趋势展示所需的公开元数据。 */

@@ -1,5 +1,7 @@
 package com.insightflow.config;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -10,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -45,14 +48,16 @@ public class AgentConfiguration {
             @Value("${spring.ai.openai.api-key}") String apiKey,
             @Value("${spring.ai.openai.chat.options.model}") String model,
             @Value("${spring.ai.openai.chat.options.temperature}") Float temperature,
-            @Value("${spring.ai.openai.chat.options.max-tokens}") Integer maxTokens) {
+            @Value("${spring.ai.openai.chat.options.max-tokens}") Integer maxTokens,
+            @Value("${insightflow.agent.http-read-timeout-seconds:50}") long httpReadTimeoutSeconds) {
         // 每次启动根据配置构造独立选项，避免共享可变对象被其他模型能力修改。
         OpenAiChatOptions options = new OpenAiChatOptions();
         options.setModel(model);
         options.setTemperature(temperature);
         options.setMaxTokens(maxTokens);
         // OpenAiApi 只保存连接配置；这里不会发起网络请求或验证密钥有效性。
-        OpenAiApi openAiApi = new OpenAiApi(baseUrl, apiKey, restClientBuilder, webClientBuilder);
+        OpenAiApi openAiApi = new OpenAiApi(
+                baseUrl, apiKey, withNetworkTimeout(restClientBuilder, httpReadTimeoutSeconds), webClientBuilder);
         return new OpenAiChatModel(openAiApi, options);
     }
 
@@ -77,11 +82,27 @@ public class AgentConfiguration {
             @Value("${spring.ai.openai.base-url}") String baseUrl,
             @Value("${spring.ai.openai.api-key}") String apiKey,
             @Value("${insightflow.knowledge.embedding-model:text-embedding-v3}") String model,
-            @Value("${insightflow.knowledge.embedding-dimensions:1024}") Integer dimensions) {
+            @Value("${insightflow.knowledge.embedding-dimensions:1024}") Integer dimensions,
+            @Value("${insightflow.agent.http-read-timeout-seconds:50}") long httpReadTimeoutSeconds) {
         OpenAiEmbeddingOptions options = new OpenAiEmbeddingOptions();
         options.setModel(model);
         options.setDimensions(dimensions);
-        return new OpenAiEmbeddingModel(new OpenAiApi(baseUrl, apiKey, restClientBuilder, webClientBuilder),
+        return new OpenAiEmbeddingModel(new OpenAiApi(
+                baseUrl, apiKey, withNetworkTimeout(restClientBuilder, httpReadTimeoutSeconds), webClientBuilder),
                 org.springframework.ai.document.MetadataMode.NONE, options);
+    }
+
+    /**
+     * 为同步的 OpenAI-compatible 调用同时设置连接与响应读取上限。
+     *
+     * <p>读取上限必须小于 RAG 单题 55 秒的应用层上限，使底层 HTTP 先释放线程；
+     * 应用层 Future 取消仍保留为供应商客户端未及时响应中断时的第二道保护。</p>
+     */
+    private RestClient.Builder withNetworkTimeout(RestClient.Builder builder, long timeoutSeconds) {
+        Duration timeout = Duration.ofSeconds(timeoutSeconds);
+        HttpClient httpClient = HttpClient.newBuilder().connectTimeout(timeout).build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(timeout);
+        return builder.requestFactory(requestFactory);
     }
 }

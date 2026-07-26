@@ -191,13 +191,25 @@ async function runRagEvaluation() {
   requestError.value = ''
   try {
     const response = await request('/api/v1/workspaces/' + store.workspaceId + '/evaluations/rag', { method: 'POST' })
-    ragResult.value = response.result || null
+    const task = await waitForRagTask(response.task_id)
+    if (task.status !== 'succeeded') throw new Error(task.error_code || 'RAG 评测未完成')
+    ragResult.value = null
     await loadPage()
   } catch (error) {
     requestError.value = error.message
   } finally {
     ragRunning.value = false
   }
+}
+
+// 后端仅在任务终态写入评测历史；轮询期间不保留模型回答或文档正文到浏览器内存。
+async function waitForRagTask(taskId) {
+  for (let attempt = 0; attempt < 180; attempt++) {
+    const task = await request('/api/v1/workspaces/' + store.workspaceId + '/evaluations/rag/tasks/' + taskId)
+    if (task.status === 'succeeded' || task.status === 'failed' || task.status === 'partial_failed') return task
+    await new Promise(resolve => setTimeout(resolve, 2000))
+  }
+  throw new Error('RAG 评测等待超时，请稍后刷新查看任务状态')
 }
 
 // 对比只允许两个不同的公开批次 UUID；后端仍会校验它们属于相同工作区与数据集版本。

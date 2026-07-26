@@ -1,7 +1,7 @@
 package com.insightflow.evaluation.rag;
 
+import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
-import com.insightflow.knowledge.KnowledgeSearchTool;
 import com.insightflow.prompt.ChatPromptTemplate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,71 +11,68 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Service;
-import com.insightflow.config.AgentApiKeyPresentCondition;
 
 /**
- * 将动态金标、线上同款受控检索与确定性规则评分串成一次 RAG 评测。
+ * 将动态金标、受控单题执行和确定性规则评分串成一次 RAG 评测。
  *
- * <p>此运行器不允许模型决定检索参数、执行 SQL 或继续调用工具；每题固定执行一次
- * {@link KnowledgeSearchTool}，回答中的引用仅用正则提取后与实际检索证据对照。</p>
+ * <p>运行器不直接持有 ChatClient、嵌入模型或仓储；每题只能委托给带超时的执行器。
+ * 这保证模型阻塞被限制在单题范围，并让评分规则始终只消费受控检索证据和最终回答。</p>
  */
 @Service
 @Conditional(AgentApiKeyPresentCondition.class)
 public class RagLiveEvaluationRunner {
 
-    /** 只接受形如 [证据: knowledge:...] 的引用，非知识引用不计入本专项指标。 */
+    /** 只接受形如 [证据: knowledge:...] 的引用，普通 Markdown 文字不计入 RAG 引用指标。*/
     private static final Pattern KNOWLEDGE_CITATION = Pattern.compile("\\[证据:\\s*(knowledge:[^\\]\\s]+)\\]");
 
-    /** 固定题集工厂负责组织与 Workspace 可见范围，不让评测运行器自行读库。 */
+    /** 逐题日志只含题目 ID、阶段、耗时与真实 Usage，绝不输出问题、回答或证据正文。*/
+    private static final Logger log = LoggerFactory.getLogger(RagLiveEvaluationRunner.class);
+
+    /** 题集工厂按当前 Workspace 的可见发布文档生成固定、可复现的金标题目。*/
     private final RagEvaluationFixtureFactory fixtureFactory;
 
-    /** 线上与评测复用同一受控检索 Tool，确保两者的过滤和两轮上限一致。 */
-    private final KnowledgeSearchTool knowledgeSearchTool;
+    /** 单题执行器承接受控检索、模型调用、超时与异常收敛，运行器只负责评分。*/
+    private final RagEvaluationCaseExecutor caseExecutor;
 
-    /** 模型回答通过窄接口隔离，运行器不持有 ChatClient 或提示词拼接能力。 */
-    private final RagEvaluationAnswerGateway answerGateway;
-
-    /** Prompt 版本来自线上同一模板，支持将结果与聊天运行审计关联。 */
+    /** 评测历史中的 Prompt 版本必须与线上受控模板一致，不能从浏览器传入。*/
     private final ChatPromptTemplate promptTemplate = new ChatPromptTemplate();
 
-    /** 评测历史中的模型名不能从客户端传入，避免伪造比较维度。 */
+    /** 供应商模型名是可比较的运行维度；本地未启用模型时使用 unknown。*/
     @Value("${spring.ai.openai.chat.options.model:unknown}")
     private String configuredModelName = "unknown";
 
-    /** 显式注入三个受控边界，便于以替身验证运行器不绕过检索或模型入口。 */
-    public RagLiveEvaluationRunner(
-            RagEvaluationFixtureFactory fixtureFactory,
-            KnowledgeSearchTool knowledgeSearchTool,
-            RagEvaluationAnswerGateway answerGateway) {
+    /**
+     * 构造器只注入题集与单题边界，避免评分器绕过超时、日志或 Workspace 约束。
+     */
+    public RagLiveEvaluationRunner(RagEvaluationFixtureFactory fixtureFactory, RagEvaluationCaseExecutor caseExecutor) {
         this.fixtureFactory = fixtureFactory;
-        this.knowledgeSearchTool = knowledgeSearchTool;
-        this.answerGateway = answerGateway;
+        this.caseExecutor = caseExecutor;
     }
 
     /**
-     * 运行当前 Workspace 的全部固定题。
+     * 运行当前 Workspace 的全部固定题目。
      *
-     * <p>单题模型调用失败时保留失败计数并继续后续题目，避免一次供应商波动使已有评测
-     * 历史完全丢失；失败的有依据题会被保守地视为未能给出可靠答案。</p>
+     * <p>一题失败时用空观察结果保守评分，但循环不会提前结束；这让最终历史明确反映失败题，
+     * 又不会因为单个供应商波动完全丢失同批已完成题目的基线价值。</p>
      */
     public RagEvaluationRunResult run(UUID workspacePublicId) {
         RagEvaluationFixture fixture = fixtureFactory.create(workspacePublicId);
         Map<String, RagEvaluationObservation> observations = new LinkedHashMap<>();
         Map<String, String> statuses = new LinkedHashMap<>();
         for (RagEvaluationCaseDefinition evaluationCase : fixture.cases()) {
-            try {
-                KnowledgeRetrievalResult retrieval = knowledgeSearchTool.retrieve(workspacePublicId, evaluationCase.question());
-                String answer = answerGateway.answer(evaluationCase.question(), retrieval);
-                observations.put(evaluationCase.caseId(), observation(retrieval, answer));
-                statuses.put(evaluationCase.caseId(), "succeeded");
-            } catch (RuntimeException exception) {
-                observations.put(evaluationCase.caseId(), new RagEvaluationObservation(Set.of(), Set.of(),
-                        !evaluationCase.expectedEvidencePrefixes().isEmpty()));
-                statuses.put(evaluationCase.caseId(), "failed");
-            }
+            log.info("RAG_EVAL case_id={}, status=started", evaluationCase.caseId());
+            RagEvaluationCaseExecution execution = caseExecutor.execute(workspacePublicId, evaluationCase);
+            RagEvaluationObservation observation = "succeeded".equals(execution.status())
+                    ? observation(execution.retrieval(), execution.answer())
+                    : new RagEvaluationObservation(Set.of(), Set.of(), !evaluationCase.expectedEvidencePrefixes().isEmpty());
+            observations.put(evaluationCase.caseId(), observation);
+            statuses.put(evaluationCase.caseId(), execution.status());
+            logCaseCompletion(evaluationCase.caseId(), execution);
         }
 
         List<RagGoldEvaluationCase> goldCases = fixture.cases().stream()
@@ -90,7 +87,21 @@ public class RagLiveEvaluationRunner {
                 fixture.datasetVersion(), promptTemplate.version(), configuredModelName, "knowledge:rrf:v1", metrics, caseResults);
     }
 
-    /** 将真实检索证据和回答引用压缩为确定性评测观测，不保留回答正文。 */
+    /**
+     * 输出可审计的逐题终态；当前回答网关尚未返回 Usage 时明确标记 unavailable，禁止用字符数估算 Token。
+     */
+    private void logCaseCompletion(String caseId, RagEvaluationCaseExecution execution) {
+        log.info(
+                "RAG_EVAL case_id={}, status={}, failure_stage={}, retrieval_latency_ms={}, generation_latency_ms={}, total_latency_ms={}, prompt_tokens=unavailable, completion_tokens=unavailable, total_tokens=unavailable",
+                caseId,
+                execution.status(),
+                execution.failureStage(),
+                execution.retrievalLatencyMs(),
+                execution.generationLatencyMs(),
+                execution.totalLatencyMs());
+    }
+
+    /** 将真实检索证据和回答引用压缩为确定性观察，不保留模型答案正文。*/
     private RagEvaluationObservation observation(KnowledgeRetrievalResult retrieval, String answer) {
         Set<String> retrieved = retrieval.evidence().stream().map(item -> item.id()).collect(java.util.stream.Collectors.toSet());
         Set<String> cited = citations(answer == null ? "" : answer);
@@ -98,7 +109,7 @@ public class RagLiveEvaluationRunner {
         return new RagEvaluationObservation(retrieved, cited, containsKnowledgeClaim);
     }
 
-    /** 只提取知识证据标记，避免普通 Markdown 文本或数据调查证据污染 RAG 引用指标。 */
+    /** 只提取知识证据标记，避免普通文本或数据调查证据污染 RAG 引用指标。*/
     private Set<String> citations(String answer) {
         Matcher matcher = KNOWLEDGE_CITATION.matcher(answer);
         java.util.Set<String> result = new java.util.LinkedHashSet<>();
@@ -108,7 +119,7 @@ public class RagLiveEvaluationRunner {
         return Set.copyOf(result);
     }
 
-    /** 逐题结果复用与总指标相同的前缀和集合规则，避免页面与后台统计口径漂移。 */
+    /** 使用与总指标相同的前缀和集合规则，防止页面逐题展示与后端聚合口径漂移。*/
     private RagEvaluationCaseResult toCaseResult(
             RagEvaluationCaseDefinition evaluationCase, RagEvaluationObservation observation, String status) {
         int retrievedExpected = (int) evaluationCase.expectedEvidencePrefixes().stream()
