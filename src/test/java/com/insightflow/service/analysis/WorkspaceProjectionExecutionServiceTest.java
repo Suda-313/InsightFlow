@@ -98,7 +98,7 @@ class WorkspaceProjectionExecutionServiceTest {
         assertThat(result).isTrue();
         assertThat(projection.getSourceWindowStart()).isNotNull();
         assertThat(projection.getSourceWindowEnd()).isNotNull();
-        verify(factWriter).write(anyLong(), anyLong(), anyList(), anyMap(), anyMap());
+        verify(factWriter).write(anyLong(), anyLong(), anyList(), anyMap(), anyMap(), anyMap(), anyMap());
         verify(metricBucketService).write(anyLong(), anyLong(), anyList(), anyMap(), anyMap());
         verify(projRepo).saveAndFlush(projection);
     }

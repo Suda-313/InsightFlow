@@ -62,6 +62,13 @@ public class FeedbackIssueLink {
     private double confidence;
 
     /**
+     * 当前主题在该反馈中的受控情绪；它不等同于整条评论的总体情绪。
+     * 历史投影可为 null，新投影只写入固定枚举，避免自由文本污染统计。
+     */
+    @Column(length = 20, updatable = false)
+    private String sentiment;
+
+    /**
      * 关联状态：active / excluded 等。
      */
     @Column(nullable = false, length = 30)
@@ -92,7 +99,7 @@ public class FeedbackIssueLink {
      */
     public static FeedbackIssueLink active(
             Long workspaceId, Long feedbackEventId, Long issueId, Long workspaceProjectionId,
-            String assignmentMethod, double confidence) {
+            String assignmentMethod, double confidence, String sentiment) {
         FeedbackIssueLink link = new FeedbackIssueLink();
         OffsetDateTime now = OffsetDateTime.now();
         link.workspaceId = workspaceId;
@@ -101,6 +108,7 @@ public class FeedbackIssueLink {
         link.workspaceProjectionId = workspaceProjectionId;
         link.assignmentMethod = assignmentMethod;
         link.confidence = confidence;
+        link.sentiment = sentiment;
         link.status = "active";
         link.createdAt = now;
         return link;
@@ -132,6 +140,10 @@ public class FeedbackIssueLink {
 
     public double getConfidence() {
         return confidence;
+    }
+
+    public String getSentiment() {
+        return sentiment;
     }
 
     public String getStatus() {

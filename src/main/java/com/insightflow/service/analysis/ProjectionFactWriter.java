@@ -45,18 +45,21 @@ public class ProjectionFactWriter {
     private final ObjectMapper objectMapper;
     /** 主题目录服务，把 canonical_key 解析为 issue_id。 */
     private final IssueCatalogService issueCatalogService;
+    private final FeedbackReviewCandidateService reviewCandidateService;
 
     /** 构造事实写入器；所有写入在调用方事务内完成。 */
     public ProjectionFactWriter(FeedbackIssueLinkRepository linkRepository,
                                 DataCellRepository dataCellRepository,
                                 CellIssueRepository cellIssueRepository,
                                 ObjectMapper objectMapper,
-                                IssueCatalogService issueCatalogService) {
+                                IssueCatalogService issueCatalogService,
+                                FeedbackReviewCandidateService reviewCandidateService) {
         this.linkRepository = linkRepository;
         this.dataCellRepository = dataCellRepository;
         this.cellIssueRepository = cellIssueRepository;
         this.objectMapper = objectMapper;
         this.issueCatalogService = issueCatalogService;
+        this.reviewCandidateService = reviewCandidateService;
     }
 
     /**
@@ -70,6 +73,8 @@ public class ProjectionFactWriter {
     public void write(Long projectionId, Long workspaceId,
                       List<DataCellPlan> cellPlans,
                       Map<Long, List<Classification>> classificationsByEventId,
+                      Map<Long, List<TopicSentiment>> sentimentsByEventId,
+                      Map<Long, String> reviewReasonsByEventId,
                       Map<String, String> canonicalNames) {
         for (DataCellPlan plan : cellPlans) {
             // saveAndFlush 而非 save：必须立即拿到 cell.id 才能在同事务写 CellIssue（data_cell_id 外键）
@@ -80,7 +85,20 @@ public class ProjectionFactWriter {
             for (EventInput event : plan.events()) {
                 // 缺失 event.id 表示该事件未被分类，按 0 分类处理（不产生 link，不计入 cell_issue）
                 List<Classification> classifications = classificationsByEventId.getOrDefault(event.id(), List.of());
+                String reviewReason = reviewReasonsByEventId.get(event.id());
+                if (reviewReason != null) {
+                    String suggestedKey = classifications.isEmpty() ? null : classifications.get(0).canonicalKey();
+                    String suggestedSentiment = sentimentsByEventId.getOrDefault(event.id(), List.of()).stream()
+                            .findFirst().map(TopicSentiment::sentiment).orElse(null);
+                    reviewCandidateService.createIfNeeded(workspaceId, projectionId, event.id(), reviewReason,
+                            suggestedKey, suggestedSentiment);
+                }
                 for (Classification c : classifications) {
+                    String sentiment = sentimentsByEventId.getOrDefault(event.id(), List.of()).stream()
+                            .filter(item -> item.canonicalKey().equals(c.canonicalKey()))
+                            .map(TopicSentiment::sentiment)
+                            .findFirst()
+                            .orElse("neutral");
                     // findOrCreate 保证 (workspaceId, canonicalKey) 唯一，getId() 此刻非空
                     Long issueId = issueCatalogService.findOrCreate(
                             workspaceId, c.canonicalKey(), canonicalNames.get(c.canonicalKey())).getId();
@@ -88,7 +106,12 @@ public class ProjectionFactWriter {
                     issueCatalogService.recordAliasIfNeeded(workspaceId, issueId, canonicalNames.get(c.canonicalKey()));
                     // link 只存 issue_id + confidence + assignment_method，绝不存原文
                     linkRepository.saveAndFlush(FeedbackIssueLink.active(
-                            workspaceId, event.id(), issueId, projectionId, c.assignmentMethod(), c.confidence()));
+                            workspaceId, event.id(), issueId, projectionId, c.assignmentMethod(), c.confidence(), sentiment));
+                    if ("mixed".equals(sentiment) || "ambiguous".equals(c.assignmentMethod())) {
+                        reviewCandidateService.createIfNeeded(workspaceId, projectionId, event.id(),
+                                "mixed".equals(sentiment) ? "mixed_sentiment" : "ambiguous_topics",
+                                c.canonicalKey(), sentiment);
+                    }
                     // 内存聚合；写库推迟到本 Cell 末尾，避免每事件重复查 cell_issue
                     byIssue.computeIfAbsent(issueId, k -> new CellAggregator()).add(event.id());
                 }

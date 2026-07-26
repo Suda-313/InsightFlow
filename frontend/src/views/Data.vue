@@ -18,6 +18,19 @@
 
     <!-- Detail Panel (Right) -->
     <div class="flex-1 overflow-auto p-6">
+      <section class="card p-5 mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <div><h2 class="font-semibold">待人工复核</h2><p class="text-xs text-slate-500 mt-1">仅展示规则无法可靠收敛的多主题或混合情绪评论。</p></div>
+          <span class="text-sm font-bold">{{ reviewCandidates.length }}</span>
+        </div>
+        <div class="flex gap-2 mb-3"><input v-model="newTopic" class="flex-1 rounded border border-slate-200 px-2 py-1 text-sm" placeholder="提交新的主题候选（不会直接生效）"><button class="text-primary hover:underline text-sm" @click="submitNewTopic">提交候选</button></div>
+        <div v-if="!reviewCandidates.length" class="text-sm text-slate-400">暂无待复核候选</div>
+        <div v-for="candidate in reviewCandidates" :key="candidate.id" class="border-t border-slate-100 py-3 text-sm">
+          <p class="text-slate-700 dark:text-slate-200">{{ candidate.sampleText }}</p>
+          <p class="text-xs text-slate-500 mt-1">原因：{{ candidate.reasonCode }} · 建议：{{ candidate.suggestedIssueKey || '无' }} / {{ candidate.suggestedSentiment || '无' }}</p>
+          <div class="flex gap-3 mt-2"><button class="text-emerald-600 hover:underline" @click="resolveCandidate(candidate.id, 'confirm')">确认</button><button class="text-slate-500 hover:underline" @click="resolveCandidate(candidate.id, 'ignore')">忽略</button></div>
+        </div>
+      </section>
       <div v-if="!detail" class="card p-12 text-center mt-20">
         <BarChart3 class="w-12 h-12 mx-auto text-slate-300 mb-3" />
         <p class="text-slate-500">选择左侧主题查看详细数据</p>
@@ -73,7 +86,7 @@ import { useWorkspaceStore } from '../stores/workspace'
 Chart.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler)
 
 const store = useWorkspaceStore()
-const issues = ref([]), loading = ref(true), selected = ref(''), detail = ref(null), samples = ref([])
+const issues = ref([]), loading = ref(true), selected = ref(''), detail = ref(null), samples = ref([]), reviewCandidates = ref([]), newTopic = ref('')
 const trendRef = ref(null)
 let trendChart = null
 const totalRecent = computed(() => (detail.value?.recentTrend || []).reduce((s, p) => s + p.feedbackCount, 0))
@@ -84,8 +97,23 @@ async function loadIssues() {
   let r = await fetch('/api/v1/workspaces/' + store.workspaceId + '/issues')
   let d = await r.json()
   issues.value = Array.isArray(d) ? d : []
+  const reviews = await fetch('/api/v1/workspaces/' + store.workspaceId + '/feedback-reviews')
+  reviewCandidates.value = reviews.ok ? await reviews.json() : []
   loading.value = false
   if (issues.value.length && !selected.value) selectIssue(issues.value[0].canonicalKey)
+}
+
+async function resolveCandidate(id, action) {
+  const response = await fetch('/api/v1/workspaces/' + store.workspaceId + '/feedback-reviews/' + id + '/' + action, { method: 'POST' })
+  if (!response.ok) return
+  reviewCandidates.value = reviewCandidates.value.filter(item => item.id !== id)
+}
+
+async function submitNewTopic() {
+  const content = newTopic.value.trim()
+  if (!content) return
+  const response = await fetch('/api/v1/workspaces/' + store.workspaceId + '/feedback-reviews/new-topic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) })
+  if (response.ok) newTopic.value = ''
 }
 
 async function selectIssue(key) {

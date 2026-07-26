@@ -35,7 +35,8 @@ class ProjectionFactWriterTest {
         when(catalogService.findOrCreate(any(), any(), any())).thenReturn(catalog);
 
         ProjectionFactWriter writer = new ProjectionFactWriter(
-                linkRepo, cellRepo, cellIssueRepo, new ObjectMapper(), catalogService);
+                linkRepo, cellRepo, cellIssueRepo, new ObjectMapper(), catalogService,
+                mock(FeedbackReviewCandidateService.class));
         OffsetDateTime now = OffsetDateTime.parse("2026-07-20T10:00:00Z");
         List<EventInput> events = List.of(new EventInput(1L, now, "工单", "登录失败"));
         DataCellPlan plan = new DataCellPlan(now, now, "stream_end", events, 5);
@@ -43,6 +44,8 @@ class ProjectionFactWriterTest {
                 1L, List.of(new Classification("login_failure", 1.0, "rule")));
 
         writer.write(31L, 7L, List.of(plan), classifications,
+                Map.of(1L, List.of(new TopicSentiment("login_failure", "negative"))),
+                Map.of(),
                 Map.of("login_failure", "登录失败"));
 
         verify(linkRepo).saveAndFlush(any(FeedbackIssueLink.class));
@@ -55,6 +58,7 @@ class ProjectionFactWriterTest {
         FeedbackIssueLink savedLink = linkCaptor.getValue();
         Assertions.assertThat(savedLink.getAssignmentMethod()).isEqualTo("rule");
         Assertions.assertThat(savedLink.getConfidence()).isEqualTo(1.0);
+        Assertions.assertThat(savedLink.getSentiment()).isEqualTo("negative");
 
         // Captor 升级：验证 cell_issue 的 mention_count 与 sample_event_ids JSON 数组字符串。
         // dataCellId 来自 DataCell.getId()，mock 下同样为 null（mock artifact），不在此断言。

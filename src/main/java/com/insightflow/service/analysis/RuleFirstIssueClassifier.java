@@ -80,6 +80,27 @@ public class RuleFirstIssueClassifier implements IssueClassifier {
     }
 
     /**
+     * 返回需要人工复核的受控原因；分类结果仍保持最多两条，防止长评直接放大指标。
+     */
+    public String reviewReason(String normalizedText, List<Classification> classifications) {
+        if (classifications.isEmpty()) {
+            return "unclassified";
+        }
+        if (classifications.stream().anyMatch(item -> "ambiguous".equals(item.assignmentMethod()))) {
+            return "ambiguous_topics";
+        }
+        int candidateCount = 0;
+        for (IssueRule rule : rules) {
+            if (!hitsAny(normalizedText, rule.excludePatterns())
+                    && countHits(normalizedText, rule.anyPatterns()) > 0
+                    && (rule.allPatterns().isEmpty() || hitsAll(normalizedText, rule.allPatterns()))) {
+                candidateCount++;
+            }
+        }
+        return candidateCount > 2 ? "too_many_topics" : null;
+    }
+
+    /**
      * 命中任一排除词即整条规则出局。
      *
      * <p>排除词通常是否定或转移语境的业务词（如"充值"之于登录失败），

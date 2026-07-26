@@ -92,8 +92,18 @@ public class WorkspaceProjectionExecutionService {
         }
         // 逐事件分类：按规则优先策略匹配，输出每事件的分类结果
         Map<Long, List<Classification>> classificationsByEventId = new HashMap<>();
+        Map<Long, List<TopicSentiment>> sentimentsByEventId = new HashMap<>();
+        Map<Long, String> reviewReasonsByEventId = new HashMap<>();
+        TopicSentimentAnalyzer sentimentAnalyzer = new TopicSentimentAnalyzer();
         for (EventInput event : events) {
-            classificationsByEventId.put(event.id(), classifier.classify(event.normalizedText()));
+            List<Classification> classifications = classifier.classify(event.normalizedText());
+            classificationsByEventId.put(event.id(), classifications);
+            sentimentsByEventId.put(event.id(), sentimentAnalyzer.analyze(event.normalizedText(),
+                    classifications.stream().map(Classification::canonicalKey).toList()));
+            String reviewReason = classifier.reviewReason(event.normalizedText(), classifications);
+            if (reviewReason != null) {
+                reviewReasonsByEventId.put(event.id(), reviewReason);
+            }
         }
         // 按 40/60/6000 守卫切分 DataCell
         List<DataCellPlan> cells = dataCellBuilder.split(events);
@@ -101,7 +111,8 @@ public class WorkspaceProjectionExecutionService {
         Map<String, String> canonicalNames = new HashMap<>();
         rulesLoader.rules().forEach(r -> canonicalNames.put(r.canonicalKey(), r.name()));
         // 写入事实：cell + 分类 + 规则名；同一事务内，失败整体回滚
-        factWriter.write(projectionId, workspaceId, cells, classificationsByEventId, canonicalNames);
+        factWriter.write(projectionId, workspaceId, cells, classificationsByEventId, sentimentsByEventId,
+                reviewReasonsByEventId, canonicalNames);
         // 按日聚合分类结果写入指标桶，用于 dashboard 趋势分析
         metricBucketService.write(projectionId, workspaceId, events, classificationsByEventId, canonicalNames);
         // 查询本次投影写入的日指标桶，更新基线并检测告警

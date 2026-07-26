@@ -10,6 +10,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface FeedbackEventRepository extends JpaRepository<FeedbackEvent, Long> {
 
+    /** 复核候选读取样本时必须同时约束内部事件键与 Workspace 隔离键。 */
+    java.util.Optional<FeedbackEvent> findByIdAndWorkspaceId(Long id, Long workspaceId);
+
     /**
      * 在写入前查询完全相同的外部记录，避免重复导入造成重复反馈和虚假告警。
      */

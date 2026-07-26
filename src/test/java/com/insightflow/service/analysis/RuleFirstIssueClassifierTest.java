@@ -10,6 +10,20 @@ import org.junit.jupiter.api.Test;
  */
 class RuleFirstIssueClassifierTest {
 
+    /** 超过两条有效规则候选时，统计仍只保留前两项，剩余不确定性必须进入人工复核。 */
+    @Test
+    void marksMoreThanTwoMatchingRulesForReview() {
+        RuleFirstIssueClassifier classifier = new RuleFirstIssueClassifier(List.of(
+                new IssueRule("a", "A", 3, List.of("甲"), List.of(), List.of()),
+                new IssueRule("b", "B", 2, List.of("乙"), List.of(), List.of()),
+                new IssueRule("c", "C", 1, List.of("丙"), List.of(), List.of())));
+
+        List<Classification> classifications = classifier.classify("甲乙丙");
+
+        assertThat(classifications).hasSize(2);
+        assertThat(classifier.reviewReason("甲乙丙", classifications)).isEqualTo("too_many_topics");
+    }
+
     /** 命中 login_failure 规则应返回单条 rule 关联，confidence=1.0。 */
     @Test
     void classifiesSingleHit() {
