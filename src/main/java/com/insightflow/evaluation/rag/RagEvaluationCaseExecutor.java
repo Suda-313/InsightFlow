@@ -43,7 +43,7 @@ public class RagEvaluationCaseExecutor {
             KnowledgeSearchTool knowledgeSearchTool,
             RagEvaluationAnswerGateway answerGateway,
             @Qualifier("ragEvaluationCallExecutor") AsyncTaskExecutor callExecutor,
-            @Value("${insightflow.evaluation.rag.case-timeout-seconds:55}") long caseTimeoutSeconds) {
+            @Value("${insightflow.evaluation.rag.case-timeout-seconds:120}") long caseTimeoutSeconds) {
         this(knowledgeSearchTool, answerGateway, callExecutor, Math.toIntExact(caseTimeoutSeconds * 1000L));
     }
 

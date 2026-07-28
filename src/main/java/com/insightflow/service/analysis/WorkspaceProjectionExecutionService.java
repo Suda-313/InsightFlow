@@ -97,19 +97,24 @@ public class WorkspaceProjectionExecutionService {
         TopicSentimentAnalyzer sentimentAnalyzer = new TopicSentimentAnalyzer();
         for (EventInput event : events) {
             List<Classification> classifications = classifier.classify(event.normalizedText());
-            classificationsByEventId.put(event.id(), classifications);
-            sentimentsByEventId.put(event.id(), sentimentAnalyzer.analyze(event.normalizedText(),
-                    classifications.stream().map(Classification::canonicalKey).toList()));
             String reviewReason = classifier.reviewReason(event.normalizedText(), classifications);
             if (reviewReason != null) {
                 reviewReasonsByEventId.put(event.id(), reviewReason);
             }
+            // 零 L1 命中：写 topic_general link，不进复核；须在 reviewReason 判定之后替换。
+            if (classifications.isEmpty()) {
+                classifications = List.of(TopicPackDefaults.generalClassification());
+            }
+            classificationsByEventId.put(event.id(), classifications);
+            sentimentsByEventId.put(event.id(), sentimentAnalyzer.analyze(event.normalizedText(),
+                    classifications.stream().map(Classification::canonicalKey).toList()));
         }
         // 按 40/60/6000 守卫切分 DataCell
         List<DataCellPlan> cells = dataCellBuilder.split(events);
         // 提取规则 canonical name 映射，供事实写入器关联规则名称
         Map<String, String> canonicalNames = new HashMap<>();
         rulesLoader.rules().forEach(r -> canonicalNames.put(r.canonicalKey(), r.name()));
+        canonicalNames.putIfAbsent(TopicPackDefaults.TOPIC_GENERAL_KEY, TopicPackDefaults.TOPIC_GENERAL_NAME);
         // 写入事实：cell + 分类 + 规则名；同一事务内，失败整体回滚
         factWriter.write(projectionId, workspaceId, cells, classificationsByEventId, sentimentsByEventId,
                 reviewReasonsByEventId, canonicalNames);

@@ -1,10 +1,13 @@
 package com.insightflow.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.entity.AsyncTask;
 import com.insightflow.entity.EvaluationRun;
 import com.insightflow.evaluation.GoldEvaluationRunResult;
 import com.insightflow.evaluation.GoldEvaluationRunner;
+import com.insightflow.evaluation.rag.RagEvaluationMetrics;
 import com.insightflow.evaluation.rag.RagEvaluationTaskCommandService;
 import com.insightflow.evaluation.rag.RagEvaluationTaskQueryService;
 import com.insightflow.service.EvaluationHistoryService;
@@ -48,18 +51,23 @@ public class EvaluationController {
     /** 轮询查询必须经由授权服务，任务 UUID 不能单独作为读取凭证。*/
     private final RagEvaluationTaskQueryService ragEvaluationTaskQueryService;
 
+    /** 反序列化历史批次中已持久化的脱敏指标 JSON，供列表接口返回三项 RAG 质量指标。 */
+    private final ObjectMapper objectMapper;
+
     /** 通过构造器明确 HTTP 校验与评测执行的职责边界，便于单测替换模型运行器。 */
     public EvaluationController(
             GoldEvaluationRunner evaluationRunner,
             EvaluationHistoryService evaluationHistoryService,
             RagEvaluationHistoryService ragEvaluationHistoryService,
             RagEvaluationTaskCommandService ragEvaluationTaskCommandService,
-            RagEvaluationTaskQueryService ragEvaluationTaskQueryService) {
+            RagEvaluationTaskQueryService ragEvaluationTaskQueryService,
+            ObjectMapper objectMapper) {
         this.evaluationRunner = evaluationRunner;
         this.evaluationHistoryService = evaluationHistoryService;
         this.ragEvaluationHistoryService = ragEvaluationHistoryService;
         this.ragEvaluationTaskCommandService = ragEvaluationTaskCommandService;
         this.ragEvaluationTaskQueryService = ragEvaluationTaskQueryService;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -104,11 +112,11 @@ public class EvaluationController {
         return RagTaskStatusResponse.from(ragEvaluationTaskQueryService.get(workspaceId, taskId));
     }
 
-    /** 返回当前 Workspace 的 RAG 历史摘要，供页面了解知识库变化后的评测趋势。 */
+    /** 返回当前 Workspace 的 RAG 历史摘要及脱敏指标，供页面展示召回、引用与无依据回答率。 */
     @GetMapping("/rag")
     public List<RagRunSummaryResponse> listRagEvaluationRuns(@PathVariable UUID workspaceId) {
         return ragEvaluationHistoryService.listRecent(workspaceId).stream()
-                .map(RagRunSummaryResponse::from)
+                .map(run -> RagRunSummaryResponse.from(run, objectMapper))
                 .toList();
     }
 
@@ -170,20 +178,31 @@ public class EvaluationController {
         }
     }
 
-    /** RAG 历史摘要仅提供选择和趋势展示所需的公开元数据。 */
+    /** RAG 历史摘要提供版本元数据与三项脱敏指标，不包含逐题模型回答或知识原文。 */
     public record RagRunSummaryResponse(
             @com.fasterxml.jackson.annotation.JsonProperty("run_id") UUID runId,
             @com.fasterxml.jackson.annotation.JsonProperty("dataset_version") String datasetVersion,
             @com.fasterxml.jackson.annotation.JsonProperty("prompt_version") String promptVersion,
             @com.fasterxml.jackson.annotation.JsonProperty("model_name") String modelName,
             @com.fasterxml.jackson.annotation.JsonProperty("retrieval_version") String retrievalVersion,
-            @com.fasterxml.jackson.annotation.JsonProperty("created_at") OffsetDateTime createdAt) {
+            @com.fasterxml.jackson.annotation.JsonProperty("created_at") OffsetDateTime createdAt,
+            RagEvaluationMetrics metrics) {
 
-        /** 实体到公开 DTO 的投影显式排除内部 Workspace 键和 JSON 快照。 */
-        static RagRunSummaryResponse from(RagEvaluationRun run) {
+        /** 实体到公开 DTO 的投影显式排除内部 Workspace 键与逐题 JSON 快照。 */
+        static RagRunSummaryResponse from(RagEvaluationRun run, ObjectMapper objectMapper) {
             return new RagRunSummaryResponse(
                     run.getPublicId(), run.getDatasetVersion(), run.getPromptVersion(),
-                    run.getModelName(), run.getRetrievalVersion(), run.getCreatedAt());
+                    run.getModelName(), run.getRetrievalVersion(), run.getCreatedAt(),
+                    readMetrics(run.getMetricsJson(), objectMapper));
+        }
+
+        /** 指标 JSON 损坏时直接失败，避免页面展示空指标却误以为评测成功。 */
+        private static RagEvaluationMetrics readMetrics(String metricsJson, ObjectMapper objectMapper) {
+            try {
+                return objectMapper.readValue(metricsJson, RagEvaluationMetrics.class);
+            } catch (JsonProcessingException exception) {
+                throw new IllegalStateException("无法读取 RAG 评测指标快照", exception);
+            }
         }
     }
 

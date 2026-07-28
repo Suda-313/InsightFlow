@@ -47,7 +47,11 @@ public class KnowledgePublishingService {
             throw new IllegalStateException("只有待审核知识版本可以发布");
         }
         List<KnowledgeChunker.ChunkDraft> drafts = chunker.chunk(read(version));
-        List<List<Double>> vectorsResult = embeddings.embed(drafts.stream().map(KnowledgeChunker.ChunkDraft::content).toList());
+        // 向量用带文档/版本/章节前缀的文本；content 字段仍存正文，供检索展示与 FTS（R1.2）。
+        List<String> embedTexts = drafts.stream()
+                .map(draft -> KnowledgeEmbedContextPrefix.forEmbedding(document, version, draft))
+                .toList();
+        List<List<Double>> vectorsResult = embeddings.embed(embedTexts);
         if (vectorsResult.size() != drafts.size()) throw new IllegalStateException("嵌入结果与知识切片数量不一致");
         versions.findByDocumentIdAndStatus(document.getId(), KnowledgeVersionStatus.PUBLISHED).forEach(old -> old.expire(OffsetDateTime.now()));
         version.publish(OffsetDateTime.now()); versions.save(version);

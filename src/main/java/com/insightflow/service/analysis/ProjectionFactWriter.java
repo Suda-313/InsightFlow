@@ -83,7 +83,7 @@ public class ProjectionFactWriter {
                     plan.closeReason(), plan.events().size(), plan.estimatedTokens()));
             Map<Long, CellAggregator> byIssue = new HashMap<>();
             for (EventInput event : plan.events()) {
-                // 缺失 event.id 表示该事件未被分类，按 0 分类处理（不产生 link，不计入 cell_issue）
+                // 编排层保证零命中已替换为 topic_general；缺失 id 仍按 0 分类处理。
                 List<Classification> classifications = classificationsByEventId.getOrDefault(event.id(), List.of());
                 String reviewReason = reviewReasonsByEventId.get(event.id());
                 if (reviewReason != null) {

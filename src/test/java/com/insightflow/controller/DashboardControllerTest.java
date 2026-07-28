@@ -9,12 +9,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.insightflow.entity.Workspace;
 import com.insightflow.service.DashboardService;
 import com.insightflow.service.WorkspaceService;
+import com.insightflow.security.JwtAuthenticationFilter;
+import com.insightflow.security.JwtTokenService;
+import com.insightflow.security.WorkspaceAccessInterceptor;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 看板 API 的 HTTP 边界测试；依赖服务全部 mock，只验证路由与响应契约。
  */
 @WebMvcTest(DashboardController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class DashboardControllerTest {
 
     @Autowired
@@ -33,14 +39,30 @@ class DashboardControllerTest {
     @MockBean
     private DashboardService dashboardService;
 
+    /** MVC 切片不装配真实成员仓储，授权逻辑由 WorkspaceAccessService 的单元测试覆盖。 */
+    @MockBean
+    private WorkspaceAccessInterceptor workspaceAccessInterceptor;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtTokenService jwtTokenService;
+
+    @BeforeEach
+    void allowWorkspaceInterceptor() throws Exception {
+        when(workspaceAccessInterceptor.preHandle(any(), any(), any())).thenReturn(true);
+    }
+
     @Test
     void getDashboardReturnsOk() throws Exception {
         UUID workspaceId = UUID.randomUUID();
-        when(workspaceService.get(workspaceId)).thenReturn(new Workspace("test"));
+        when(workspaceService.get(workspaceId)).thenReturn(new Workspace("test", 1L));
         when(dashboardService.getDashboard(workspaceId)).thenReturn(new DashboardService.DashboardResponse(
                 new DashboardService.DataCoverage(OffsetDateTime.now(), OffsetDateTime.now(), 10),
                 List.of(new DashboardService.IssueSummary(UUID.randomUUID(), "login_failure", "登录失败", 5)),
-                List.of(new DashboardService.AlertSummary(UUID.randomUUID(), 7, OffsetDateTime.now())),
+                List.of(new DashboardService.AlertSummary(
+                        UUID.randomUUID(), "login_failure", "login_failure", 7, OffsetDateTime.now())),
                 new DashboardService.BaselineStatus(1, 2),
                 new DashboardService.ProjectionSummary(UUID.randomUUID(), "succeeded", OffsetDateTime.now())));
 
@@ -54,11 +76,11 @@ class DashboardControllerTest {
     @Test
     void getIssuesReturnsOk() throws Exception {
         UUID workspaceId = UUID.randomUUID();
-        when(workspaceService.get(workspaceId)).thenReturn(new Workspace("test"));
+        when(workspaceService.get(workspaceId)).thenReturn(new Workspace("test", 1L));
         when(dashboardService.getIssues(workspaceId)).thenReturn(List.of(
                 new DashboardService.IssueSummary(UUID.randomUUID(), "checkout_error", "结账失败", 12)));
 
-        mockMvc.perform(get("/api/v1/workspaces/{workspaceId}/dashboard/issues", workspaceId))
+        mockMvc.perform(get("/api/v1/workspaces/{workspaceId}/issues", workspaceId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].canonicalKey").value("checkout_error"));
     }
@@ -66,7 +88,7 @@ class DashboardControllerTest {
     @Test
     void getIssueDetailReturnsOk() throws Exception {
         UUID workspaceId = UUID.randomUUID();
-        when(workspaceService.get(workspaceId)).thenReturn(new Workspace("test"));
+        when(workspaceService.get(workspaceId)).thenReturn(new Workspace("test", 1L));
         when(dashboardService.getIssueDetail(any(), any())).thenReturn(new DashboardService.IssueDetailResponse(
                 UUID.randomUUID(),
                 "login_failure",
@@ -74,9 +96,10 @@ class DashboardControllerTest {
                 "active",
                 List.of(new DashboardService.TrendPoint(OffsetDateTime.now(), 5)),
                 List.of(),
-                new DashboardService.BaselineInfo("active", 2.0, 0.5)));
+                new DashboardService.BaselineInfo("active", 2.0, 0.5),
+                List.of()));
 
-        mockMvc.perform(get("/api/v1/workspaces/{workspaceId}/dashboard/issues/{canonicalKey}",
+        mockMvc.perform(get("/api/v1/workspaces/{workspaceId}/issues/{canonicalKey}",
                         workspaceId, "login_failure"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.canonicalKey").value("login_failure"))

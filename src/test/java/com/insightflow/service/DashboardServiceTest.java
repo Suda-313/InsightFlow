@@ -2,10 +2,12 @@ package com.insightflow.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.insightflow.common.exception.IssueNotFoundException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.entity.Alert;
 import com.insightflow.entity.DataCell;
 import com.insightflow.entity.IssueBaselineProfile;
@@ -14,7 +16,9 @@ import com.insightflow.entity.IssueMetricBucket;
 import com.insightflow.entity.Workspace;
 import com.insightflow.entity.WorkspaceProjection;
 import com.insightflow.repository.AlertRepository;
+import com.insightflow.repository.CellIssueRepository;
 import com.insightflow.repository.DataCellRepository;
+import com.insightflow.repository.FeedbackEventRepository;
 import com.insightflow.repository.IssueBaselineProfileRepository;
 import com.insightflow.repository.IssueCatalogRepository;
 import com.insightflow.repository.IssueMetricBucketRepository;
@@ -38,6 +42,9 @@ class DashboardServiceTest {
     private final IssueBaselineProfileRepository issueBaselineProfileRepository = mock(IssueBaselineProfileRepository.class);
     private final IssueCatalogRepository issueCatalogRepository = mock(IssueCatalogRepository.class);
     private final WorkspaceProjectionRepository workspaceProjectionRepository = mock(WorkspaceProjectionRepository.class);
+    private final CellIssueRepository cellIssueRepository = mock(CellIssueRepository.class);
+    private final FeedbackEventRepository feedbackEventRepository = mock(FeedbackEventRepository.class);
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final DashboardService dashboardService = new DashboardService(
             workspaceService,
@@ -46,7 +53,10 @@ class DashboardServiceTest {
             alertRepository,
             issueBaselineProfileRepository,
             issueCatalogRepository,
-            workspaceProjectionRepository);
+            workspaceProjectionRepository,
+            cellIssueRepository,
+            feedbackEventRepository,
+            objectMapper);
 
     @Test
     void getDashboardReturnsAggregatedData() throws Exception {
@@ -61,6 +71,7 @@ class DashboardServiceTest {
         IssueCatalog catalog = catalog(1L, "login_failure", "登录失败");
         when(issueCatalogRepository.findAllById(List.of(1L))).thenReturn(List.of(catalog));
         when(issueCatalogRepository.findByWorkspaceId(1L)).thenReturn(List.of(catalog));
+        when(issueCatalogRepository.findById(1L)).thenReturn(Optional.of(catalog));
         when(alertRepository.findTop5ByWorkspaceIdOrderByCreatedAtDesc(1L))
                 .thenReturn(List.of(alert(1L, 1L, 7)));
         when(issueBaselineProfileRepository.findByWorkspaceId(1L)).thenReturn(List.of(
@@ -87,7 +98,7 @@ class DashboardServiceTest {
         IssueCatalog first = catalog(10L, "login_failure", "登录失败");
         IssueCatalog second = catalog(11L, "checkout_error", "结账失败");
         when(issueCatalogRepository.findByWorkspaceId(2L)).thenReturn(List.of(first, second));
-        when(issueMetricBucketRepository.findByWorkspaceIdAndBucketStartGreaterThanEqual(2L, OffsetDateTime.MIN))
+        when(issueMetricBucketRepository.findByWorkspaceIdAndBucketStartGreaterThanEqual(eq(2L), any()))
                 .thenReturn(List.of(
                         bucket(10L, 2L, 5),
                         bucket(11L, 2L, 10),
@@ -119,6 +130,8 @@ class DashboardServiceTest {
                 .thenReturn(List.of(alert(3L, 20L, 7)));
         when(issueBaselineProfileRepository.findByWorkspaceIdAndIssueId(3L, 20L))
                 .thenReturn(Optional.of(profile(3L, 20L, "active")));
+        when(cellIssueRepository.findByIssueId(20L)).thenReturn(List.of());
+        when(issueCatalogRepository.findById(20L)).thenReturn(Optional.of(catalog));
 
         DashboardService.IssueDetailResponse detail = dashboardService.getIssueDetail(workspacePublicId, "login_failure");
 
@@ -142,7 +155,7 @@ class DashboardServiceTest {
     }
 
     private Workspace workspaceWithId(UUID publicId, long id) throws Exception {
-        Workspace workspace = new Workspace("test");
+        Workspace workspace = new Workspace("test", 1L);
         setField(workspace, "publicId", publicId);
         setField(workspace, "id", id);
         return workspace;

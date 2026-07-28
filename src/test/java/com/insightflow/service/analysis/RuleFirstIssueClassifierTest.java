@@ -53,7 +53,7 @@ class RuleFirstIssueClassifierTest {
                 .contains("login_failure", "payment_recharge");
     }
 
-    /** 无任何规则命中应返回空列表（调用方记 unclassified，不写 link）。 */
+    /** 无任何规则命中应返回空列表；reviewReason 为 null，投影层写 topic_general。 */
     @Test
     void returnsEmptyWhenNoMatch() {
         IssueRulesLoader loader = new IssueRulesLoader();
@@ -63,6 +63,7 @@ class RuleFirstIssueClassifierTest {
         List<Classification> result = classifier.classify("今天天气不错想出门走走");
 
         assertThat(result).isEmpty();
+        assertThat(classifier.reviewReason("今天天气不错想出门走走", result)).isNull();
     }
 
     /** 命中 exclude_patterns 的规则应被排除。 */

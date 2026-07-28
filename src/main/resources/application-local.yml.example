@@ -8,6 +8,13 @@ spring:
 insightflow:
   agent:
     enabled: true
+    # DashScope 长回答可能超过旧版 50 秒读超时；若本地仍设 AGENT_HTTP_READ_TIMEOUT_SECONDS，请同步调大。
+    # http-read-timeout-seconds: 110
+  evaluation:
+    rag:
+      # 单题超时需大于 http-read-timeout-seconds；整批租约需覆盖全部题目。
+      # case-timeout-seconds: 120
+      # lease-seconds: 720
   security:
     # 本地生成至少 32 字节的随机字符串；不要使用示例值，也不要提交真实密钥。
     jwt-secret: replace-with-a-local-random-secret-at-least-32-bytes

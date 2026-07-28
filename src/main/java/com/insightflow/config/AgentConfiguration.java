@@ -49,7 +49,7 @@ public class AgentConfiguration {
             @Value("${spring.ai.openai.chat.options.model}") String model,
             @Value("${spring.ai.openai.chat.options.temperature}") Float temperature,
             @Value("${spring.ai.openai.chat.options.max-tokens}") Integer maxTokens,
-            @Value("${insightflow.agent.http-read-timeout-seconds:50}") long httpReadTimeoutSeconds) {
+            @Value("${insightflow.agent.http-read-timeout-seconds:110}") long httpReadTimeoutSeconds) {
         // 每次启动根据配置构造独立选项，避免共享可变对象被其他模型能力修改。
         OpenAiChatOptions options = new OpenAiChatOptions();
         options.setModel(model);
@@ -83,7 +83,7 @@ public class AgentConfiguration {
             @Value("${spring.ai.openai.api-key}") String apiKey,
             @Value("${insightflow.knowledge.embedding-model:text-embedding-v3}") String model,
             @Value("${insightflow.knowledge.embedding-dimensions:1024}") Integer dimensions,
-            @Value("${insightflow.agent.http-read-timeout-seconds:50}") long httpReadTimeoutSeconds) {
+            @Value("${insightflow.agent.http-read-timeout-seconds:110}") long httpReadTimeoutSeconds) {
         OpenAiEmbeddingOptions options = new OpenAiEmbeddingOptions();
         options.setModel(model);
         options.setDimensions(dimensions);
@@ -95,7 +95,7 @@ public class AgentConfiguration {
     /**
      * 为同步的 OpenAI-compatible 调用同时设置连接与响应读取上限。
      *
-     * <p>读取上限必须小于 RAG 单题 55 秒的应用层上限，使底层 HTTP 先释放线程；
+     * <p>读取上限必须小于 RAG 单题应用层上限（默认 120 秒），使底层 HTTP 先释放线程；
      * 应用层 Future 取消仍保留为供应商客户端未及时响应中断时的第二道保护。</p>
      */
     private RestClient.Builder withNetworkTimeout(RestClient.Builder builder, long timeoutSeconds) {

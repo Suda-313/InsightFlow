@@ -91,16 +91,16 @@ insightflow:
   agent:
     # 基础分析可在无模型密钥的本地环境运行；Agent 是显式开启的可选能力。
     enabled: ${AGENT_ENABLED:false}
-    # 同步模型调用的连接与读取上限；必须小于 RAG 单题应用层 55 秒兜底，避免阻塞线程长期占用。
-    http-read-timeout-seconds: ${AGENT_HTTP_READ_TIMEOUT_SECONDS:50}
+    # 同步模型调用的连接与读取上限；必须小于 RAG 单题应用层兜底，避免阻塞线程长期占用。
+    http-read-timeout-seconds: ${AGENT_HTTP_READ_TIMEOUT_SECONDS:110}
     max-retries: ${AGENT_MAX_RETRIES:2}
     timeout-seconds: ${AGENT_TIMEOUT_SECONDS:120}
   evaluation:
     rag:
-      # 单题超时和任务租约限制模型调用的最坏等待时间；HTTP 客户端超时将在后续统一接入。
-      case-timeout-seconds: ${RAG_EVALUATION_CASE_TIMEOUT_SECONDS:55}
+      # 单题超时必须大于 HTTP 读超时；整批租约需覆盖全部题目最坏耗时（默认 5 题 × 120 秒 + 缓冲）。
+      case-timeout-seconds: ${RAG_EVALUATION_CASE_TIMEOUT_SECONDS:120}
       dispatch-delay-ms: ${RAG_EVALUATION_DISPATCH_DELAY_MS:5000}
-      lease-seconds: ${RAG_EVALUATION_TASK_LEASE_SECONDS:420}
+      lease-seconds: ${RAG_EVALUATION_TASK_LEASE_SECONDS:720}
   knowledge:
     # P3 固定嵌入维度必须与 V13 的 vector(1024) 一致，修改模型或维度需要新的迁移和全量重建。
     embedding-model: ${KNOWLEDGE_EMBEDDING_MODEL:text-embedding-v3}

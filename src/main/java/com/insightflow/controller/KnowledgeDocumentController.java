@@ -5,6 +5,7 @@ import com.insightflow.entity.KnowledgeDocumentType;
 import com.insightflow.entity.KnowledgeDocumentVersion;
 import com.insightflow.knowledge.KnowledgeDocumentService;
 import com.insightflow.knowledge.KnowledgePublishingService;
+import com.insightflow.security.WorkspaceAccessService;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -40,10 +41,17 @@ public class KnowledgeDocumentController {
     /** 发布会触发受控切片与嵌入，因此与普通元数据变更分离。 */
     private final KnowledgePublishingService publishing;
 
+    /** 所有知识读写先验证当前 JWT 对路径 Workspace 的实时访问权限。 */
+    private final WorkspaceAccessService workspaceAccess;
+
     /** 构造器显式区分普通管理操作和会调用模型的发布操作。 */
-    public KnowledgeDocumentController(KnowledgeDocumentService documents, KnowledgePublishingService publishing) {
+    public KnowledgeDocumentController(
+            KnowledgeDocumentService documents,
+            KnowledgePublishingService publishing,
+            WorkspaceAccessService workspaceAccess) {
         this.documents = documents;
         this.publishing = publishing;
+        this.workspaceAccess = workspaceAccess;
     }
 
     /**
@@ -57,6 +65,7 @@ public class KnowledgeDocumentController {
             @RequestParam KnowledgeDocumentType type,
             @RequestParam(defaultValue = "WORKSPACE") String scope,
             @RequestParam("file") MultipartFile file) {
+        workspaceAccess.requireRead(workspaceId);
         KnowledgeDocumentVersion version = documents.upload(workspaceId,
                 new KnowledgeDocumentService.UploadCommand(title, type, organizationCommon(scope), file));
         return ResponseEntity.status(HttpStatus.CREATED).body(VersionResponse.from(version));
@@ -65,6 +74,7 @@ public class KnowledgeDocumentController {
     /** 列出当前 Workspace 可见的组织通用文档和自身专属文档，绝不列出其他游戏专属资料。 */
     @GetMapping("/documents")
     public List<DocumentResponse> list(@PathVariable UUID workspaceId) {
+        workspaceAccess.requireRead(workspaceId);
         return documents.list(workspaceId).stream().map(DocumentResponse::from).toList();
     }
 
@@ -72,6 +82,7 @@ public class KnowledgeDocumentController {
     @PostMapping("/documents/{documentId}/versions/{versionId}/publish")
     public VersionResponse publish(@PathVariable UUID workspaceId, @PathVariable UUID documentId,
             @PathVariable UUID versionId) {
+        workspaceAccess.requireRead(workspaceId);
         return VersionResponse.from(publishing.publish(workspaceId, documentId, versionId));
     }
 
@@ -79,6 +90,7 @@ public class KnowledgeDocumentController {
     @PostMapping("/documents/{documentId}/versions/{versionId}/expire")
     public VersionResponse expire(@PathVariable UUID workspaceId, @PathVariable UUID documentId,
             @PathVariable UUID versionId) {
+        workspaceAccess.requireRead(workspaceId);
         return VersionResponse.from(documents.expire(workspaceId, documentId, versionId));
     }
 
@@ -86,6 +98,7 @@ public class KnowledgeDocumentController {
     @DeleteMapping("/documents/{documentId}/versions/{versionId}")
     public VersionResponse delete(@PathVariable UUID workspaceId, @PathVariable UUID documentId,
             @PathVariable UUID versionId) {
+        workspaceAccess.requireRead(workspaceId);
         return VersionResponse.from(documents.delete(workspaceId, documentId, versionId));
     }
 
@@ -96,6 +109,7 @@ public class KnowledgeDocumentController {
     @GetMapping("/documents/{documentId}/versions/{versionId}/source")
     public ResponseEntity<InputStreamResource> source(@PathVariable UUID workspaceId, @PathVariable UUID documentId,
             @PathVariable UUID versionId) {
+        workspaceAccess.requireRead(workspaceId);
         KnowledgeDocumentService.SourceView source = documents.openSource(workspaceId, documentId, versionId);
         ContentDisposition disposition = ContentDisposition.attachment()
                 .filename(source.sourceName(), StandardCharsets.UTF_8)

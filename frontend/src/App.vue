@@ -17,6 +17,12 @@
         <router-link to="/evaluations" class="nav-link" active-class="active"><Gauge class="w-4 h-4" /> 评测基线</router-link>
       </nav>
       <div class="p-3 border-t border-slate-200 dark:border-slate-700">
+        <form v-if="!store.workspaceId" class="mb-3 space-y-2" @submit.prevent="createWorkspace">
+          <label class="block text-xs text-slate-500" for="first-workspace-name">&#21019;&#24314;&#31532;&#19968;&#20010;&#24037;&#20316;&#21306;</label>
+          <input id="first-workspace-name" v-model="workspaceName" :disabled="workspaceCreating" maxlength="100" required class="w-full rounded border border-slate-300 px-2 py-1.5 text-xs text-slate-900" placeholder="&#20363;&#22914;&#65306;&#36229;&#33258;&#28982;&#34892;&#21160;&#32452;">
+          <button type="submit" :disabled="workspaceCreating || !workspaceName.trim()" class="w-full rounded bg-primary px-2 py-1.5 text-xs font-medium text-white disabled:opacity-50">{{ workspaceCreating ? '&#21019;&#24314;&#20013;&#8230;' : '&#21019;&#24314;&#24037;&#20316;&#21306;' }}</button>
+          <p v-if="workspaceError" class="text-xs text-red-600">{{ workspaceError }}</p>
+        </form>
         <router-link to="/import" class="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition"><Upload class="w-4 h-4" /> 导入 CSV</router-link>
         <div class="mt-2 flex items-center justify-between gap-2 px-1"><span class="text-xs text-slate-400 truncate" v-if="store.workspaceId">{{ store.workspaceId.slice(0,8) }}</span><button class="text-xs text-slate-400 hover:text-slate-700" @click="logout">退出</button></div>
       </div>
@@ -27,7 +33,7 @@
 
 <script setup>
 import { Activity, MessageSquare, BarChart3, FileText, Upload, Gauge, BookOpen, ShieldAlert } from 'lucide-vue-next'
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkspaceStore } from './stores/workspace'
 import { clearAccessToken } from './lib/auth'
@@ -36,10 +42,30 @@ import { clearAccessToken } from './lib/auth'
 const store = useWorkspaceStore()
 const route = useRoute()
 const router = useRouter()
+// The name remains local so a failed request preserves the user's retry input.
+const workspaceName = ref('')
+const workspaceCreating = ref(false)
+const workspaceError = ref('')
 // 路由从登录页切换到业务页时，组件不会重建，因此需要在这里开始加载可见 Workspace。
 // 登录页始终不发起业务 API，避免未登录时产生误导性报错。
 watch(() => route.name, (name) => {
   if (name !== 'Login' && !store.workspaceId) store.init()
 }, { immediate: true })
+
+// The store writes the selected public ID only after the protected command succeeds.
+async function createWorkspace() {
+  if (workspaceCreating.value || !workspaceName.value.trim()) return
+  workspaceCreating.value = true
+  workspaceError.value = ''
+  try {
+    await store.createWorkspace(workspaceName.value.trim())
+    workspaceName.value = ''
+  } catch (error) {
+    workspaceError.value = error.message || 'Workspace creation failed'
+  } finally {
+    workspaceCreating.value = false
+  }
+}
+
 function logout() { clearAccessToken(); store.workspaceId = ''; router.replace('/login') }
 </script>

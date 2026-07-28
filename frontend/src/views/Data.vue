@@ -20,12 +20,18 @@
     <div class="flex-1 overflow-auto p-6">
       <section class="card p-5 mb-6">
         <div class="flex items-center justify-between mb-3">
-          <div><h2 class="font-semibold">待人工复核</h2><p class="text-xs text-slate-500 mt-1">仅展示规则无法可靠收敛的多主题或混合情绪评论。</p></div>
-          <span class="text-sm font-bold">{{ reviewCandidates.length }}</span>
+          <div><h2 class="font-semibold">L1 议题歧义待确认</h2><p class="text-xs text-slate-500 mt-1">仅展示规则无法可靠收敛的多议题或混合情绪评论。</p></div>
+          <span class="text-sm font-bold">{{ filteredReviewCandidates.length }}</span>
+        </div>
+        <div class="flex gap-2 mb-3 flex-wrap">
+          <button v-for="tab in reviewTabs" :key="tab.code"
+            class="px-3 py-1 text-xs rounded-full border transition-colors"
+            :class="reviewTab === tab.code ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-slate-200 text-slate-500 hover:border-slate-300'"
+            @click="reviewTab = tab.code">{{ tab.label }}</button>
         </div>
         <div class="flex gap-2 mb-3"><input v-model="newTopic" class="flex-1 rounded border border-slate-200 px-2 py-1 text-sm" placeholder="提交新的主题候选（不会直接生效）"><button class="text-primary hover:underline text-sm" @click="submitNewTopic">提交候选</button></div>
-        <div v-if="!reviewCandidates.length" class="text-sm text-slate-400">暂无待复核候选</div>
-        <div v-for="candidate in reviewCandidates" :key="candidate.id" class="border-t border-slate-100 py-3 text-sm">
+        <div v-if="!filteredReviewCandidates.length" class="text-sm text-slate-400">暂无待复核候选</div>
+        <div v-for="candidate in filteredReviewCandidates" :key="candidate.id" class="border-t border-slate-100 py-3 text-sm">
           <p class="text-slate-700 dark:text-slate-200">{{ candidate.sampleText }}</p>
           <p class="text-xs text-slate-500 mt-1">原因：{{ candidate.reasonCode }} · 建议：{{ candidate.suggestedIssueKey || '无' }} / {{ candidate.suggestedSentiment || '无' }}</p>
           <div class="flex gap-3 mt-2"><button class="text-emerald-600 hover:underline" @click="resolveCandidate(candidate.id, 'confirm')">确认</button><button class="text-slate-500 hover:underline" @click="resolveCandidate(candidate.id, 'ignore')">忽略</button></div>
@@ -87,10 +93,19 @@ Chart.register(LineController, CategoryScale, LinearScale, PointElement, LineEle
 
 const store = useWorkspaceStore()
 const issues = ref([]), loading = ref(true), selected = ref(''), detail = ref(null), samples = ref([]), reviewCandidates = ref([]), newTopic = ref('')
+const reviewTabs = [
+  { code: 'ambiguous_topics', label: '议题歧义' },
+  { code: 'too_many_topics', label: '议题过多' },
+  { code: 'mixed_sentiment', label: '混合情绪' }
+]
+const reviewTab = ref('ambiguous_topics')
 const trendRef = ref(null)
 let trendChart = null
 const totalRecent = computed(() => (detail.value?.recentTrend || []).reduce((s, p) => s + p.feedbackCount, 0))
 const baselineEwma = computed(() => detail.value?.baseline?.baselineEwma?.toFixed(1) || '-')
+const filteredReviewCandidates = computed(() =>
+  reviewCandidates.value.filter(item => item.reasonCode === reviewTab.value)
+)
 
 async function loadIssues() {
   if (!store.workspaceId) return; loading.value = true

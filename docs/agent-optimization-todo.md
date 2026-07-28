@@ -42,10 +42,99 @@ P0 基础安全与会话记忆
 - [x] 为 RAG 评测补齐逐题开始/终态、检索/生成耗时和失败阶段日志；供应商未返回 Usage 时显式记录 unavailable，不伪造 Token。
 - [x] 为长耗时 RAG 评测增加应用级单题超时与异步任务化（持久化状态、可轮询结果）；任一题失败即标记 `partial_failed`，不写入成功基线。
 - [x] 为模型 HTTP 客户端增加网络读超时；读取上限小于单题应用层兜底，避免底层调用长期占用 Worker。
-- [ ] 排查 DashScope 生成阶段的连续超时，待全部题目成功执行后重跑完整 RAG 质量基线；任何含失败题目的批次均不得作为 Prompt / 模型 / 检索策略的比较依据。
+- [ ] 排查 DashScope 生成阶段的连续超时：已将默认 HTTP 读超时提升至 110 秒、单题超时 120 秒、任务租约 720 秒；待全部题目成功执行后重跑完整 RAG 质量基线。若本地仍配置 `AGENT_HTTP_READ_TIMEOUT_SECONDS=50` 等旧值，需同步删除或调大。
 - [x] 修复评测页刷新后的进行中状态恢复与过程展示：RAG 评测按 Workspace 隔离查询最近任务并恢复轮询，展示总题数、已完成题数、当前受控阶段、终态汇总、累计耗时和失败阶段；`partial_failed` 仍不得混入可比较的 RAG 历史基线，也不展示模型原文。
 - [x] 将金标评测改为与 RAG 一致的持久化异步任务与过程展示：`/evaluations/gold` 改为复用既有 `AsyncTask` 租约/轮询机制，持久化已完成题数、单题终态、累计耗时和受控失败状态；不改变题集或评分规则。
 - [ ] 若需要“意图识别准确率”，先建立独立人工标注的意图测试集和混淆矩阵；当前只有规则路由实现与问答/RAG 指标，不能将其表述为已测准确率。
+
+
+
+### 待办：RAG 检索与切分优化（2026-07-28）
+
+> **设计文档：** [`docs/superpowers/specs/2026-07-28-rag-optimization-design.md`](superpowers/specs/2026-07-28-rag-optimization-design.md)  
+> **规模假设：** 语料扩展到 **50～100 篇**（约 200～1000 chunk）；**不换**独立向量库 / Cross-encoder（除非 Phase R4 评测证明需要）。  
+> **与评测待办分工：** 本文档管 Chunker/检索/索引；下节「RAG 评测贴近真实业务」管题集、指标口径、对外表述。两线应 **并行**，R1 与评测扩充同步做。
+
+#### Phase R1 — 切分与 embed 前缀（语料 <30 篇，优先）
+
+- [x] **Markdown 标题切分：** 按 `#～###` section 切分，超长再字符窗口切；更新 `KnowledgeChunker` + 单测。
+- [x] **Embed 上下文前缀（必选）：** 嵌入前拼 `[标题 | TYPE | vN]` + 章节标题；`knowledge_chunk.content` 存正文。
+- [ ] **评测扩至 15 题：** 与 `dataset_version` 绑定；含跨文档混淆 ≥2 题。
+- [x] **（可选）overlap ~100 字：** 仅窗口硬切时启用。
+
+#### Phase R2 — 检索与证据（30～60 篇）
+
+- [ ] **Top8 按 document 限流：** 每个 `document_id` 最多 2 chunk 进最终证据。
+- [ ] **中文 FTS 补强：** `pg_bigm` 或 keywords 列 + GIN（择一实现）。
+- [ ] **收紧补检索：** 首轮证据已足则不再第二次全类型检索。
+- [ ] **证据片段 300→500 字 + 标题/vN/chunk_no 展示。**
+- [ ] **评测扩至 20+ 题。**
+
+#### Phase R3 — 规模运维（60～100 篇）
+
+- [ ] **ivfflat lists 调参 + 全量 re-publish 后 REINDEX SOP。**
+- [ ] **chunk 窗口 800/1000/1200 评测定稿。**
+- [ ] **评测扩至 30 题作为回归门禁。**
+- [ ] **（可选）EXPIRED 版本 chunk 清理。**
+
+#### Phase R4 — 仅评测仍不达标（默认不做）
+
+- [ ] 评估：单次查询改写 / 换 embedding / Cross-encoder 重排（三选一，需 Flyway 或延迟评估）。
+
+**验收标准（R1）：** 标题切分 + 前缀上线；≥15 题评测可复跑；召回或引用指标一项升 ≥10% 且另一项不降。
+
+---
+
+### 待办：RAG 评测贴近真实业务（2026-07-27）
+
+> **背景：** 首版 RAG 评测已跑通并建立基线（检索召回率 100%、引用正确性 100%、无依据回答率 20%，含 1 道无知识陷阱题）。当前三项指标为**确定性规则代理指标**（文档前缀命中 + 引用格式合规），适合 Prompt/检索策略变更后的回归对比，**不能**直接表述为生产级 RAG 准确率。文档少、题型与四类已发布文档 1:1 对应，会系统性抬高召回与引用分数。
+
+> **检索/切分优化：** 见 [`2026-07-28-rag-optimization-design.md`](superpowers/specs/2026-07-28-rag-optimization-design.md)（Phase R1～R3 与本文评测待办并行）。
+
+- [ ] **扩充语料规模：** 增加同类型多文档、多版本与更长正文，目标 **50～100 篇**；观察检索噪声上升后召回率是否仍稳定；避免“4 篇文档 + 4 道模板题”带来的虚高基线。
+- [ ] **引入真实业务问法：** 从运营/客服场景收集或编写开放式问题（含跨文档、口语化、边界条件），补充或逐步替代固定四类模板题；题集版本化并与 `dataset_version` 绑定，便于历史批次可比。
+- [ ] **拆分陷阱题指标：** 将 `no-knowledge` 题单独统计拒答合规率（是否明确说明“未检索到已发布企业知识”且不编造结论），与有文档题的召回/引用指标分开展示，避免 20% 无依据率含义不清。
+- [ ] **加强召回口径：** 在现有“文档级前缀命中”之外，增加关键事实/关键词是否出现在检索切片中的代理指标（规则或人工金标）；区分“召回到对的文档”与“召回到对的片段”。
+- [ ] **引用质量而不只是引用格式：** 评估引用片段是否支撑回答中的具体断言（可先规则：引用 ID 对应切片正文是否包含题目相关关键词；后续再考虑人工抽检）。
+- [ ] **对抗性/混淆题：** 增加相似文档、过期版本、Workspace 不可见文档等边界用例，验证组织/Workspace/已发布状态过滤与 RRF 检索是否会把错误证据排前。
+- [ ] **评测页与对外口径：** 历史批次展示指标时附数据集版本、题数与规则说明；简历/演示中明确写“规则代理指标 + 小样本基线”，不写“RAG 准确率 100%”。
+
+**验收标准：** 在 **10+ 文档、10+ 题**（阶段 1）→ **20+ 题（30～60 篇）** → **30 题（100 篇）** 的分档数据集上重跑基线；能分别解释召回、引用、拒答/无依据的变化，且 Prompt 或检索改动后仍可用同一口径做回归对比。
+
+### 待办：L2 平台粗分 + Workspace Topic Pack 细分（2026-07-28）
+
+> **总览文档：** [`docs/superpowers/specs/2026-07-28-feedback-import-classification-evolution-design.md`](superpowers/specs/2026-07-28-feedback-import-classification-evolution-design.md)（导入 Canonical 格式、多数据源适配、Phase 0～E 演进路线）  
+> **设计文档（v2）：** [`docs/superpowers/specs/2026-07-28-l2-expression-l1-topic-layer-design.md`](superpowers/specs/2026-07-28-l2-expression-l1-topic-layer-design.md)  
+> **背景：** TapTap ~1200 条导入；~75% `unclassified` 淹没复核队列。方案：**L2 平台五类（跨游戏可比）→ L1 Workspace Topic Pack 钻取（按游戏 Skill 包）；零命中写 `topic_general` 而非 OTHER/复核；去掉「可行动主题覆盖率 KPI」**。
+
+#### Wave 1 并行（2026-07-28）
+
+- [x] **Import B+（C1）：** Canonical 表头 `feedback_text` 等精确自动映射，TapTap CSV 直进 Step 3；`import-auto-mapping.test.mjs`。
+- [x] **Phase A（A1）：** 复核降噪 + `topic_general` + Data.vue Tab — 单测通过；**需重投影**后验收复核队列。
+- [x] **RAG R1（B1）：** Markdown 标题切分 + embed 前缀 + overlap 100 — 8 项单测通过；**需重新发布**各版本文档。
+
+#### Phase A：L1 复核降噪 + topic_general
+
+- [x] **复核准入：** 仅 `ambiguous_topics` / `too_many_topics` / `mixed_sentiment` 进复核；`unclassified` 不再进候选。
+- [x] **topic_general 兜底：** Pack 规则零命中写 `topic_general` link，进 L1 统计与钻取。
+- [x] **复核页 Tab：** 按 reasonCode 分 Tab，不含 unclassified。
+
+#### Phase B：平台 L2 + Pack 机制 + 粗→细看板
+
+- [ ] **`platform/expression-rules.toml` + `ExpressionClassifier`：** 五类 L2，每条必有主标签。
+- [ ] **Topic Pack 加载：** `config/analysis/packs/{pack_id}/` + Workspace 绑定字段。
+- [ ] **首包 `game-chaoziran:v1`：** topic-catalog + topic-rules；旧 issue key alias 映射。
+- [ ] **Flyway `feedback_projection_annotation` + 投影写入 + L2 日聚合（源自标注行）。**
+- [ ] **Dashboard：** 首屏 L2 分布/趋势；二级 L2→L1 钻取；告警副屏（`alert_eligible`）。
+- [ ] **API：** `expressions/{key}/topics` 与交叉样本。
+
+#### Phase C/D/E（可选，见 spec）
+
+- [ ] **Pack 级 LLM Topic Skill**（仅 general 子集，置信度门控）。
+- [ ] **Agent Tool / 报告** 支持 L2 与 L2×L1 查询。
+- [ ] **Genre Starter Pack 模板**；第二游戏 Pack 试绑验证多游戏扩展。
+
+**验收标准（A+B）：** L2 非 other ≥ 85%；复核 < 100；Dashboard 可演示 L2 占比并钻取 L1；平台 core 无游戏专属议题硬编码；`topic_general` 为正常统计桶。
 
 - [x] 支持长评论最多关联两个既有主题，并按主题记录正面/负面/中性/混合情绪；主题过多、并列歧义、未分类或混合情绪进入按 Workspace 隔离的人工复核候选。人工只能确认、忽略或提交新主题候选，不会直接改写规则、历史链接或趋势指标。
 
@@ -83,6 +172,8 @@ P0 基础安全与会话记忆
 - 首版文档类型固定为：版本公告、已知问题、客服 SOP / FAQ、舆情处置手册。
 - Agentic RAG 采用受控单 Agent：先路由文档类型和过滤条件，再执行混合检索；证据不足时最多补检索一次。模型不能自由访问 SQL、仓储或无限循环调用 Tool。
 
+
+
 ## P4：业务闭环与协作能力（核心闭环已完成，外部协作集成待后续确认）
 
 - [x] 实现异常调查工作流：固定只读 Tool 汇总趋势、告警历史和样本反馈，冻结为可复核证据；版本或活动事件源尚未接入时，明确标记不能推断因果。
@@ -110,6 +201,9 @@ P4 核心业务闭环已完成。下一项应先补齐版本/活动事件数据�
 - [x] 聊天链路将知识证据合并到受控调查证据，返回文档标题、版本、片段和应用内来源链接；AgentRun 仅保存检索轮次和证据快照，不保存原始思维链。
 - [x] 新增 RAG 专项评测：题集由当前 Workspace 可见的已发布文档生成，每种类型最多一题并包含一题无知识依据问题；保存召回率、引用正确性、无依据回答率和脱敏逐题计数，不保存模型回答正文。
 - [x] 评测页可运行并查看 RAG 评测历史；通用 Prompt 金标评测与 RAG 专项评测使用独立历史表，避免指标 JSON 口径混用。
+
+
+
 ## P2 完成记录（2026-07-25）
 
 - [x] 受控只读 Tool：趋势、主题分布、告警、脱敏样本、固定时间范围比较，以及版本数据可用性说明。
@@ -117,3 +211,12 @@ P4 核心业务闭环已完成。下一项应先补齐版本/活动事件数据�
 - [x] 聊天输出采用“结论、证据、推测、未知项、建议动作”结构，并要求数值、时间和异常指标引用证据索引。
 - [x] AgentRun 审计保存计划与证据快照；前端可在本次回答下查看受控证据。
 - [x] P1 金标评测复用 `chat:v2` Prompt，并新增证据引用率（格式合规代理指标）。
+
+
+
+### 待办：组织级 Workspace 与成员授权管理
+
+- [ ] 将 Workspace 创建入口从全局侧边栏迁移到仅 Owner 可见的组织/工作区管理页；普通成员无授权 Workspace 时仅展示“请联系管理员”的空状态。
+- [ ] 补齐 Owner 的成员管理界面：创建成员、设置组织角色，并为既有成员增删多个 Workspace 的访问范围。
+- [ ] 保持后端为唯一授权边界：前端不保存角色，不以界面隐藏代替 `WorkspaceAccessService` 的 Owner 与 `workspace_member` 校验。
+- [ ] 为 Owner、已授权成员、无授权成员分别补充 Workspace 列表与命令拒绝的回归测试；验证跨 Workspace 数据始终隔离。

@@ -225,3 +225,42 @@ InsightFlow 的目标是将 CSV 反馈数据转化为可调查的舆情信号：
 - **实现：** 新增 Flyway V21/V22、`FeedbackReviewCandidate` 状态机、主题级情绪分析器和受保护复核 API；数据页展示脱敏样本并提供确认、忽略、提交新主题候选入口。所有候选读写均按 Workspace 隔离，API 仅暴露候选 UUID。
 - **验证：** 主题级情绪与候选状态机测试均先失败后通过；`mvnw.cmd test` 通过 77 项测试；前端构建和后端编译成功。前端构建保留既有 Vite 输出目录与 CSS `@import` 顺序警告，未在本次范围处理。
 - **沉淀：** 自动化分类的可信度不来自“永远给出答案”，而来自明确限制自动决策范围，并将低确定性结果保留为可审计、可人工确认、不会污染历史指标的候选。
+
+### 2026-07-27: Explicit first Workspace creation
+
+- **Observed:** A freshly bootstrapped Owner has organization membership but no Workspace, leaving Workspace-scoped controls disabled without a creation path.
+- **Cause:** Bootstrap intentionally does not create a game or product data boundary, while the frontend store only loaded existing readable Workspaces.
+- **Decision:** The sidebar shows a creation form only for the empty state and reuses the protected `POST /api/v1/workspaces` command. Successful responses select the returned `publicId`; failed requests retain the name and do not change the current Workspace. No API, schema, permission, or implicit default Workspace was added.
+- **Verification:** Added Workspace creation and empty-state regression tests; ran `npm.cmd --prefix frontend test`, `npm.cmd --prefix frontend run build`, and `git diff --check`. The existing Vite outDir and CSS `@import` warnings remain out of scope.
+
+### 2026-07-27: Knowledge source authentication and action feedback
+
+- **Observed:** Opening a knowledge source through browser anchor navigation returned `UNAUTHENTICATED`; publish and delete actions had no per-version progress or failure feedback.
+- **Cause:** Anchor navigation bypasses the frontend authenticated-fetch wrapper, so it cannot send the session-only Bearer token. Knowledge controller endpoints also lacked a shared Workspace access check before invoking document services.
+- **Decision:** Source retrieval now uses authenticated fetch, creates a short-lived Blob download, and never exposes object-storage credentials. Publish, expire, and delete show progress and an error beside the affected version. The controller calls `WorkspaceAccessService.requireRead` for every knowledge endpoint before document access.
+- **Verification:** Added frontend source/action regression assertions and controller authorization coverage; ran `mvnw.cmd test`, `npm.cmd --prefix frontend test`, `npm.cmd --prefix frontend run build`, and `git diff --check`.
+
+### 2026-07-27：RAG 评测历史接口未返回指标导致页面空白
+
+- **现象：** 5 题 RAG 评测全部 `succeeded` 且已写入历史，但页面只显示 `chat:v4 · knowledge:rrf:v1` 和时间，三项质量指标不出现。
+- **根因：** `GET /evaluations/rag` 的 `RagRunSummaryResponse` 刻意省略 `metrics_json`；前端又用始终为 `null` 的 `ragResult` 控制指标卡片渲染，成功后还执行 `ragResult.value = null`。
+- **方案与取舍：** 在历史列表响应中附带已持久化的脱敏 `RagEvaluationMetrics`，前端改从最新/选中批次读取指标；不新增详情接口，也不把逐题结果或模型回答暴露给浏览器。
+- **实现：** 扩展 `EvaluationController.RagRunSummaryResponse`；`Evaluations.vue` 用 `latestRagRun` 展示指标并支持点击历史批次切换。
+- **验证：** `EvaluationControllerTest` 5/5 通过；前端回归 2/2 通过；`npm run build` 与 `process-resources` 成功。数据库已有指标：`retrievalRecallRate=1.0`、`citationCorrectnessRate=1.0`、`ungroundedAnswerRate=0.2`。
+- **沉淀：** 异步任务成功后页面必须读取持久化历史中的指标字段，不能依赖未赋值的临时前端状态。
+
+### 2026-07-27：RAG 评测生成阶段 50 秒超时根因与默认值调整
+
+- **现象：** 上传并发布知识库后触发 RAG 评测，5 道题均在 `generation_failed` 结束；`generation_latency_ms` 稳定在约 50000ms，检索仅 267–316ms。
+- **根因：** DashScope `chat/completions` 在 RAG 评测场景下响应超过既有 50 秒 HTTP 读超时；`HttpTimeoutException: Request cancelled` 与 `insightflow.agent.http-read-timeout-seconds=50` 一致。知识库检索正常，不是切片或 pgvector 故障。
+- **方案与取舍：** 成对提高 HTTP 读超时（110 秒）与单题应用层超时（120 秒），并将整批任务租约增至 720 秒以覆盖 5 题串行最坏耗时；不缩短题集、不放宽“全部成功才入基线”规则，也不伪造 Token 指标。
+- **实现：** 调整 `application.yml` 默认值及 `AgentConfiguration`、`RagEvaluationCaseExecutor`、`RagEvaluationTaskService` 的 `@Value` 兜底；在 `application-local.yml.example` 提示本地勿保留旧的环境变量覆盖。
+- **验证：** 待运行相关单元测试；用户需重启后端并确认本地未设置 `AGENT_HTTP_READ_TIMEOUT_SECONDS=50` / `RAG_EVALUATION_CASE_TIMEOUT_SECONDS=55` 后再重跑 RAG 评测。
+- **沉淀：** RAG 评测失败若检索耗时正常而生成耗时贴近 HTTP 读超时，应优先核对超时配置与 DashScope 响应时延，而不是怀疑知识库上传链路。
+
+### 2026-07-27: Knowledge version actions must not lock unrelated versions
+
+- **Observed:** A request that did not settle left the global source or lifecycle pending flag populated, causing every visible source, publish, and delete button to render disabled.
+- **Cause:** The page represented in-flight state with one global key, even though each request targets one specific document version and source or model calls may take longer than a normal UI interaction.
+- **Decision:** Pending state is now keyed by version so only the affected row is mutually exclusive. Fetch requests use a 60-second client timeout; timeout clears that row and shows a refresh-and-confirm message, without assuming the server-side command was cancelled.
+- **Verification:** Added a frontend regression test covering scoped pending state and timeout handling; `node --test frontend/test/knowledge-runtime-state.test.mjs`, `npm.cmd --prefix frontend run build`, `mvnw.cmd process-resources`, and `git diff --check` passed.

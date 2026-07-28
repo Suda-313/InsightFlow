@@ -18,7 +18,7 @@ public class RagEvaluationTaskService {
 
     /** 任务只复用通用表的租约能力，类型过滤保证不会误领导入或报告任务。*/
     public RagEvaluationTaskService(AsyncTaskRepository tasks,
-                                    @Value("${insightflow.evaluation.rag.lease-seconds:420}") long leaseSeconds) {
+                                    @Value("${insightflow.evaluation.rag.lease-seconds:720}") long leaseSeconds) {
         this.tasks = tasks;
         this.leaseSeconds = leaseSeconds;
     }

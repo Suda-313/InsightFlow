@@ -3,6 +3,7 @@ package com.insightflow.service.analysis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.*;
@@ -101,5 +102,49 @@ class WorkspaceProjectionExecutionServiceTest {
         verify(factWriter).write(anyLong(), anyLong(), anyList(), anyMap(), anyMap(), anyMap(), anyMap());
         verify(metricBucketService).write(anyLong(), anyLong(), anyList(), anyMap(), anyMap());
         verify(projRepo).saveAndFlush(projection);
+    }
+
+    /** 零 L1 命中时编排层替换为 topic_general，且不写入 unclassified 复核原因。 */
+    @Test
+    void substitutesTopicGeneralWhenClassifierReturnsEmpty() {
+        WorkspaceProjectionRepository projRepo = mock(WorkspaceProjectionRepository.class);
+        DataCellRepository cellRepo = mock(DataCellRepository.class);
+        WorkspaceProjection projection = WorkspaceProjection.queued(7L, 21L, "rules:v1");
+        when(projRepo.findById(31L)).thenReturn(Optional.of(projection));
+        when(cellRepo.findByWorkspaceProjectionIdAndWorkspaceId(31L, 7L)).thenReturn(List.of());
+
+        ProjectionSourceLoader loader = mock(ProjectionSourceLoader.class);
+        OffsetDateTime occurredAt = OffsetDateTime.now();
+        EventInput event = new EventInput(1L, occurredAt, "工单", "今天天气不错");
+        when(loader.load(31L, 7L)).thenReturn(List.of(event));
+
+        RuleFirstIssueClassifier classifier = mock(RuleFirstIssueClassifier.class);
+        when(classifier.classify("今天天气不错")).thenReturn(List.of());
+        when(classifier.reviewReason("今天天气不错", List.of())).thenReturn(null);
+
+        DataCellBuilder dataCellBuilder = mock(DataCellBuilder.class);
+        DataCellPlan plan = new DataCellPlan(occurredAt, occurredAt, "stream_end", List.of(event), 10);
+        when(dataCellBuilder.split(List.of(event))).thenReturn(List.of(plan));
+
+        ProjectionFactWriter factWriter = mock(ProjectionFactWriter.class);
+        IssueRulesLoader rulesLoader = new IssueRulesLoader();
+        rulesLoader.load();
+        MetricBucketService metricBucketService = mock(MetricBucketService.class);
+        IssueMetricBucketRepository metricBucketRepository = mock(IssueMetricBucketRepository.class);
+        when(metricBucketRepository.findByWorkspaceProjectionIdAndWorkspaceId(31L, 7L)).thenReturn(List.of());
+
+        WorkspaceProjectionExecutionService service = new WorkspaceProjectionExecutionService(
+                projRepo, cellRepo, loader, classifier, dataCellBuilder, factWriter, rulesLoader,
+                metricBucketService, metricBucketRepository, mock(EwmaBaselineService.class),
+                mock(AlertDetector.class));
+
+        service.execute(31L, 7L);
+
+        verify(factWriter).write(eq(31L), eq(7L), anyList(),
+                argThat(map -> map.get(1L).size() == 1
+                        && TopicPackDefaults.TOPIC_GENERAL_KEY.equals(map.get(1L).get(0).canonicalKey())),
+                anyMap(),
+                argThat(map -> !map.containsKey(1L)),
+                argThat(names -> TopicPackDefaults.TOPIC_GENERAL_NAME.equals(names.get(TopicPackDefaults.TOPIC_GENERAL_KEY))));
     }
 }

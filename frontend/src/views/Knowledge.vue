@@ -56,11 +56,12 @@
             <div v-for="version in document.versions" :key="version.id" class="rounded-lg bg-slate-50 px-3 py-2 flex flex-wrap items-center justify-between gap-3">
               <div class="text-sm"><span class="font-mono text-xs text-slate-500">v{{ version.version_no }}</span><span class="ml-2" :class="statusClass(version.status)">{{ statusText(version.status) }}</span><span class="ml-2 text-xs text-slate-400">{{ version.source_name }} · {{ formatTime(version.created_at) }}</span></div>
               <div class="flex items-center gap-3 text-xs">
-                <a :href="sourceUrl(document.id, version.id)" class="text-primary hover:underline">查看原文</a>
-                <button v-if="version.status === 'PENDING_REVIEW'" class="text-emerald-600 hover:underline" :disabled="actionKey" @click="runAction(document.id, version.id, 'publish', 'POST')">发布</button>
-                <button v-if="version.status === 'PUBLISHED'" class="text-amber-600 hover:underline" :disabled="actionKey" @click="runAction(document.id, version.id, 'expire', 'POST')">失效</button>
-                <button v-if="version.status !== 'PUBLISHED' && version.status !== 'DELETED'" class="text-red-600 hover:underline" :disabled="actionKey" @click="runAction(document.id, version.id, '', 'DELETE')">删除</button>
+                <button class="text-primary hover:underline" :disabled="isVersionPending(version.id)" @click="downloadSource(document.id, version.id, version.source_name)">{{ isOperationPending(version.id, 'source') ? '下载中…' : '查看原文' }}</button>
+                <button v-if="version.status === 'PENDING_REVIEW'" class="text-emerald-600 hover:underline" :disabled="isVersionPending(version.id)" @click="runAction(document.id, version.id, 'publish', 'POST')">{{ isActionPending(version.id) ? '处理中…' : '发布' }}</button>
+                <button v-if="version.status === 'PUBLISHED'" class="text-amber-600 hover:underline" :disabled="isVersionPending(version.id)" @click="runAction(document.id, version.id, 'expire', 'POST')">{{ isActionPending(version.id) ? '处理中…' : '失效' }}</button>
+                <button v-if="version.status !== 'PUBLISHED' && version.status !== 'DELETED'" class="text-red-600 hover:underline" :disabled="isVersionPending(version.id)" @click="runAction(document.id, version.id, '', 'DELETE')">{{ isActionPending(version.id) ? '处理中…' : '删除' }}</button>
               </div>
+              <p v-if="actionError[version.id]" class="mt-2 text-xs text-red-600">{{ actionError[version.id] }}</p>
             </div>
           </div>
         </article>
@@ -76,14 +77,24 @@ import { useWorkspaceStore } from '../stores/workspace'
 // 当前 Workspace 是所有知识读写的服务端范围入口；页面不会也不能提交其他 Workspace 的标识。
 const store = useWorkspaceStore()
 const documents = ref([]), title = ref(''), type = ref('RELEASE_NOTE'), scope = ref('WORKSPACE')
-const selectedFile = ref(null), loading = ref(false), uploading = ref(false), actionKey = ref(''), requestError = ref('')
+const selectedFile = ref(null), loading = ref(false), uploading = ref(false), pendingOperations = ref({}), requestError = ref(''), actionError = ref({})
 
 // 上传前只做体验层最小校验，文件类型和生命周期的最终判断仍由后端统一执行。
 const canUpload = computed(() => store.workspaceId && title.value && selectedFile.value)
 
 // 非 2xx 响应必须展示明确错误，不能把发布失败的版本误显示为已发布。
+async function fetchWithTimeout(path, options = {}) {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 60000)
+  try { return await fetch(path, { ...options, signal: controller.signal }) }
+  catch (error) {
+    if (error.name === 'AbortError') throw new Error('请求超时，请稍后刷新列表确认结果')
+    throw error
+  } finally { window.clearTimeout(timeout) }
+}
+
 async function request(path, options) {
-  const response = await fetch(path, options)
+  const response = await fetchWithTimeout(path, options)
   const body = await response.json().catch(() => null)
   if (!response.ok) throw new Error(body?.error?.message || `请求失败（${response.status}）`)
   return body
@@ -114,15 +125,52 @@ async function uploadDocument() {
   } catch (error) { requestError.value = error.message } finally { uploading.value = false }
 }
 
-// 发布、失效和删除均在一次操作后重拉服务端状态，避免前端猜测版本实际生命周期。
-async function runAction(documentId, versionId, action, method) {
-  if (actionKey.value) return
-  actionKey.value = versionId; requestError.value = ''
-  try { await request(baseUrl() + '/' + documentId + '/versions/' + versionId + (action ? '/' + action : ''), { method }); await loadDocuments() }
-  catch (error) { requestError.value = error.message } finally { actionKey.value = '' }
+// 同一版本的动作互斥，其他版本仍可操作；超时会解锁当前行并提示用户刷新确认最终状态。
+function isVersionPending(versionId) { return Boolean(pendingOperations.value[versionId]) }
+function isOperationPending(versionId, operation) { return pendingOperations.value[versionId] === operation }
+function isActionPending(versionId) { return isVersionPending(versionId) && !isOperationPending(versionId, 'source') }
+function beginOperation(versionId, operation) { pendingOperations.value = { ...pendingOperations.value, [versionId]: operation } }
+function endOperation(versionId) {
+  const { [versionId]: ignored, ...remaining } = pendingOperations.value
+  pendingOperations.value = remaining
+}
+function clearActionError(versionId) {
+  const { [versionId]: ignored, ...remaining } = actionError.value
+  actionError.value = remaining
 }
 
-// 引用与下载都经应用内部 source 端点，不向页面暴露对象存储地址或凭据。
+// 发布、失效和删除均在一次操作后重拉服务端状态，避免前端猜测版本实际生命周期。
+async function runAction(documentId, versionId, action, method) {
+  if (isVersionPending(versionId)) return
+  beginOperation(versionId, action || 'delete'); clearActionError(versionId)
+  try { await request(baseUrl() + '/' + documentId + '/versions/' + versionId + (action ? '/' + action : ''), { method }); await loadDocuments() }
+  catch (error) { actionError.value = { ...actionError.value, [versionId]: error.message } } finally { endOperation(versionId) }
+}
+
+// Authenticated fetch supplies the session token before the browser receives the source bytes.
+async function downloadSource(documentId, versionId, sourceName) {
+  if (isVersionPending(versionId)) return
+  beginOperation(versionId, 'source'); clearActionError(versionId)
+  try {
+    const response = await fetchWithTimeout(sourceUrl(documentId, versionId))
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      throw new Error(body?.error?.message || `请求失败（${response.status}）`)
+    }
+    const objectUrl = URL.createObjectURL(await response.blob())
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = sourceName || 'knowledge.txt'
+    link.click()
+    URL.revokeObjectURL(objectUrl)
+  } catch (error) {
+    actionError.value = { ...actionError.value, [versionId]: error.message }
+  } finally {
+    endOperation(versionId)
+  }
+}
+
+// Source URLs remain internal; this helper is called through authenticated fetch instead of anchor navigation.
 function sourceUrl(documentId, versionId) { return baseUrl() + '/' + documentId + '/versions/' + versionId + '/source' }
 function typeText(value) { return ({ RELEASE_NOTE: '版本公告', KNOWN_ISSUE: '已知问题', SUPPORT_SOP: '客服 SOP', SENTIMENT_PLAYBOOK: '舆情处置手册' })[value] || value }
 function scopeText(value) { return value === 'ORGANIZATION' ? '组织通用' : '当前 Workspace 专属' }

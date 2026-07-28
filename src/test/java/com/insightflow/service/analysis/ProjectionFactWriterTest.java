@@ -1,6 +1,7 @@
 package com.insightflow.service.analysis;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,5 +69,38 @@ class ProjectionFactWriterTest {
         Assertions.assertThat(savedCellIssue.getMentionCount()).isEqualTo(1);
         Assertions.assertThat(savedCellIssue.getSampleEventIdsJson())
                 .contains("[").contains("]");
+    }
+
+    /** 零 L1 命中时写 topic_general link，assignment_method=general，且不创建复核候选。 */
+    @Test
+    void writesTopicGeneralLinkWhenNoClassification() {
+        FeedbackIssueLinkRepository linkRepo = mock(FeedbackIssueLinkRepository.class);
+        DataCellRepository cellRepo = mock(DataCellRepository.class);
+        CellIssueRepository cellIssueRepo = mock(CellIssueRepository.class);
+        IssueCatalogService catalogService = mock(IssueCatalogService.class);
+        FeedbackReviewCandidateService reviewService = mock(FeedbackReviewCandidateService.class);
+        when(cellRepo.saveAndFlush(any(DataCell.class))).thenAnswer(inv -> inv.getArgument(0));
+        IssueCatalog catalog = IssueCatalog.create(7L, TopicPackDefaults.TOPIC_GENERAL_KEY, TopicPackDefaults.TOPIC_GENERAL_NAME);
+        when(catalogService.findOrCreate(any(), eq(TopicPackDefaults.TOPIC_GENERAL_KEY), any())).thenReturn(catalog);
+
+        ProjectionFactWriter writer = new ProjectionFactWriter(
+                linkRepo, cellRepo, cellIssueRepo, new ObjectMapper(), catalogService, reviewService);
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-20T10:00:00Z");
+        List<EventInput> events = List.of(new EventInput(1L, now, "工单", "今天天气不错"));
+        DataCellPlan plan = new DataCellPlan(now, now, "stream_end", events, 5);
+        Map<Long, List<Classification>> classifications = Map.of(
+                1L, List.of(TopicPackDefaults.generalClassification()));
+
+        writer.write(31L, 7L, List.of(plan), classifications,
+                Map.of(1L, List.of(new TopicSentiment(TopicPackDefaults.TOPIC_GENERAL_KEY, "neutral"))),
+                Map.of(),
+                Map.of(TopicPackDefaults.TOPIC_GENERAL_KEY, TopicPackDefaults.TOPIC_GENERAL_NAME));
+
+        ArgumentCaptor<FeedbackIssueLink> linkCaptor = ArgumentCaptor.forClass(FeedbackIssueLink.class);
+        verify(linkRepo).saveAndFlush(linkCaptor.capture());
+        FeedbackIssueLink savedLink = linkCaptor.getValue();
+        Assertions.assertThat(savedLink.getAssignmentMethod()).isEqualTo(TopicPackDefaults.ASSIGNMENT_GENERAL);
+        verify(reviewService, never()).createIfNeeded(any(), any(), any(), eq("unclassified"), any(), any());
+        verify(cellIssueRepo).saveAndFlush(any(CellIssue.class));
     }
 }

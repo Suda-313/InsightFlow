@@ -19,8 +19,8 @@ import java.util.List;
  *
  * <p>第 2 名与第 1 名在 priority+hits 上同分时，标记 assignmentMethod 为
  * "ambiguous"，confidence 取 0.5：这表示规则无法唯一判定，把决策权交给后续
- * Qwen 层或人工，而不是武断地二选一。无候选时返回空列表，调用方记为
- * unclassified，不伪造主题。</p>
+ * Qwen 层或人工，而不是武断地二选一。无候选时返回空列表，由投影编排层写入
+ * {@link TopicPackDefaults#TOPIC_GENERAL_KEY}，不进复核队列。</p>
  */
 public class RuleFirstIssueClassifier implements IssueClassifier {
 
@@ -83,8 +83,9 @@ public class RuleFirstIssueClassifier implements IssueClassifier {
      * 返回需要人工复核的受控原因；分类结果仍保持最多两条，防止长评直接放大指标。
      */
     public String reviewReason(String normalizedText, List<Classification> classifications) {
+        // 零命中走 GENERAL 出口写 topic_general link，不再创建复核候选。
         if (classifications.isEmpty()) {
-            return "unclassified";
+            return null;
         }
         if (classifications.stream().anyMatch(item -> "ambiguous".equals(item.assignmentMethod()))) {
             return "ambiguous_topics";

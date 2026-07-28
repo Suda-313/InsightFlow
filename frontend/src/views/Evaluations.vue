@@ -91,16 +91,31 @@
         </div>
         <p v-if="!ragRuns.length" class="text-sm text-slate-400 py-2">暂无 RAG 评测记录。请先发布知识文档；没有已发布文档时仅会运行无知识依据题。</p>
         <div v-else class="space-y-3">
-          <div v-if="ragResult" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <MetricCard label="检索召回率" :candidate="percentage(ragResult.metrics?.retrievalRecallRate)" baseline="-" />
-            <MetricCard label="引用正确性" :candidate="percentage(ragResult.metrics?.citationCorrectnessRate)" baseline="-" />
-            <MetricCard label="无依据回答率" :candidate="percentage(ragResult.metrics?.ungroundedAnswerRate)" baseline="-" />
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <MetricCard label="检索召回率" :candidate="percentage(latestRagRun?.metrics?.retrievalRecallRate)" baseline="-" />
+            <MetricCard label="引用正确性" :candidate="percentage(latestRagRun?.metrics?.citationCorrectnessRate)" baseline="-" />
+            <MetricCard label="无依据回答率" :candidate="percentage(latestRagRun?.metrics?.ungroundedAnswerRate)" baseline="-" />
           </div>
+          <p v-if="!latestRagRun?.metrics" class="text-xs text-amber-700 bg-amber-50 rounded px-3 py-2">
+            历史批次已加载，但响应中缺少指标字段。请重新编译并重启后端（<code class="font-mono">.\mvnw.cmd compile</code>），然后使用 Ctrl+F5 强制刷新页面。
+          </p>
           <div class="max-h-36 overflow-auto space-y-1 text-xs text-slate-500">
-            <div v-for="run in ragRuns" :key="run.run_id" class="flex justify-between rounded bg-slate-50 px-3 py-2">
-              <span>{{ run.prompt_version }} · {{ run.retrieval_version }}</span>
-              <span>{{ run.created_at?.slice(0, 16) || run.run_id.slice(0, 8) }}</span>
-            </div>
+            <button
+              v-for="run in ragRuns"
+              :key="run.run_id"
+              type="button"
+              class="flex w-full justify-between gap-3 rounded px-3 py-2 text-left"
+              :class="run.run_id === latestRagRun?.run_id ? 'bg-slate-100 text-slate-700' : 'bg-slate-50 hover:bg-slate-100'"
+              @click="selectedRagRunId = run.run_id"
+            >
+              <span>
+                <span class="block">{{ run.prompt_version }} · {{ run.retrieval_version }}</span>
+                <span v-if="run.metrics" class="mt-0.5 block text-[11px] text-slate-400">
+                  召回 {{ percentage(run.metrics.retrievalRecallRate) }} · 引用 {{ percentage(run.metrics.citationCorrectnessRate) }} · 无依据 {{ percentage(run.metrics.ungroundedAnswerRate) }}
+                </span>
+              </span>
+              <span class="shrink-0">{{ run.created_at?.slice(0, 16) || run.run_id.slice(0, 8) }}</span>
+            </button>
           </div>
         </div>
       </section>
@@ -118,7 +133,7 @@ const runs = ref([])
 const performance = ref({ metrics: [] })
 const comparison = ref(null)
 const ragRuns = ref([])
-const ragResult = ref(null)
+const selectedRagRunId = ref('')
 const candidateRunId = ref('')
 const baselineRunId = ref('')
 const loading = ref(false)
@@ -127,6 +142,12 @@ const comparing = ref(false)
 const ragRunning = ref(false)
 const requestError = ref('')
 const canCompare = computed(() => candidateRunId.value && baselineRunId.value && candidateRunId.value !== baselineRunId.value)
+// 历史列表按 created_at 倒序返回；默认展示最新一批次的脱敏指标。
+const latestRagRun = computed(() => {
+  if (!ragRuns.value.length) return null
+  const selected = ragRuns.value.find(run => run.run_id === selectedRagRunId.value)
+  return selected || ragRuns.value[0]
+})
 
 // 公共请求包装器将非 2xx 响应显式转换为页面错误，避免把 API 失败误显示成“暂无数据”。
 async function request(path, options) {
@@ -150,6 +171,9 @@ async function loadPage() {
     runs.value = Array.isArray(history) ? history : []
     performance.value = baseline || { metrics: [] }
     ragRuns.value = Array.isArray(ragHistory) ? ragHistory : []
+    if (!ragRuns.value.some(run => run.run_id === selectedRagRunId.value)) {
+      selectedRagRunId.value = ragRuns.value[0]?.run_id || ''
+    }
     selectDefaultRuns()
   } catch (error) {
     requestError.value = error.message
@@ -193,7 +217,6 @@ async function runRagEvaluation() {
     const response = await request('/api/v1/workspaces/' + store.workspaceId + '/evaluations/rag', { method: 'POST' })
     const task = await waitForRagTask(response.task_id)
     if (task.status !== 'succeeded') throw new Error(task.error_code || 'RAG 评测未完成')
-    ragResult.value = null
     await loadPage()
   } catch (error) {
     requestError.value = error.message

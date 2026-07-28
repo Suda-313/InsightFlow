@@ -59,8 +59,25 @@ const store = useWorkspaceStore()
 
 const step = ref(1), headers = ref([]), fileId = ref(''), uploadMsg = ref(''), uploadOk = ref(false), importing = ref(false), importDone = ref(false)
 const fields = [{ key: 'feedback_text', label: '反馈内容' }, { key: 'occurred_at', label: '发生时间' }, { key: 'source', label: '来源' }, { key: 'external_ref', label: '工单号' }]
+const CANONICAL_IMPORT_KEYS = ['feedback_text', 'occurred_at', 'source', 'external_ref']
 const mapping = ref({})
 const allMapped = computed(() => Object.values(mapping.value).filter(Boolean).length === 4)
+
+/** Canonical CSV v1 表头精确匹配（trim 后 case-sensitive），未命中时再走中文关键词兜底。 */
+function autoMapImportHeaders(headerList) {
+  const result = {}
+  headerList.forEach(h => {
+    const trimmed = h.trim()
+    if (CANONICAL_IMPORT_KEYS.includes(trimmed)) result[trimmed] = h
+  })
+  headerList.forEach(h => {
+    if (!result.feedback_text && h.includes('反馈')) result.feedback_text = h
+    if (!result.occurred_at && h.includes('时间')) result.occurred_at = h
+    if (!result.source && h.includes('来源')) result.source = h
+    if (!result.external_ref && h.includes('工单')) result.external_ref = h
+  })
+  return result
+}
 
 async function uploadFile(file) {
   uploadMsg.value = '上传中...'; uploadOk.value = false
@@ -71,16 +88,8 @@ async function uploadFile(file) {
   fileId.value = d.id; headers.value = d.headers
   uploadMsg.value = '上传成功，' + d.size_bytes + ' 字节，' + d.headers.length + ' 列'; uploadOk.value = true
 
-  // Auto match
-  headers.value.forEach(h => {
-    if (h.includes('反馈')) mapping.value.feedback_text = h
-    if (h.includes('时间')) mapping.value.occurred_at = h
-    if (h.includes('来源')) mapping.value.source = h
-    if (h.includes('工单')) mapping.value.external_ref = h
-  })
-
-  // Skip mapping if all auto-matched
-  if (allMapped.value) { step.value = 3 } else { step.value = 2 }
+  mapping.value = autoMapImportHeaders(headers.value)
+  step.value = allMapped.value ? 3 : 2
 }
 
 async function submitMapping() {
