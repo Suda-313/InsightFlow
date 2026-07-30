@@ -29,6 +29,21 @@ public class KnowledgeTitleEntityScoreBooster {
     /** 查询类型提示与文档类型/标题一致时的软增量。 */
     static final double DOC_TYPE_SOFT_BOOST = 0.04;
 
+    /**
+     * content/section 含完整事件编号（KI-xxxx）时的增量。
+     *
+     * <p>Phase 4B 校准：从 0.15 降至 0.08，避免 identifier 信号压过 entity/coverage 信号，
+     * 且仅在 {@link KnowledgeRetrievalOptions#identifierSupplementEnabled()} 为 true 时生效。</p>
+     */
+    static final double IDENTIFIER_BODY_BOOST = 0.08;
+
+    /**
+     * 标题含完整事件编号时的增量。
+     *
+     * <p>Phase 4B 校准：从 0.10 降至 0.05，与 body boost 同步降权保持相对比例。</p>
+     */
+    static final double IDENTIFIER_TITLE_BOOST = 0.05;
+
     /** 精排输入池默认深度，与 {@link KnowledgeRerankerProperties#candidateLimit()} 默认一致。 */
     static final int DEFAULT_RERANK_POOL = 30;
 
@@ -90,22 +105,37 @@ public class KnowledgeTitleEntityScoreBooster {
 
     private double computeBoost(QuerySignals signals, KnowledgeVectorStore.SearchCandidate candidate) {
         String normalizedTitle = normalizeTitle(candidate.title());
-        if (normalizedTitle.isBlank()) {
-            return 0.0;
-        }
+        String searchable = searchableText(candidate);
         double boost = 0.0;
         for (String version : signals.versions()) {
-            if (normalizedTitle.contains(version.toLowerCase(Locale.ROOT))) {
+            if (normalizedTitle.contains(version.toLowerCase(Locale.ROOT))
+                    || searchable.contains(version.toLowerCase(Locale.ROOT))) {
                 boost += VERSION_TITLE_BOOST;
             }
         }
         for (String token : signals.entityTokens()) {
-            if (token.length() >= 2 && normalizedTitle.contains(token)) {
+            if (token.length() >= 2 && (normalizedTitle.contains(token) || searchable.contains(token))) {
                 boost += ENTITY_TITLE_BOOST;
+            }
+        }
+        for (String identifier : signals.eventIds()) {
+            if (KnowledgeIdentifierExtractor.containsExact(candidate.title(), identifier)) {
+                boost += IDENTIFIER_TITLE_BOOST;
+            } else if (KnowledgeIdentifierExtractor.containsExact(candidate.sectionHeading(), identifier)
+                    || KnowledgeIdentifierExtractor.containsExact(candidate.content(), identifier)) {
+                boost += IDENTIFIER_BODY_BOOST;
             }
         }
         boost += docTypeSoftBoost(signals.typeHints(), normalizedTitle, candidate.documentType());
         return boost;
+    }
+
+    private static String searchableText(KnowledgeVectorStore.SearchCandidate candidate) {
+        String section = candidate.sectionHeading() == null
+                ? ""
+                : candidate.sectionHeading().toLowerCase(Locale.ROOT);
+        String content = candidate.content() == null ? "" : candidate.content().toLowerCase(Locale.ROOT);
+        return section + " " + content;
     }
 
     private double docTypeSoftBoost(Set<String> typeHints, String normalizedTitle, String documentType) {
@@ -205,16 +235,26 @@ public class KnowledgeTitleEntityScoreBooster {
 
     static boolean matchesGroup(KnowledgeVectorStore.SearchCandidate candidate, EntityGroup group) {
         String normalizedTitle = normalizeTitle(candidate.title());
-        if (normalizedTitle.isBlank()) {
+        String searchable = searchableText(candidate);
+        for (String identifier : group.eventIds()) {
+            if (KnowledgeIdentifierExtractor.containsExact(candidate.title(), identifier)
+                    || KnowledgeIdentifierExtractor.containsExact(candidate.sectionHeading(), identifier)
+                    || KnowledgeIdentifierExtractor.containsExact(candidate.content(), identifier)) {
+                return true;
+            }
+        }
+        if (normalizedTitle.isBlank() && searchable.isBlank()) {
             return false;
         }
         for (String token : group.tokens()) {
-            if (token.length() >= 2 && normalizedTitle.contains(token)) {
+            if (token.length() >= 2
+                    && (normalizedTitle.contains(token) || searchable.contains(token))) {
                 return true;
             }
         }
         for (String version : group.versions()) {
-            if (normalizedTitle.contains(version.toLowerCase(Locale.ROOT))) {
+            if (normalizedTitle.contains(version.toLowerCase(Locale.ROOT))
+                    || searchable.contains(version.toLowerCase(Locale.ROOT))) {
                 return true;
             }
         }
@@ -226,6 +266,14 @@ public class KnowledgeTitleEntityScoreBooster {
         Set<String> entityTokens = new LinkedHashSet<>();
         Set<String> typeHints = extractTypeHints(question);
         List<EntityGroup> groups = new ArrayList<>();
+
+        // identifierBoostEnabled 与 supplement 开关联动：off 时 eventIds 为空，computeBoost 跳过
+        // identifier 加权循环，使 Phase 4A/4B 消融能真正分离 P2 全链路（supplement + booster）。
+        // entityGroups 内部仍保留各自的 eventIds，供 ensureEntityCoverage/matchesGroup 做双主体覆盖判断。
+        boolean identifierBoostEnabled = options == null || options.identifierSupplementEnabled();
+        Set<String> eventIds = identifierBoostEnabled
+                ? KnowledgeIdentifierExtractor.extractEventIds(question)
+                : new LinkedHashSet<>();
 
         List<String> subQueries = options == null ? null : options.subQueries();
         if (subQueries != null && subQueries.size() >= 2) {
@@ -251,17 +299,23 @@ public class KnowledgeTitleEntityScoreBooster {
         for (EntityGroup group : groups) {
             entityTokens.addAll(group.tokens());
             versions.addAll(group.versions());
+            // 仅在 identifier boost 开启时才将各子组的 eventIds 汇入信号，避免 identifier 关闭时仍施加加权
+            if (identifierBoostEnabled) {
+                eventIds.addAll(group.eventIds());
+            }
         }
         if (groups.isEmpty()) {
             entityTokens.addAll(extractTokens(question));
         }
-        return new QuerySignals(List.copyOf(versions), List.copyOf(entityTokens), List.copyOf(groups), typeHints);
+        return new QuerySignals(
+                List.copyOf(versions), List.copyOf(entityTokens), List.copyOf(groups), typeHints, List.copyOf(eventIds));
     }
 
     private EntityGroup buildEntityGroup(String text) {
         Set<String> tokens = extractTokens(text);
         Set<String> groupVersions = extractVersions(text);
-        return new EntityGroup(List.copyOf(tokens), List.copyOf(groupVersions));
+        Set<String> groupEventIds = KnowledgeIdentifierExtractor.extractEventIds(text);
+        return new EntityGroup(List.copyOf(tokens), List.copyOf(groupVersions), List.copyOf(groupEventIds));
     }
 
     static Set<String> extractVersions(String text) {
@@ -367,10 +421,11 @@ public class KnowledgeTitleEntityScoreBooster {
             List<String> versions,
             List<String> entityTokens,
             List<EntityGroup> entityGroups,
-            Set<String> typeHints) {
+            Set<String> typeHints,
+            List<String> eventIds) {
     }
 
-    record EntityGroup(List<String> tokens, List<String> versions) {
+    record EntityGroup(List<String> tokens, List<String> versions, List<String> eventIds) {
     }
 
     private record ScoredCandidate(KnowledgeVectorStore.SearchCandidate candidate, double boost) {
