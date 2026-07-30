@@ -1,7 +1,9 @@
 package com.insightflow.config;
 
+import com.insightflow.prompt.LiteralChatModelCaller;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,6 +49,27 @@ class AgentConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(ChatClient.class);
+                    assertThat(context).hasSingleBean(LiteralChatModelCaller.class);
+                    assertThat(context).hasSingleBean(ChatModel.class);
+                });
+    }
+
+    @Test
+    void createsFallbackChatModelWhenFallbackNameIsConfigured() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(AgentConfiguration.class, HttpClientConfiguration.class)
+                .withPropertyValues(
+                        "insightflow.agent.enabled=true",
+                        "spring.ai.openai.api-key=test-key",
+                        "spring.ai.openai.base-url=https://example.com",
+                        "spring.ai.openai.chat.options.model=primary-model",
+                        "insightflow.agent.fallback-chat-model=fallback-model",
+                        "spring.ai.openai.chat.options.temperature=0.3",
+                        "spring.ai.openai.chat.options.max-tokens=2000")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    ChatModel chatModel = context.getBean(ChatModel.class);
+                    assertThat(chatModel).isInstanceOf(FallbackChatModel.class);
                 });
     }
 

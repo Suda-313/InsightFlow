@@ -3,9 +3,8 @@ package com.insightflow.service.analysis;
 import java.util.List;
 
 /**
- * 主题分类端口；本期 RuleFirstIssueClassifier 是唯一实现，后续 Qwen 实现只处理未命中/歧义。
- *
- * <p>Qwen 实现不得直接创建主题、修改指标或改写 Alert，只能选择已有主题或返回 new_candidate/unclassified。</p>
+ * 主题分类端口；规则优先 {@link RuleFirstIssueClassifier} 为默认路径，
+ * Pack 级 {@link TopicPackTopicLlmSkill} 仅补 topic_general 子集（Phase C）。
  */
 public interface IssueClassifier {
 

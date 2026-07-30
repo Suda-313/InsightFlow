@@ -1,0 +1,65 @@
+# game-chaoziran:v2 L1 规则；v2 基于真实导入反馈扩充口语关键词（爆率/挂/画质/队友等），降低 topic_general 占比。
+version = "game-chaoziran:v2"
+
+[[rules]]
+canonical_key = "topic_matchmaking"
+name = "匹配/组队"
+priority = 90
+any_patterns = ["匹配", "组队", "排队太久", "匹配慢", "匹配不到人", "开黑", "配不到", "匹不到", "排不到", "队友", "组不到队"]
+exclude_patterns = []
+
+[[rules]]
+canonical_key = "topic_gameplay"
+name = "玩法/平衡"
+priority = 80
+any_patterns = ["平衡性", "数值", "玩法", "关卡设计", "打不过", "太简单", "太难", "副本", "爆率", "出金", "爆金", "摸金", "怪物", "地图", "棺", "文物", "难度", "恶心"]
+exclude_patterns = ["闪退", "卡死", "崩溃"]
+
+[[rules]]
+canonical_key = "topic_visual"
+name = "画面/性能"
+priority = 70
+any_patterns = ["画面", "美术", "建模", "特效", "掉帧", "发烫", "耗电", "画质", "画风", "皮肤", "曝光", "亮度", "清晰", "建模"]
+exclude_patterns = []
+
+[[rules]]
+canonical_key = "topic_stability"
+name = "稳定性/bug"
+priority = 95
+any_patterns = ["闪退", "卡死", "崩溃", "打不开", "黑屏", "bug", "报错", "卡住不动", "进不去", "闪退", "白屏", "无响应"]
+exclude_patterns = ["充值", "登录"]
+
+[[rules]]
+canonical_key = "topic_network"
+name = "网络/登录"
+priority = 92
+any_patterns = ["登录不上", "登录失败", "登不上", "进不去游戏", "网络", "延迟", "掉线", "卡顿", "断线", "服务器", "网卡", "460", "延迟高"]
+exclude_patterns = ["充值", "退款"]
+
+[[rules]]
+canonical_key = "topic_payment"
+name = "付费/经济"
+priority = 88
+any_patterns = ["充值", "到账", "未到账", "扣了", "道具丢失", "道具消失", "648", "648党", "氪金", "圈钱", "骗钱"]
+exclude_patterns = []
+
+[[rules]]
+canonical_key = "topic_social"
+name = "社交/举报/外挂"
+priority = 60
+any_patterns = ["举报", "挂机", "外挂", "辱骂", "违规", "作弊", "喷子", "开挂", "外挂多", "全是挂"]
+exclude_patterns = []
+
+[[rules]]
+canonical_key = "topic_content"
+name = "内容/版本/活动"
+priority = 50
+any_patterns = ["新版本", "活动", "更新内容", "赛季", "联动", "剧情", "更新", "版本", "新地图", "新活动"]
+exclude_patterns = []
+
+[[rules]]
+canonical_key = "topic_service"
+name = "客服/封号/申诉"
+priority = 65
+any_patterns = ["客服", "封号", "申诉", "账号找回", "找回账号", "换绑", "账号异常", "盗号", "被盗", "号被盗", "账号被盗"]
+exclude_patterns = []

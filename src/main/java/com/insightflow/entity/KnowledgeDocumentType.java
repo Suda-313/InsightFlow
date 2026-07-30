@@ -18,5 +18,11 @@ public enum KnowledgeDocumentType {
     SUPPORT_SOP,
 
     /** 舆情识别、分级、回应与复盘的方法手册。 */
-    SENTIMENT_PLAYBOOK
+    SENTIMENT_PLAYBOOK,
+
+    /** 版本上线、活动、维护、渠道策略等带时效的运营事实记录。 */
+    OPERATION_EVENT,
+
+    /** 已完成运营/版本/事故事件的证据化复盘，供后续调查引用。 */
+    POSTMORTEM
 }

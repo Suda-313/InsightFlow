@@ -19,7 +19,7 @@ class OperationalPromptCatalogTest {
         assertThat(catalog.classification().version()).isEqualTo("classification:v1");
         assertThat(catalog.sentiment().version()).isEqualTo("sentiment:v1");
         assertThat(catalog.risk().version()).isEqualTo("risk:v1");
-        assertThat(catalog.report().version()).isEqualTo("report:v1");
+        assertThat(catalog.report().version()).isEqualTo("report:v2");
         assertThat(catalog.classification().systemPrompt()).isNotBlank();
         assertThat(catalog.sentiment().systemPrompt()).isNotBlank();
         assertThat(catalog.risk().systemPrompt()).isNotBlank();

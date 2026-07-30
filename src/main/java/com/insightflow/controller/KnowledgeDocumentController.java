@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -64,10 +65,17 @@ public class KnowledgeDocumentController {
             @RequestParam String title,
             @RequestParam KnowledgeDocumentType type,
             @RequestParam(defaultValue = "WORKSPACE") String scope,
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String sourceUrl,
+            @RequestParam(required = false) OffsetDateTime sourceCollectedAt,
+            @RequestParam(required = false) OffsetDateTime effectiveFrom,
+            @RequestParam(required = false) OffsetDateTime effectiveTo,
+            @RequestParam(required = false) String owner,
+            @RequestParam(required = false) String factBoundary) {
         workspaceAccess.requireRead(workspaceId);
         KnowledgeDocumentVersion version = documents.upload(workspaceId,
-                new KnowledgeDocumentService.UploadCommand(title, type, organizationCommon(scope), file));
+                new KnowledgeDocumentService.UploadCommand(title, type, organizationCommon(scope), file,
+                        versionMetadata(sourceUrl, sourceCollectedAt, effectiveFrom, effectiveTo, owner, factBoundary)));
         return ResponseEntity.status(HttpStatus.CREATED).body(VersionResponse.from(version));
     }
 
@@ -78,12 +86,36 @@ public class KnowledgeDocumentController {
         return documents.list(workspaceId).stream().map(DocumentResponse::from).toList();
     }
 
-    /** 发布时同步完成切片和嵌入；失败版本由服务层保留为待审核而不是伪装为已发布。 */
+    /**
+     * 向已有文档追加上传待审核版本；不创建新文档行，版本号由服务层在同一 document_id 内递增。
+     */
+    @PostMapping(value = "/documents/{documentId}/versions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<VersionResponse> uploadVersion(
+            @PathVariable UUID workspaceId,
+            @PathVariable UUID documentId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String sourceUrl,
+            @RequestParam(required = false) OffsetDateTime sourceCollectedAt,
+            @RequestParam(required = false) OffsetDateTime effectiveFrom,
+            @RequestParam(required = false) OffsetDateTime effectiveTo,
+            @RequestParam(required = false) String owner,
+            @RequestParam(required = false) String factBoundary) {
+        workspaceAccess.requireRead(workspaceId);
+        KnowledgeDocumentVersion version = documents.uploadVersion(workspaceId, documentId, file,
+                versionMetadata(sourceUrl, sourceCollectedAt, effectiveFrom, effectiveTo, owner, factBoundary));
+        return ResponseEntity.status(HttpStatus.CREATED).body(VersionResponse.from(version));
+    }
+
+    /**
+     * 发布时同步完成切片和嵌入；默认不下线旧版，调用方可显式请求 expire_previous_published。
+     */
     @PostMapping("/documents/{documentId}/versions/{versionId}/publish")
     public VersionResponse publish(@PathVariable UUID workspaceId, @PathVariable UUID documentId,
-            @PathVariable UUID versionId) {
+            @PathVariable UUID versionId,
+            @RequestBody(required = false) PublishRequest request) {
         workspaceAccess.requireRead(workspaceId);
-        return VersionResponse.from(publishing.publish(workspaceId, documentId, versionId));
+        boolean expirePrevious = request != null && Boolean.TRUE.equals(request.expirePreviousPublished());
+        return VersionResponse.from(publishing.publish(workspaceId, documentId, versionId, expirePrevious));
     }
 
     /** 已发布版本失效后停止参与 RAG，但审计历史和引用定位仍被保留。 */
@@ -132,18 +164,41 @@ public class KnowledgeDocumentController {
         throw new IllegalArgumentException("不支持的知识范围 scope");
     }
 
+    /** 可选元数据全部为空时不创建 VersionMetadata 记录，保持与旧客户端兼容。 */
+    private KnowledgeDocumentVersion.VersionMetadata versionMetadata(
+            String sourceUrl, OffsetDateTime sourceCollectedAt, OffsetDateTime effectiveFrom,
+            OffsetDateTime effectiveTo, String owner, String factBoundary) {
+        if ((sourceUrl == null || sourceUrl.isBlank()) && sourceCollectedAt == null && effectiveFrom == null
+                && effectiveTo == null && (owner == null || owner.isBlank()) && (factBoundary == null || factBoundary.isBlank())) {
+            return null;
+        }
+        return new KnowledgeDocumentVersion.VersionMetadata(
+                sourceUrl, sourceCollectedAt, effectiveFrom, effectiveTo, owner, factBoundary);
+    }
+
+    /** 发布请求体；省略或 null 时默认保留旧版已发布版本。 */
+    public record PublishRequest(@JsonProperty("expire_previous_published") Boolean expirePreviousPublished) { }
+
     /** 对外版本投影只含公开 UUID 与展示字段，不泄露内部主键、对象键、摘要或 embedding。 */
     public record VersionResponse(
             UUID id,
             @JsonProperty("version_no") int versionNo,
             String status,
             @JsonProperty("source_name") String sourceName,
+            @JsonProperty("source_url") String sourceUrl,
+            @JsonProperty("source_collected_at") OffsetDateTime sourceCollectedAt,
+            @JsonProperty("effective_from") OffsetDateTime effectiveFrom,
+            @JsonProperty("effective_to") OffsetDateTime effectiveTo,
+            String owner,
+            @JsonProperty("fact_boundary") String factBoundary,
             @JsonProperty("created_at") OffsetDateTime createdAt) {
 
         /** 服务层实体到 API 契约的显式转换，防止 JPA 字段演进导致意外泄露。 */
         static VersionResponse from(KnowledgeDocumentVersion version) {
             return new VersionResponse(version.getPublicId(), version.getVersionNo(), version.getStatus().name(),
-                    version.getSourceName(), version.getCreatedAt());
+                    version.getSourceName(), version.getSourceUrl(), version.getSourceCollectedAt(),
+                    version.getEffectiveFrom(), version.getEffectiveTo(), version.getOwner(), version.getFactBoundary(),
+                    version.getCreatedAt());
         }
     }
 

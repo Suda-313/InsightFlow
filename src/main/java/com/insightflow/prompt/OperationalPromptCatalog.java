@@ -1,5 +1,7 @@
 package com.insightflow.prompt;
 
+import com.insightflow.service.analysis.TopicPackTopic;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
@@ -41,7 +43,20 @@ public class OperationalPromptCatalog {
 
     /** 报告 Agent 的系统角色与用户数据分离，避免聚合数据覆盖固定写作约束。 */
     private static final VersionedPrompt REPORT = new VersionedPrompt(
-            "report:v1", "你是游戏客服数据分析助手，请生成运营周报。");
+            "report:v2", "你是游戏客服数据分析助手，请生成运营周报。");
+
+    /**
+     * Pack 级 LLM Topic Skill：只能从调用方注入的 Pack catalog 选 canonical_key，
+     * 无法指向具体议题时返回 topic_general；不得发明 catalog 外的新键。
+     */
+    private static final VersionedPrompt PACK_TOPIC = new VersionedPrompt("pack-topic:v1", """
+            你是游戏舆情反馈的议题分类助手。根据评论文本，判断玩家主要在讨论哪个议题方面。
+            - 只能从用户消息「可选议题列表」中的 canonical_key 选择
+            - 若无法指向具体议题，返回 topic_general
+            - confidence 表示确信度（0.0-1.0）
+            - reasoning 用一句话解释分类理由
+            - 只输出 JSON，不要 markdown 代码块
+            """);
 
     /** 返回分类 Agent 使用的版本化提示词。 */
     public VersionedPrompt classification() {
@@ -63,15 +78,37 @@ public class OperationalPromptCatalog {
         return REPORT;
     }
 
+    /** 返回 Pack 级 LLM Topic Skill 使用的版本化系统提示词。 */
+    public VersionedPrompt packTopic() {
+        return PACK_TOPIC;
+    }
+
     /**
-     * 报告数据提示词的固定骨架也集中在目录内；仅聚合数值与主题分布由调用方提供，
+     * 渲染 Pack Topic 用户消息：注入当前 Pack catalog 白名单与待分类评论。
+     * catalog 由调用方按 Workspace 绑定 Pack 传入，保证 LLM 不能跨 Pack 选键。
+     */
+    public String renderPackTopicUserPrompt(List<TopicPackTopic> topics, String feedbackText) {
+        StringBuilder builder = new StringBuilder("可选议题列表：\n");
+        for (TopicPackTopic topic : topics) {
+            builder.append("- ").append(topic.canonicalKey()).append(" (").append(topic.name()).append(")\n");
+        }
+        builder.append("\n评论文本：\n").append(feedbackText == null ? "" : feedbackText);
+        builder.append("\n\n请以 JSON 返回：{\"canonical_key\":\"...\",\"confidence\":0.0,\"reasoning\":\"...\"}");
+        return builder.toString();
+    }
+
+    /**
+     * 报告数据提示词的固定骨架也集中在目录内；L1 主题分布与 L2 表达分布均由调用方提供，
      * 不允许 ReportAgent 在本地复制另一份写作要求。
      */
-    public String renderReportUserPrompt(long actualTicketCount, Object issueMentions) {
+    public String renderReportUserPrompt(
+            long actualTicketCount, Object issueMentions, Object expressionMentions) {
         return "根据以下聚合数据生成一份运营周报：\n"
                 + "- 实际总工单数：" + actualTicketCount + "\n"
-                + "- 主题分布：" + issueMentions + "\n\n"
-                + "请生成一份包含执行摘要、要点、建议和风险提示的报告。";
+                + "- L1 主题分布：" + issueMentions + "\n"
+                + "- L2 表达分布：" + expressionMentions + "\n\n"
+                + "请生成一份包含执行摘要、要点、建议和风险提示的报告；"
+                + "若 L2 表达分布中吐槽/不满占比较高，请在风险提示中单独说明。";
     }
 
     /**

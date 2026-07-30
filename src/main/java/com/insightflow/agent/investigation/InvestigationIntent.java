@@ -23,6 +23,9 @@ public enum InvestigationIntent {
     /** 生成运营周报或专题摘要，只读取聚合事实。 */
     REPORT_GENERATION,
 
+    /** 查询 L2 表达分布、L2→L1 交叉分布或 L2×L1 样本等表达层问题。 */
+    EXPRESSION_INQUIRY,
+
     /** 未匹配高风险或高成本查询时的保守默认意图。 */
     GENERAL_INQUIRY
 }

@@ -15,6 +15,8 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -52,21 +54,35 @@ public class KnowledgeDocumentService {
                 ? KnowledgeDocument.organizationCommon(workspace.getOrganizationId(), command.type(), command.title())
                 : KnowledgeDocument.workspaceScoped(workspace.getOrganizationId(), workspace.getId(), command.type(), command.title());
         KnowledgeDocument saved = documentRepository.save(document);
-        int versionNo = versionRepository.findTopByDocumentIdOrderByVersionNoDesc(saved.getId()).map(v -> v.getVersionNo() + 1).orElse(1);
-        String objectKey = "knowledge/" + organizationPublicId(workspace.getOrganizationId()) + "/"
-                + saved.getPublicId() + "/v" + versionNo + "/source";
-        String contentType = contentType(file.getOriginalFilename());
-        put(file, objectKey, contentType);
-        return versionRepository.save(KnowledgeDocumentVersion.pending(saved.getId(), versionNo, objectKey,
-                checksum(file), safeName(file.getOriginalFilename()), contentType, file.getSize()));
+        return savePendingVersion(workspace, saved, file, command.metadata());
+    }
+
+    /**
+     * 向已有文档追加上传待审核版本；标题与类型沿用文档本体，避免同文档多版本在列表里语义分裂。
+     */
+    @Transactional
+    public KnowledgeDocumentVersion uploadVersion(UUID workspacePublicId, UUID documentPublicId, MultipartFile file,
+            KnowledgeDocumentVersion.VersionMetadata metadata) {
+        Workspace workspace = workspaceService.get(workspacePublicId);
+        KnowledgeDocument document = requireDocumentInWorkspace(workspace, documentPublicId);
+        return savePendingVersion(workspace, document, requireTextFile(file), metadata);
     }
 
     /** 列出当前 Workspace 可见的组织通用和自身专属文档及其版本，绝不返回其他游戏专属条目。 */
     public List<DocumentView> list(UUID workspacePublicId) {
         Workspace workspace = workspaceService.get(workspacePublicId);
-        return documentRepository.findByOrganizationIdOrderByCreatedAtDesc(workspace.getOrganizationId()).stream()
+        List<KnowledgeDocument> documents = documentRepository.findByOrganizationIdOrderByCreatedAtDesc(workspace.getOrganizationId()).stream()
                 .filter(document -> document.getTargetWorkspaceId() == null || document.getTargetWorkspaceId().equals(workspace.getId()))
-                .map(document -> new DocumentView(document, versionRepository.findByDocumentIdOrderByVersionNoDesc(document.getId())))
+                .toList();
+        if (documents.isEmpty()) {
+            return List.of();
+        }
+        List<Long> documentIds = documents.stream().map(KnowledgeDocument::getId).toList();
+        Map<Long, List<KnowledgeDocumentVersion>> versionsByDocumentId = versionRepository
+                .findByDocumentIdInOrderByDocumentIdAscVersionNoDesc(documentIds).stream()
+                .collect(Collectors.groupingBy(KnowledgeDocumentVersion::getDocumentId));
+        return documents.stream()
+                .map(document -> new DocumentView(document, versionsByDocumentId.getOrDefault(document.getId(), List.of())))
                 .toList();
     }
 
@@ -94,13 +110,48 @@ public class KnowledgeDocumentService {
 
     /** 统一解析文档、组织和 Workspace 范围，再读取同一文档内的版本。 */
     private KnowledgeDocumentVersion requireVersion(UUID workspacePublicId, UUID documentPublicId, UUID versionPublicId) {
-        Workspace workspace = workspaceService.get(workspacePublicId);
+        KnowledgeDocument document = requireDocumentInWorkspace(workspaceService.get(workspacePublicId), documentPublicId);
+        return versionRepository.findByPublicIdAndDocumentId(versionPublicId, document.getId()).orElseThrow();
+    }
+
+    /** 文档归属校验复用于追加上传、失效与原文读取，防止仅凭 publicId 跨 Workspace 写入。 */
+    private KnowledgeDocument requireDocumentInWorkspace(Workspace workspace, UUID documentPublicId) {
         KnowledgeDocument document = documentRepository.findByPublicId(documentPublicId).orElseThrow();
         if (!document.getOrganizationId().equals(workspace.getOrganizationId())
                 || (document.getTargetWorkspaceId() != null && !document.getTargetWorkspaceId().equals(workspace.getId()))) {
             throw new IllegalArgumentException("知识文档不属于当前工作区可见范围");
         }
-        return versionRepository.findByPublicIdAndDocumentId(versionPublicId, document.getId()).orElseThrow();
+        return document;
+    }
+
+    /** 待审核版本在对象存储写入成功后才落库，版本号在同一文档内单调递增。 */
+    private KnowledgeDocumentVersion savePendingVersion(Workspace workspace, KnowledgeDocument document, MultipartFile file,
+            KnowledgeDocumentVersion.VersionMetadata metadata) {
+        int versionNo = versionRepository.findTopByDocumentIdOrderByVersionNoDesc(document.getId()).map(v -> v.getVersionNo() + 1).orElse(1);
+        String objectKey = "knowledge/" + organizationPublicId(workspace.getOrganizationId()) + "/"
+                + document.getPublicId() + "/v" + versionNo + "/source";
+        String contentType = contentType(file.getOriginalFilename());
+        put(file, objectKey, contentType);
+        return versionRepository.save(KnowledgeDocumentVersion.pending(document.getId(), versionNo, objectKey,
+                checksum(file), safeName(file.getOriginalFilename()), contentType, file.getSize(), normalizeMetadata(metadata)));
+    }
+
+    /** 空串归一化为 null，避免数据库与检索侧对“空元数据”语义不一致。 */
+    private KnowledgeDocumentVersion.VersionMetadata normalizeMetadata(KnowledgeDocumentVersion.VersionMetadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        return new KnowledgeDocumentVersion.VersionMetadata(
+                blankToNull(metadata.sourceUrl()),
+                metadata.sourceCollectedAt(),
+                metadata.effectiveFrom(),
+                metadata.effectiveTo(),
+                blankToNull(metadata.owner()),
+                blankToNull(metadata.factBoundary()));
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**
@@ -129,7 +180,13 @@ public class KnowledgeDocumentService {
     private String safeName(String name) { if (name == null || name.isBlank()) return "knowledge.txt"; String n = name.replace('\\', '/'); return n.substring(n.lastIndexOf('/') + 1); }
 
     /** 上传命令不包含目标 Workspace ID，专属范围永远固定为路径中的当前 Workspace。 */
-    public record UploadCommand(String title, KnowledgeDocumentType type, boolean organizationCommon, MultipartFile file) { }
+    public record UploadCommand(
+            String title,
+            KnowledgeDocumentType type,
+            boolean organizationCommon,
+            MultipartFile file,
+            KnowledgeDocumentVersion.VersionMetadata metadata) {
+    }
 
     /** 文档管理列表视图仅暴露 publicId 和状态，不泄露内部组织、Workspace 或对象键。 */
     public record DocumentView(KnowledgeDocument document, List<KnowledgeDocumentVersion> versions) { }

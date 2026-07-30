@@ -3,10 +3,12 @@ package com.insightflow.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.insightflow.entity.KnowledgeDocumentType;
+import com.insightflow.entity.KnowledgeDocumentVersion;
 import com.insightflow.knowledge.KnowledgeDocumentService;
 import com.insightflow.knowledge.KnowledgePublishingService;
 import com.insightflow.security.WorkspaceAccessService;
@@ -36,7 +38,7 @@ class KnowledgeDocumentControllerTest {
         MockMultipartFile file = new MockMultipartFile("file", "notice.md", "text/markdown", "# 公告".getBytes());
 
         assertThatThrownBy(() -> controller.upload(UUID.randomUUID(), "公告", KnowledgeDocumentType.RELEASE_NOTE,
-                "ALL_WORKSPACES", file))
+                "ALL_WORKSPACES", file, null, null, null, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("scope");
         verify(documents, never()).upload(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
@@ -59,5 +61,38 @@ class KnowledgeDocumentControllerTest {
                 .contains("attachment")
                 .contains("notice.md");
         verify(workspaceAccess).requireRead(workspaceId);
+    }
+
+    /** 追加上传走独立端点，只接受文件且不重复创建文档。 */
+    @Test
+    void uploadVersionDelegatesToDocumentService() {
+        UUID workspaceId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile("file", "notice-v2.md", "text/markdown", "# v2".getBytes());
+        KnowledgeDocumentVersion version = KnowledgeDocumentVersion.pending(1L, 2, "k/v2", "c", "notice-v2.md", "text/markdown", 4L);
+        when(documents.uploadVersion(workspaceId, documentId, file, null)).thenReturn(version);
+
+        var response = new KnowledgeDocumentController(documents, publishing, workspaceAccess)
+                .uploadVersion(workspaceId, documentId, file, null, null, null, null, null, null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(201);
+        assertThat(response.getBody().versionNo()).isEqualTo(2);
+        verify(workspaceAccess).requireRead(workspaceId);
+    }
+
+    /** 发布默认保留旧版；请求体显式为 true 时才下线旧版。 */
+    @Test
+    void publishPassesExpirePreviousFlagToPublishingService() {
+        UUID workspaceId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        KnowledgeDocumentVersion version = KnowledgeDocumentVersion.pending(1L, 2, "k/v2", "c", "x.md", "text/markdown", 4L);
+        when(publishing.publish(workspaceId, documentId, versionId, true)).thenReturn(version);
+
+        var response = new KnowledgeDocumentController(documents, publishing, workspaceAccess)
+                .publish(workspaceId, documentId, versionId, new KnowledgeDocumentController.PublishRequest(true));
+
+        assertThat(response.versionNo()).isEqualTo(2);
+        verify(publishing).publish(workspaceId, documentId, versionId, true);
     }
 }

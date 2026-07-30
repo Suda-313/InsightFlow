@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -61,8 +62,10 @@ public class InvestigationCommandService {
 
     /**
      * 告警事务提交后的内部事件入口；事件仅在提交后处理，避免回滚告警仍创建孤立调查。
+     * 监听器本身须开启新事务：AFTER_COMMIT 阶段已无投影事务，且同类自调用不会触发 enqueueForAlert 的 @Transactional。
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onAlertCreated(AlertCreatedEvent event) {
         alertRepository.findById(event.alertId())
                 .filter(alert -> event.workspaceId().equals(alert.getWorkspaceId()))
@@ -87,7 +90,8 @@ public class InvestigationCommandService {
                     .orElseThrow(() -> new IllegalStateException("调查任务缺少对应卡片"));
         }
         InvestigationCase investigation = investigationCaseRepository.save(InvestigationCase.queued(alert.getWorkspaceId(), alert.getId()));
-        AsyncTask task = asyncTaskRepository.save(AsyncTask.queuedInvestigation(
+        // IDENTITY 主键须 flush 后才可用；save 未 flush 时 getId() 为 null，attachTask 会拒绝绑定。
+        AsyncTask task = asyncTaskRepository.saveAndFlush(AsyncTask.queuedInvestigation(
                 alert.getWorkspaceId(), idempotencyKey, "{\"alert_id\":\"" + alert.getPublicId() + "\"}"));
         investigation.attachTask(task.getId());
         return investigationCaseRepository.save(investigation);

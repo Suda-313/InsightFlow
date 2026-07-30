@@ -28,6 +28,7 @@ class WorkspaceProjectionTaskRunnerTest {
         WorkspaceProjectionRepository projectionRepository = mock(WorkspaceProjectionRepository.class);
         WorkspaceProjectionExecutionService executionService = mock(WorkspaceProjectionExecutionService.class);
         WorkspaceProjectionCompletionService completionService = mock(WorkspaceProjectionCompletionService.class);
+        ProjectionRequeueSupport requeueSupport = mock(ProjectionRequeueSupport.class);
 
         AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
         task.claim("projection-worker", OffsetDateTime.now().plusMinutes(1));
@@ -37,14 +38,50 @@ class WorkspaceProjectionTaskRunnerTest {
         when(projectionRepository.findByAsyncTaskIdAndWorkspaceId(task.getId(), task.getWorkspaceId()))
                 .thenReturn(Optional.of(projection));
         when(executionService.execute(projection.getId(), task.getWorkspaceId())).thenReturn(true);
+        when(requeueSupport.isProjectionFactsComplete(task.getWorkspaceId(), projection.getId())).thenReturn(true);
 
         WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(
-                taskRepository, projectionRepository, executionService, completionService);
+                taskRepository, projectionRepository, executionService, completionService, requeueSupport);
 
         runner.run(task.getPublicId(), "projection-worker");
 
         verify(executionService).execute(projection.getId(), task.getWorkspaceId());
         verify(completionService).complete(task.getPublicId(), "projection-worker");
+    }
+
+    /**
+     * L2 缺失时不得标记 succeeded，应清事实并失败。
+     */
+    @Test
+    void failsWhenProjectionFactsIncomplete() {
+        AsyncTaskRepository taskRepository = mock(AsyncTaskRepository.class);
+        WorkspaceProjectionRepository projectionRepository = mock(WorkspaceProjectionRepository.class);
+        WorkspaceProjectionExecutionService executionService = mock(WorkspaceProjectionExecutionService.class);
+        WorkspaceProjectionCompletionService completionService = mock(WorkspaceProjectionCompletionService.class);
+        ProjectionRequeueSupport requeueSupport = mock(ProjectionRequeueSupport.class);
+
+        AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
+        task.claim("projection-worker", OffsetDateTime.now().plusMinutes(1));
+        when(taskRepository.findByPublicId(task.getPublicId())).thenReturn(Optional.of(task));
+
+        WorkspaceProjection projection = WorkspaceProjection.queued(7L, task.getId(), "rules:v1");
+        when(projectionRepository.findByAsyncTaskIdAndWorkspaceId(task.getId(), task.getWorkspaceId()))
+                .thenReturn(Optional.of(projection));
+        when(executionService.execute(projection.getId(), task.getWorkspaceId())).thenReturn(true);
+        when(requeueSupport.isProjectionFactsComplete(task.getWorkspaceId(), projection.getId())).thenReturn(false);
+
+        WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(
+                taskRepository, projectionRepository, executionService, completionService, requeueSupport);
+
+        runner.run(task.getPublicId(), "projection-worker");
+
+        verify(requeueSupport).wipeAnalysisFacts(task.getWorkspaceId());
+        verify(completionService).fail(
+                task.getPublicId(),
+                "projection-worker",
+                "PROJECTION_INCOMPLETE",
+                "投影未写入 L2 表达标注。请执行 mvn clean compile 后完全重启后端再试。");
+        verify(completionService, never()).complete(task.getPublicId(), "projection-worker");
     }
 
     /**
@@ -56,13 +93,14 @@ class WorkspaceProjectionTaskRunnerTest {
         WorkspaceProjectionRepository projectionRepository = mock(WorkspaceProjectionRepository.class);
         WorkspaceProjectionExecutionService executionService = mock(WorkspaceProjectionExecutionService.class);
         WorkspaceProjectionCompletionService completionService = mock(WorkspaceProjectionCompletionService.class);
+        ProjectionRequeueSupport requeueSupport = mock(ProjectionRequeueSupport.class);
 
         AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
         task.claim("new-worker", OffsetDateTime.now().plusMinutes(1));
         when(taskRepository.findByPublicId(task.getPublicId())).thenReturn(Optional.of(task));
 
         WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(
-                taskRepository, projectionRepository, executionService, completionService);
+                taskRepository, projectionRepository, executionService, completionService, requeueSupport);
 
         runner.run(task.getPublicId(), "old-worker");
 

@@ -28,12 +28,38 @@ final class KnowledgeEmbedContextPrefix {
                 .append(" | ")
                 .append(document.getDocumentType())
                 .append(" | v")
-                .append(version.getVersionNo())
-                .append("]\n");
+                .append(version.getVersionNo());
+        appendEffectiveWindow(text, version);
+        if (version.getOwner() != null && !version.getOwner().isBlank()) {
+            text.append(" | owner:").append(version.getOwner());
+        }
+        text.append("]\n");
+        if (version.getFactBoundary() != null && !version.getFactBoundary().isBlank()) {
+            text.append("事实边界: ").append(version.getFactBoundary()).append('\n');
+        }
         if (draft.sectionHeading() != null && !draft.sectionHeading().isBlank()) {
             text.append("## ").append(draft.sectionHeading()).append('\n');
         }
         text.append(draft.content());
         return text.toString();
+    }
+
+    /** 适用窗口写入 embed 前缀，帮助跨版本调查时区分时效重叠的语料。 */
+    private static void appendEffectiveWindow(StringBuilder text, KnowledgeDocumentVersion version) {
+        if (version.getEffectiveFrom() == null && version.getEffectiveTo() == null) {
+            return;
+        }
+        text.append(" | ");
+        if (version.getEffectiveFrom() != null) {
+            text.append(version.getEffectiveFrom());
+        } else {
+            text.append("*");
+        }
+        text.append('~');
+        if (version.getEffectiveTo() != null) {
+            text.append(version.getEffectiveTo());
+        } else {
+            text.append("*");
+        }
     }
 }

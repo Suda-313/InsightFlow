@@ -54,6 +54,15 @@ public class Workspace {
     private OffsetDateTime createdAt;
 
     /**
+     * 绑定的 L1 Topic Pack 标识（对应 pack.toml 的 pack_id）；为 null 时回退全局默认 Pack。
+     *
+     * <p>仅影响后续新投影使用的 L1 规则来源；历史 {@code feedback_issue_link} 中的
+     * canonical_key 不做自动改写——旧 8 类 issue key 与新 topic_* key 并存时由看板按实际数据统计。</p>
+     */
+    @Column(name = "topic_pack_id", length = 80)
+    private String topicPackId;
+
+    /**
      * 供 JPA 反射创建实体使用；业务代码必须调用带名称的构造方法。
      */
     protected Workspace() {
@@ -104,5 +113,19 @@ public class Workspace {
      */
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    /**
+     * 返回当前绑定的 Topic Pack 标识；null 表示使用应用级默认 Pack。
+     */
+    public String getTopicPackId() {
+        return topicPackId;
+    }
+
+    /**
+     * 绑定或切换 Topic Pack；packId 须已在 {@link com.insightflow.service.analysis.TopicPackRegistry} 中注册。
+     */
+    public void bindTopicPack(String packId) {
+        this.topicPackId = packId;
     }
 }

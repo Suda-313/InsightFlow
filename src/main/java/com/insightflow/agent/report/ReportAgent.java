@@ -3,10 +3,10 @@ package com.insightflow.agent.report;
 import com.insightflow.agent.LlmMetrics;
 import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.entity.AgentRun;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import com.insightflow.prompt.OperationalPromptCatalog;
 import com.insightflow.service.AgentRunService;
 import java.util.UUID;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
 public class ReportAgent {
 
     /** 模型调用边界由 Spring 配置层装配，报告 Agent 不处理供应商密钥。 */
-    private final ChatClient chatClient;
+    private final LiteralChatModelCaller literalChatModelCaller;
     /** 统一的 Prompt 正文与版本来源，禁止在报告类内新增静态提示词。 */
     private final OperationalPromptCatalog promptCatalog;
     /** 统一 AgentRun 生命周期，确保报告与聊天、分析调用使用相同审计语义。 */
@@ -37,13 +37,13 @@ public class ReportAgent {
      * 不在 Agent 内直接触发对账或外部工具调用。
      */
     public ReportAgent(
-            ChatClient chatClient,
+            LiteralChatModelCaller literalChatModelCaller,
             ReconciliationEngine reconciliationEngine,
             ReportTools reportTools,
             OperationalPromptCatalog promptCatalog,
             AgentRunService agentRunService,
             @Value("${spring.ai.openai.chat.options.model:unknown}") String modelName) {
-        this.chatClient = chatClient;
+        this.literalChatModelCaller = literalChatModelCaller;
         this.promptCatalog = promptCatalog;
         this.agentRunService = agentRunService;
         this.modelName = modelName;
@@ -64,17 +64,16 @@ public class ReportAgent {
      */
     public String generate(UUID workspacePublicId, MergedData mergedData) {
         String userPrompt = promptCatalog.renderReportUserPrompt(
-                mergedData.actualTicketCount(), mergedData.issueMentions());
+                mergedData.actualTicketCount(),
+                mergedData.issueMentions(),
+                mergedData.expressionMentions());
         long start = System.currentTimeMillis();
         AgentRun run = workspacePublicId == null ? null : agentRunService.start(workspacePublicId,
                 new AgentRunService.StartRequest("report", promptVersion(), modelName, "none", userPrompt));
         LlmMetrics.logStarted("Report", promptVersion(), userPrompt);
         try {
-            ChatResponse response = chatClient.prompt()
-                    .system(promptCatalog.report().systemPrompt())
-                    .user(user -> user.text(userPrompt))
-                    .call()
-                    .chatResponse();
+            ChatResponse response = literalChatModelCaller.call(
+                    promptCatalog.report().systemPrompt(), userPrompt);
             LlmMetrics.log("Report", promptVersion(), start, response);
             String output = response.getResult().getOutput().getContent();
             succeed(workspacePublicId, run, output, response, start);

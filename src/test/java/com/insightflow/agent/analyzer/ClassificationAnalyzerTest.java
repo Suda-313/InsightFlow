@@ -9,12 +9,12 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.agent.dto.ClassificationResult;
 import com.insightflow.entity.AgentRun;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import com.insightflow.prompt.OperationalPromptCatalog;
 import com.insightflow.service.AgentRunService;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -25,12 +25,10 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 @ExtendWith(OutputCaptureExtension.class)
 class ClassificationAnalyzerTest {
 
-    private final ChatClient chatClient = mock(ChatClient.class);
-    private final ChatClient.ChatClientRequestSpec requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
-    private final ChatClient.CallResponseSpec callResponseSpec = mock(ChatClient.CallResponseSpec.class);
+    private final LiteralChatModelCaller literalChatModelCaller = mock(LiteralChatModelCaller.class);
     private final AgentRunService agentRunService = mock(AgentRunService.class);
     private final ClassificationAnalyzer analyzer = new ClassificationAnalyzer(
-            chatClient, new ObjectMapper(), new OperationalPromptCatalog(), agentRunService, "qwen-test");
+            literalChatModelCaller, new ObjectMapper(), new OperationalPromptCatalog(), agentRunService, "qwen-test");
 
     @Test
     void executeParsesSnakeCaseClassificationContractAndLogsModelLifecycle(CapturedOutput output) {
@@ -45,11 +43,7 @@ class ClassificationAnalyzerTest {
         when(generation.getOutput()).thenReturn(assistantMessage);
         when(chatResponse.getResult()).thenReturn(generation);
         when(chatResponse.getMetadata()).thenReturn(null);
-        when(chatClient.prompt()).thenReturn(requestSpec);
-        when(requestSpec.system(anyString())).thenReturn(requestSpec);
-        when(requestSpec.user(anyString())).thenReturn(requestSpec);
-        when(requestSpec.call()).thenReturn(callResponseSpec);
-        when(callResponseSpec.chatResponse()).thenReturn(chatResponse);
+        when(literalChatModelCaller.call(anyString(), anyString())).thenReturn(chatResponse);
 
         UUID workspaceId = UUID.randomUUID();
         AgentRun run = AgentRun.start(7L, "classification", "classification:v1", "qwen-test", "none", "input");

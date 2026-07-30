@@ -22,10 +22,12 @@ public class KnowledgeRetrievalPlanner {
     public List<KnowledgeDocumentType> plan(String question) {
         String normalized = question == null ? "" : question.toLowerCase(Locale.ROOT);
         List<KnowledgeDocumentType> types = new ArrayList<>();
-        addWhen(types, normalized, KnowledgeDocumentType.RELEASE_NOTE, "版本", "公告", "更新", "发布");
-        addWhen(types, normalized, KnowledgeDocumentType.KNOWN_ISSUE, "已知问题", "bug", "异常", "故障");
-        addWhen(types, normalized, KnowledgeDocumentType.SUPPORT_SOP, "客服", "工单", "sop", "处理流程");
-        addWhen(types, normalized, KnowledgeDocumentType.SENTIMENT_PLAYBOOK, "舆情", "回应", "危机", "复盘");
+        addWhen(types, normalized, KnowledgeDocumentType.RELEASE_NOTE, "版本", "公告", "更新", "发布", "release", "changelog");
+        addWhen(types, normalized, KnowledgeDocumentType.KNOWN_ISSUE, "已知问题", "bug", "异常", "故障", "缺陷", "报错");
+        addWhen(types, normalized, KnowledgeDocumentType.SUPPORT_SOP, "客服", "工单", "sop", "处理流程", "流程", "口径", "升级");
+        addWhen(types, normalized, KnowledgeDocumentType.SENTIMENT_PLAYBOOK, "舆情", "回应", "危机", "分级", "投诉");
+        addWhen(types, normalized, KnowledgeDocumentType.OPERATION_EVENT, "运营事件", "活动", "维护", "停服", "渠道", "开服", "补偿");
+        addWhen(types, normalized, KnowledgeDocumentType.POSTMORTEM, "复盘", "事后", "根因", "事故", "postmortem", "故障回顾", "改进项");
         return List.copyOf(types);
     }
 

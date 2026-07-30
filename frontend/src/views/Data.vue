@@ -1,5 +1,15 @@
 <template>
-  <div class="flex h-full">
+  <div class="flex flex-col h-full">
+    <div v-if="coverageStart" class="px-6 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <AnalysisDateRange
+        :coverage-start="coverageStart"
+        :coverage-end="coverageEnd"
+        :from="analysisFrom"
+        :to="analysisTo"
+        @apply="onAnalysisApply"
+      />
+    </div>
+    <div class="flex flex-1 min-h-0">
     <!-- Topic List (Left) -->
     <div class="w-64 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-auto">
       <div class="p-4 border-b border-slate-200 dark:border-slate-700">
@@ -30,11 +40,16 @@
             @click="reviewTab = tab.code">{{ tab.label }}</button>
         </div>
         <div class="flex gap-2 mb-3"><input v-model="newTopic" class="flex-1 rounded border border-slate-200 px-2 py-1 text-sm" placeholder="提交新的主题候选（不会直接生效）"><button class="text-primary hover:underline text-sm" @click="submitNewTopic">提交候选</button></div>
+        <div v-if="reviewActionError" class="mb-3 text-sm text-red-600">{{ reviewActionError }}</div>
         <div v-if="!filteredReviewCandidates.length" class="text-sm text-slate-400">暂无待复核候选</div>
         <div v-for="candidate in filteredReviewCandidates" :key="candidate.id" class="border-t border-slate-100 py-3 text-sm">
           <p class="text-slate-700 dark:text-slate-200">{{ candidate.sampleText }}</p>
-          <p class="text-xs text-slate-500 mt-1">原因：{{ candidate.reasonCode }} · 建议：{{ candidate.suggestedIssueKey || '无' }} / {{ candidate.suggestedSentiment || '无' }}</p>
-          <div class="flex gap-3 mt-2"><button class="text-emerald-600 hover:underline" @click="resolveCandidate(candidate.id, 'confirm')">确认</button><button class="text-slate-500 hover:underline" @click="resolveCandidate(candidate.id, 'ignore')">忽略</button></div>
+          <p class="text-xs text-slate-500 mt-1">反馈发生 {{ candidate.feedbackOccurredAt?.slice(0, 10) || '—' }} · 进入复核 {{ candidate.createdAt?.slice(0, 10) || '—' }}</p>
+          <p class="text-xs text-slate-500 mt-0.5">原因：{{ candidate.reasonCode }} · 建议：{{ candidate.suggestedIssueKey || '无' }} / {{ candidate.suggestedSentiment || '无' }}{{ candidate.sourceKind ? ' · ' + candidate.sourceKind : '' }}</p>
+          <div class="flex gap-3 mt-2">
+            <button type="button" class="text-emerald-600 hover:underline disabled:opacity-50" :disabled="reviewActionLoading === candidate.id" @click="resolveCandidate(candidate.id, 'confirm')">确认</button>
+            <button type="button" class="text-slate-500 hover:underline disabled:opacity-50" :disabled="reviewActionLoading === candidate.id" @click="resolveCandidate(candidate.id, 'ignore')">忽略</button>
+          </div>
         </div>
       </section>
       <div v-if="!detail" class="card p-12 text-center mt-20">
@@ -50,13 +65,13 @@
         </div>
 
         <div class="grid grid-cols-3 gap-4 mb-6">
-          <div class="card p-4"><div class="text-xs text-slate-500 mb-1">最近 7 天</div><div class="text-2xl font-bold">{{ totalRecent }}</div></div>
+          <div class="card p-4"><div class="text-xs text-slate-500 mb-1">分析范围内</div><div class="text-2xl font-bold">{{ totalRecent }}</div></div>
           <div class="card p-4"><div class="text-xs text-slate-500 mb-1">告警次数</div><div class="text-2xl font-bold" :class="(detail.alerts || []).length > 0 ? 'text-red-600' : ''">{{ (detail.alerts || []).length }}</div></div>
           <div class="card p-4"><div class="text-xs text-slate-500 mb-1">EWMA 基线</div><div class="text-2xl font-bold">{{ baselineEwma }}</div></div>
         </div>
 
         <div class="grid grid-cols-2 gap-6 mb-6">
-          <div class="card p-5"><h3 class="font-semibold text-sm mb-3">7 天趋势</h3><canvas ref="trendRef" height="200"></canvas></div>
+          <div class="card p-5"><h3 class="font-semibold text-sm mb-3">分析范围趋势</h3><canvas ref="trendRef" height="200"></canvas></div>
           <div class="card p-5"><h3 class="font-semibold text-sm mb-3">告警历史</h3>
             <div v-if="!detail.alerts?.length" class="py-8 text-center text-sm text-slate-400">暂无告警</div>
             <div v-for="a in detail.alerts" :key="a.alertId" class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg mb-2"><div class="flex justify-between text-xs"><span class="font-mono">{{ a.alertId?.slice(0,8) }}</span><span>{{ a.createdAt?.slice(5,16) }}</span></div><div class="text-sm font-bold text-red-600 mt-1">{{ a.currentCount }} 条</div></div>
@@ -76,23 +91,36 @@
           </div>
           <div class="card p-5"><h3 class="font-semibold text-sm mb-3">样本反馈</h3>
             <div v-if="!samples.length" class="text-sm text-slate-400 py-4">暂无样本</div>
-            <div v-for="(s, idx) in samples" :key="idx" class="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg mb-2 text-sm text-slate-600 dark:text-slate-300">{{ s }}</div>
+            <div v-for="(s, idx) in samples" :key="idx" class="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg mb-2 text-sm text-slate-600 dark:text-slate-300">
+              <div>{{ s.text }}</div>
+              <div v-if="s.occurredAt || s.sourceKind" class="text-[10px] text-slate-400 mt-1">{{ s.occurredAt?.slice(0, 10) || '' }}{{ s.sourceKind ? ' · ' + s.sourceKind : '' }}</div>
+            </div>
           </div>
         </div>
       </template>
+    </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { BarChart3, Tags } from 'lucide-vue-next'
 import { Chart, LineController, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler } from 'chart.js'
 import { useWorkspaceStore } from '../stores/workspace'
+import { getAccessToken } from '../lib/auth'
+import AnalysisDateRange from '../components/AnalysisDateRange.vue'
+import { analysisQuery, defaultWindowFromCoverage, toDateInput } from '../lib/analysis-window'
 Chart.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler)
 
 const store = useWorkspaceStore()
+const router = useRouter()
 const issues = ref([]), loading = ref(true), selected = ref(''), detail = ref(null), samples = ref([]), reviewCandidates = ref([]), newTopic = ref('')
+const coverageStart = ref(null), coverageEnd = ref(null)
+const analysisFrom = ref(''), analysisTo = ref('')
+const reviewActionError = ref('')
+const reviewActionLoading = ref('')
 const reviewTabs = [
   { code: 'ambiguous_topics', label: '议题歧义' },
   { code: 'too_many_topics', label: '议题过多' },
@@ -107,21 +135,68 @@ const filteredReviewCandidates = computed(() =>
   reviewCandidates.value.filter(item => item.reasonCode === reviewTab.value)
 )
 
+function windowQuery() {
+  return analysisQuery(analysisFrom.value, analysisTo.value)
+}
+
+async function loadCoverageAndWindow() {
+  const r = await fetch('/api/v1/workspaces/' + store.workspaceId + '/dashboard' + windowQuery())
+  if (!r.ok) return
+  const d = await r.json()
+  coverageStart.value = d.coverage?.windowStart
+  coverageEnd.value = d.coverage?.windowEnd
+  if (d.analysisWindow) {
+    analysisFrom.value = toDateInput(d.analysisWindow.start)
+    analysisTo.value = toDateInput(d.analysisWindow.end)
+  } else {
+    const defaults = defaultWindowFromCoverage(coverageStart.value, coverageEnd.value)
+    analysisFrom.value = defaults.from
+    analysisTo.value = defaults.to
+  }
+}
+
+async function onAnalysisApply({ from, to }) {
+  analysisFrom.value = from
+  analysisTo.value = to
+  await loadIssues()
+}
+
 async function loadIssues() {
   if (!store.workspaceId) return; loading.value = true
-  let r = await fetch('/api/v1/workspaces/' + store.workspaceId + '/issues')
+  if (!coverageStart.value) await loadCoverageAndWindow()
+  let r = await fetch('/api/v1/workspaces/' + store.workspaceId + '/issues' + windowQuery())
   let d = await r.json()
   issues.value = Array.isArray(d) ? d : []
   const reviews = await fetch('/api/v1/workspaces/' + store.workspaceId + '/feedback-reviews')
   reviewCandidates.value = reviews.ok ? await reviews.json() : []
   loading.value = false
-  if (issues.value.length && !selected.value) selectIssue(issues.value[0].canonicalKey)
+  if (issues.value.length && selected.value) await selectIssue(selected.value)
+  else if (issues.value.length && !selected.value) selectIssue(issues.value[0].canonicalKey)
+}
+
+async function parseApiError(response) {
+  const payload = await response.json().catch(() => null)
+  return payload?.error?.message || ('请求失败（HTTP ' + response.status + '）')
 }
 
 async function resolveCandidate(id, action) {
-  const response = await fetch('/api/v1/workspaces/' + store.workspaceId + '/feedback-reviews/' + id + '/' + action, { method: 'POST' })
-  if (!response.ok) return
-  reviewCandidates.value = reviewCandidates.value.filter(item => item.id !== id)
+  reviewActionError.value = ''
+  reviewActionLoading.value = id
+  try {
+    const response = await fetch('/api/v1/workspaces/' + store.workspaceId + '/feedback-reviews/' + id + '/' + action, { method: 'POST' })
+    if (response.status === 401 || !getAccessToken()) {
+      reviewActionError.value = '登录已过期，请重新登录后再操作。'
+      await router.replace('/login')
+      return
+    }
+    if (!response.ok) {
+      reviewActionError.value = await parseApiError(response)
+      return
+    }
+    reviewCandidates.value = reviewCandidates.value.filter(item => item.id !== id)
+  } finally {
+    reviewActionLoading.value = ''
+  }
 }
 
 async function submitNewTopic() {
@@ -133,9 +208,9 @@ async function submitNewTopic() {
 
 async function selectIssue(key) {
   selected.value = key
-  let r = await fetch('/api/v1/workspaces/' + store.workspaceId + '/issues/' + key)
+  let r = await fetch('/api/v1/workspaces/' + store.workspaceId + '/issues/' + key + windowQuery())
   detail.value = await r.json()
-  samples.value = (detail.value.sampleTexts || []).slice(0, 5)
+  samples.value = (detail.value.samples || []).slice(0, 5)
 
   await nextTick()
   if (trendChart) trendChart.destroy()
@@ -145,5 +220,13 @@ async function selectIssue(key) {
 }
 
 onMounted(loadIssues)
-watch(() => store.workspaceId, loadIssues)
+watch(() => store.workspaceId, () => {
+  coverageStart.value = null
+  coverageEnd.value = null
+  analysisFrom.value = ''
+  analysisTo.value = ''
+  selected.value = ''
+  detail.value = null
+  loadIssues()
+})
 </script>

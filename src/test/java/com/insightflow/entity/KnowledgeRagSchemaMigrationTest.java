@@ -36,4 +36,34 @@ class KnowledgeRagSchemaMigrationTest {
                 .contains("USING GIN (content_tsv)")
                 .contains("USING ivfflat (embedding vector_cosine_ops)");
     }
+
+    /**
+     * V24 去掉「每文档仅一个已发布版本」的部分唯一索引，允许多版本并存；
+     * 下线旧版改为发布时的显式用户选择而非数据库强制。
+     */
+    @Test
+    void allowsMultiplePublishedKnowledgeVersions() throws IOException {
+        Path migration = Path.of("src", "main", "resources", "db", "migration",
+                "V24__allow_multiple_published_knowledge_versions.sql");
+
+        String sql = Files.readString(migration);
+
+        assertThat(sql).contains("DROP INDEX IF EXISTS uk_knowledge_document_published_version");
+    }
+
+    /**
+     * V31 启用 pg_trgm 与 GIN 索引，支撑中文 trigram 词法检索。
+     */
+    @Test
+    void enablesChineseLexicalTrigramIndexes() throws IOException {
+        Path migration = Path.of("src", "main", "resources", "db", "migration",
+                "V31__add_chinese_lexical_trigram_search.sql");
+
+        String sql = Files.readString(migration);
+
+        assertThat(sql).contains("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+                .contains("idx_knowledge_chunk_lexical_text_trgm")
+                .contains("idx_knowledge_document_title_trgm")
+                .contains("gin_trgm_ops");
+    }
 }

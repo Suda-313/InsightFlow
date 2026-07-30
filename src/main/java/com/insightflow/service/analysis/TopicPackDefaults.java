@@ -17,6 +17,9 @@ public final class TopicPackDefaults {
     /** assignment_method 取值：规则未命中时的 GENERAL 出口，区别于 rule / ambiguous。 */
     public static final String ASSIGNMENT_GENERAL = "general";
 
+    /** assignment_method 取值：Pack LLM Topic Skill 高置信补标，区别于 rule / general。 */
+    public static final String ASSIGNMENT_LLM = "llm";
+
     private TopicPackDefaults() {
     }
 

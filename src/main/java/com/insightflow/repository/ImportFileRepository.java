@@ -47,4 +47,7 @@ public interface ImportFileRepository extends JpaRepository<ImportFile, Long> {
      * 扫描投影 pending 且导入成功的文件，供调度器创建投影任务。
      */
     List<ImportFile> findByProjectionStatusAndStatus(String projectionStatus, String status);
+
+    /** 导入页恢复最近一批文件状态时使用；必须按 Workspace 限定，避免跨租户读取。 */
+    Optional<ImportFile> findFirstByWorkspaceIdOrderByCreatedAtDesc(Long workspaceId);
 }

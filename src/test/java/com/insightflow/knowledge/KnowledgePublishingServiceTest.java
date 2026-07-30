@@ -28,7 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** 发布服务必须在单一受控事务内完成版本替换、切片和嵌入写入。 */
+/** 发布服务必须在单一受控事务内完成版本发布、切片和嵌入写入。 */
 @ExtendWith(MockitoExtension.class)
 class KnowledgePublishingServiceTest {
     @Mock private WorkspaceService workspaceService;
@@ -40,9 +40,9 @@ class KnowledgePublishingServiceTest {
     @Mock private Workspace workspace;
     @Mock private KnowledgeDocument document;
 
-    /** 新版本发布后旧版本失效，且只有嵌入完成的切片才会交给向量存储。 */
+    /** 显式请求下线旧版时，同文档已发布版本应在同一事务内失效。 */
     @Test
-    void publishesPendingVersionAndExpiresPreviousPublishedVersion() {
+    void expiresPreviousPublishedVersionWhenRequested() {
         UUID workspaceId = UUID.randomUUID(); UUID documentId = UUID.randomUUID(); UUID versionId = UUID.randomUUID();
         KnowledgeDocumentVersion pending = KnowledgeDocumentVersion.pending(10L, 2, "k/v2", "c", "x.md", "text/markdown", 10L);
         assignId(pending, 10L);
@@ -60,7 +60,7 @@ class KnowledgePublishingServiceTest {
         when(embeddingGateway.embed(any())).thenReturn(List.of(List.of(0.1d, 0.2d)));
 
         KnowledgeDocumentVersion result = new KnowledgePublishingService(workspaceService, documentRepository, versionRepository,
-                objectStorage, new KnowledgeChunker(100), embeddingGateway, vectorStore).publish(workspaceId, documentId, versionId);
+                objectStorage, new KnowledgeChunker(100), embeddingGateway, vectorStore).publish(workspaceId, documentId, versionId, true);
 
         assertThat(result.getStatus()).isEqualTo(KnowledgeVersionStatus.PUBLISHED);
         assertThat(previous.getStatus()).isEqualTo(KnowledgeVersionStatus.EXPIRED);
@@ -76,6 +76,31 @@ class KnowledgePublishingServiceTest {
                 .containsExactly("内容");
     }
 
+    /** 默认发布不下线旧版，允许多个已发布版本并存参与 RAG。 */
+    @Test
+    void keepsPreviousPublishedVersionWhenExpireNotRequested() {
+        UUID workspaceId = UUID.randomUUID(); UUID documentId = UUID.randomUUID(); UUID versionId = UUID.randomUUID();
+        KnowledgeDocumentVersion pending = KnowledgeDocumentVersion.pending(10L, 2, "k/v2", "c", "x.md", "text/markdown", 10L);
+        assignId(pending, 10L);
+        KnowledgeDocumentVersion previous = KnowledgeDocumentVersion.pending(10L, 1, "k/v1", "c", "x.md", "text/markdown", 10L);
+        previous.publish(java.time.OffsetDateTime.now());
+        when(workspaceService.get(workspaceId)).thenReturn(workspace);
+        when(workspace.getId()).thenReturn(4L); when(workspace.getOrganizationId()).thenReturn(3L);
+        when(documentRepository.findByPublicId(documentId)).thenReturn(Optional.of(document));
+        when(document.getId()).thenReturn(10L); when(document.getOrganizationId()).thenReturn(3L); when(document.getTargetWorkspaceId()).thenReturn(4L);
+        when(document.getTitle()).thenReturn("登录异常说明");
+        when(document.getDocumentType()).thenReturn(KnowledgeDocumentType.KNOWN_ISSUE);
+        when(versionRepository.findByPublicIdAndDocumentId(versionId, 10L)).thenReturn(Optional.of(pending));
+        when(objectStorage.open("k/v2")).thenReturn(new ByteArrayInputStream("# 公告\n\n内容".getBytes()));
+        when(embeddingGateway.embed(any())).thenReturn(List.of(List.of(0.1d, 0.2d)));
+
+        KnowledgeDocumentVersion result = new KnowledgePublishingService(workspaceService, documentRepository, versionRepository,
+                objectStorage, new KnowledgeChunker(100), embeddingGateway, vectorStore).publish(workspaceId, documentId, versionId, false);
+
+        assertThat(result.getStatus()).isEqualTo(KnowledgeVersionStatus.PUBLISHED);
+        assertThat(previous.getStatus()).isEqualTo(KnowledgeVersionStatus.PUBLISHED);
+    }
+
     /**
      * 非待审核版本在读取原文和调用嵌入模型前就必须被拒绝，
      * 否则无效的发布请求会无意义消耗存储与模型资源。
@@ -84,7 +109,7 @@ class KnowledgePublishingServiceTest {
     void rejectsNonPendingVersionBeforeReadingOrEmbeddingKnowledge() {
         UUID workspaceId = UUID.randomUUID(); UUID documentId = UUID.randomUUID(); UUID versionId = UUID.randomUUID();
         KnowledgeDocumentVersion expired = KnowledgeDocumentVersion.pending(10L, 1, "k/v1", "c", "x.md", "text/markdown", 10L);
-        expired.publish(java.time.OffsetDateTime.now());
+        expired.publish(java.time.OffsetDateTime.parse("2026-07-25T00:00:00+08:00"));
         expired.expire(java.time.OffsetDateTime.now());
         when(workspaceService.get(workspaceId)).thenReturn(workspace);
         when(workspace.getId()).thenReturn(4L); when(workspace.getOrganizationId()).thenReturn(3L);
@@ -95,7 +120,7 @@ class KnowledgePublishingServiceTest {
         KnowledgePublishingService service = new KnowledgePublishingService(workspaceService, documentRepository, versionRepository,
                 objectStorage, new KnowledgeChunker(100), embeddingGateway, vectorStore);
 
-        assertThatThrownBy(() -> service.publish(workspaceId, documentId, versionId)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.publish(workspaceId, documentId, versionId, false)).isInstanceOf(IllegalStateException.class);
         verifyNoInteractions(objectStorage, embeddingGateway, vectorStore);
     }
 

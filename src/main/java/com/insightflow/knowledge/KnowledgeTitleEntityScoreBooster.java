@@ -1,0 +1,378 @@
+package com.insightflow.knowledge;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+/**
+ * P2：在精排前对 RRF 候选施加标题/实体匹配加权，并在双主体 CROSS 查询中保证各实体有代表进 Top 池。
+ *
+ * <p>信号可解释、只改候选 score 与顺序，不做硬过滤；文档类型仅作软加权。</p>
+ */
+@Component
+public class KnowledgeTitleEntityScoreBooster {
+
+    /** 标题包含查询实体短语时的 RRF 分增量（相对 RRF 量级 ~0.01–0.05）。 */
+    static final double ENTITY_TITLE_BOOST = 0.12;
+
+    /** 版本号与标题对齐时的增量。 */
+    static final double VERSION_TITLE_BOOST = 0.08;
+
+    /** 查询类型提示与文档类型/标题一致时的软增量。 */
+    static final double DOC_TYPE_SOFT_BOOST = 0.04;
+
+    /** 精排输入池默认深度，与 {@link KnowledgeRerankerProperties#candidateLimit()} 默认一致。 */
+    static final int DEFAULT_RERANK_POOL = 30;
+
+    private static final int FINAL_EVIDENCE_LIMIT = 8;
+
+    private static final Pattern VERSION = Pattern.compile("(?i)\\bv?(\\d+(?:\\.\\d+)+)\\b");
+    private static final Pattern CONNECTOR = Pattern.compile("[和与以及]");
+    private static final Set<String> STOP_TOKENS = Set.of(
+            "复盘会上需要确认", "值班追问", "社区舆情对照", "质量门禁抽查", "培训场景", "二线升级",
+            "调查员笔记", "客服转来一个问题", "时间窗", "有没有", "重叠", "各自", "独立", "链路",
+            "怎么", "什么", "能否", "是否", "可以", "请问", "问题", "活动", "公告", "说明", "文档");
+
+    private final KnowledgeCrossQueryDecomposer crossQueryDecomposer;
+    private final int rerankPoolSize;
+
+    public KnowledgeTitleEntityScoreBooster(KnowledgeCrossQueryDecomposer crossQueryDecomposer) {
+        this(crossQueryDecomposer, DEFAULT_RERANK_POOL);
+    }
+
+    @Autowired
+    KnowledgeTitleEntityScoreBooster(
+            KnowledgeCrossQueryDecomposer crossQueryDecomposer,
+            @Autowired(required = false) KnowledgeRerankerProperties rerankerProperties) {
+        this(
+                crossQueryDecomposer,
+                rerankerProperties == null ? DEFAULT_RERANK_POOL : rerankerProperties.candidateLimit());
+    }
+
+    KnowledgeTitleEntityScoreBooster(KnowledgeCrossQueryDecomposer crossQueryDecomposer, int rerankPoolSize) {
+        this.crossQueryDecomposer = crossQueryDecomposer;
+        this.rerankPoolSize = Math.max(FINAL_EVIDENCE_LIMIT, rerankPoolSize);
+    }
+
+    /**
+     * 返回加权并重排后的候选；双主体题在 {@code reserveSize} 窗口内保证每个实体组至少一条代表。
+     */
+    public List<KnowledgeVectorStore.SearchCandidate> apply(
+            String question,
+            List<KnowledgeVectorStore.SearchCandidate> candidates,
+            KnowledgeRetrievalOptions options) {
+        if (candidates == null || candidates.isEmpty()) {
+            return List.of();
+        }
+        QuerySignals signals = buildSignals(question, options);
+        List<ScoredCandidate> scored = new ArrayList<>(candidates.size());
+        for (KnowledgeVectorStore.SearchCandidate candidate : candidates) {
+            double boost = computeBoost(signals, candidate);
+            scored.add(new ScoredCandidate(withScore(candidate, candidate.score() + boost), boost));
+        }
+        scored.sort(Comparator.comparingDouble((ScoredCandidate item) -> item.candidate().score()).reversed());
+
+        boolean rerankEnabled = options != null && options.rerankerEnabled();
+        int reserveSize = rerankEnabled ? rerankPoolSize : FINAL_EVIDENCE_LIMIT;
+        if (signals.entityGroups().size() >= 2) {
+            scored = ensureEntityCoverage(scored, signals.entityGroups(), reserveSize);
+        }
+        return scored.stream().map(ScoredCandidate::candidate).toList();
+    }
+
+    private double computeBoost(QuerySignals signals, KnowledgeVectorStore.SearchCandidate candidate) {
+        String normalizedTitle = normalizeTitle(candidate.title());
+        if (normalizedTitle.isBlank()) {
+            return 0.0;
+        }
+        double boost = 0.0;
+        for (String version : signals.versions()) {
+            if (normalizedTitle.contains(version.toLowerCase(Locale.ROOT))) {
+                boost += VERSION_TITLE_BOOST;
+            }
+        }
+        for (String token : signals.entityTokens()) {
+            if (token.length() >= 2 && normalizedTitle.contains(token)) {
+                boost += ENTITY_TITLE_BOOST;
+            }
+        }
+        boost += docTypeSoftBoost(signals.typeHints(), normalizedTitle, candidate.documentType());
+        return boost;
+    }
+
+    private double docTypeSoftBoost(Set<String> typeHints, String normalizedTitle, String documentType) {
+        if (typeHints.isEmpty()) {
+            return 0.0;
+        }
+        double boost = 0.0;
+        if (typeHints.contains("postmortem")
+                && (normalizedTitle.contains("复盘") || "POSTMORTEM".equalsIgnoreCase(documentType))) {
+            boost += DOC_TYPE_SOFT_BOOST;
+        }
+        if (typeHints.contains("operation")
+                && (normalizedTitle.contains("活动") || normalizedTitle.contains("签到")
+                        || "OPERATION_EVENT".equalsIgnoreCase(documentType))) {
+            boost += DOC_TYPE_SOFT_BOOST;
+        }
+        if (typeHints.contains("faq")
+                && (normalizedTitle.contains("FAQ") || normalizedTitle.contains("常见问题"))) {
+            boost += DOC_TYPE_SOFT_BOOST;
+        }
+        if (typeHints.contains("release")
+                && (normalizedTitle.contains("版本") || normalizedTitle.contains("热修")
+                        || "RELEASE_NOTE".equalsIgnoreCase(documentType))) {
+            boost += DOC_TYPE_SOFT_BOOST;
+        }
+        return boost;
+    }
+
+    private List<ScoredCandidate> ensureEntityCoverage(
+            List<ScoredCandidate> ranked,
+            List<EntityGroup> entityGroups,
+            int reserveSize) {
+        List<ScoredCandidate> result = new ArrayList<>(ranked);
+        int window = Math.min(reserveSize, result.size());
+        if (window <= 0) {
+            return result;
+        }
+
+        for (EntityGroup group : entityGroups) {
+            if (hasMatchInWindow(result, group, window)) {
+                continue;
+            }
+            int promoteFrom = findBestMatchIndex(result, group, window, result.size());
+            if (promoteFrom < 0) {
+                continue;
+            }
+            int swapWith = findLowestScoreIndex(result, window);
+            if (swapWith < 0 || swapWith == promoteFrom) {
+                continue;
+            }
+            ScoredCandidate promoted = result.get(promoteFrom);
+            ScoredCandidate demoted = result.get(swapWith);
+            result.set(swapWith, promoted);
+            result.set(promoteFrom, demoted);
+        }
+        return result;
+    }
+
+    private static int findLowestScoreIndex(List<ScoredCandidate> ranked, int window) {
+        int lowestIndex = -1;
+        double lowestScore = Double.MAX_VALUE;
+        for (int index = 0; index < window && index < ranked.size(); index++) {
+            double score = ranked.get(index).candidate().score();
+            if (score < lowestScore) {
+                lowestScore = score;
+                lowestIndex = index;
+            }
+        }
+        return lowestIndex;
+    }
+
+    private static boolean hasMatchInWindow(List<ScoredCandidate> ranked, EntityGroup group, int window) {
+        for (int index = 0; index < window && index < ranked.size(); index++) {
+            if (matchesGroup(ranked.get(index).candidate(), group)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int findBestMatchIndex(
+            List<ScoredCandidate> ranked, EntityGroup group, int windowStart, int windowEnd) {
+        int bestIndex = -1;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        for (int index = windowStart; index < windowEnd && index < ranked.size(); index++) {
+            if (!matchesGroup(ranked.get(index).candidate(), group)) {
+                continue;
+            }
+            double score = ranked.get(index).candidate().score();
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = index;
+            }
+        }
+        return bestIndex;
+    }
+
+    static boolean matchesGroup(KnowledgeVectorStore.SearchCandidate candidate, EntityGroup group) {
+        String normalizedTitle = normalizeTitle(candidate.title());
+        if (normalizedTitle.isBlank()) {
+            return false;
+        }
+        for (String token : group.tokens()) {
+            if (token.length() >= 2 && normalizedTitle.contains(token)) {
+                return true;
+            }
+        }
+        for (String version : group.versions()) {
+            if (normalizedTitle.contains(version.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    QuerySignals buildSignals(String question, KnowledgeRetrievalOptions options) {
+        Set<String> versions = extractVersions(question);
+        Set<String> entityTokens = new LinkedHashSet<>();
+        Set<String> typeHints = extractTypeHints(question);
+        List<EntityGroup> groups = new ArrayList<>();
+
+        List<String> subQueries = options == null ? null : options.subQueries();
+        if (subQueries != null && subQueries.size() >= 2) {
+            for (String subQuery : subQueries) {
+                groups.add(buildEntityGroup(subQuery));
+            }
+        } else {
+            KnowledgeCrossQueryDecomposer.ParsedQuestion parsed = crossQueryDecomposer.parseQuestion(question);
+            List<String> parts = crossQueryDecomposer.splitBody(parsed.body());
+            if (parts.size() >= 2) {
+                for (String part : parts) {
+                    groups.add(buildEntityGroup(part));
+                }
+            } else if (CONNECTOR.matcher(parsed.body()).find()) {
+                for (String part : parsed.body().split("[和与以及]")) {
+                    if (!part.isBlank()) {
+                        groups.add(buildEntityGroup(part.trim()));
+                    }
+                }
+            }
+        }
+
+        for (EntityGroup group : groups) {
+            entityTokens.addAll(group.tokens());
+            versions.addAll(group.versions());
+        }
+        if (groups.isEmpty()) {
+            entityTokens.addAll(extractTokens(question));
+        }
+        return new QuerySignals(List.copyOf(versions), List.copyOf(entityTokens), List.copyOf(groups), typeHints);
+    }
+
+    private EntityGroup buildEntityGroup(String text) {
+        Set<String> tokens = extractTokens(text);
+        Set<String> groupVersions = extractVersions(text);
+        return new EntityGroup(List.copyOf(tokens), List.copyOf(groupVersions));
+    }
+
+    static Set<String> extractVersions(String text) {
+        Set<String> versions = new LinkedHashSet<>();
+        if (text == null || text.isBlank()) {
+            return versions;
+        }
+        Matcher matcher = VERSION.matcher(text);
+        while (matcher.find()) {
+            versions.add(matcher.group(1).toLowerCase(Locale.ROOT));
+        }
+        return versions;
+    }
+
+    static Set<String> extractTokens(String text) {
+        Set<String> tokens = new LinkedHashSet<>();
+        if (text == null || text.isBlank()) {
+            return tokens;
+        }
+        String normalized = normalizeTitle(text);
+        Matcher versionMatcher = VERSION.matcher(normalized);
+        while (versionMatcher.find()) {
+            tokens.add(versionMatcher.group(1).toLowerCase(Locale.ROOT));
+        }
+        normalized = normalized.replaceAll("[？?。；;，,：:\\s]+", " ");
+        for (String raw : normalized.split("\\s+")) {
+            String token = raw.trim();
+            if (token.length() < 2 || STOP_TOKENS.contains(token)) {
+                continue;
+            }
+            tokens.add(token);
+            if (token.length() > 4) {
+                tokens.add(token.substring(0, Math.min(4, token.length())));
+            }
+        }
+        extractChineseRuns(normalized, tokens);
+        return tokens;
+    }
+
+    private static void extractChineseRuns(String text, Set<String> tokens) {
+        Matcher matcher = Pattern.compile("[\\u4e00-\\u9fff]{2,8}").matcher(text);
+        while (matcher.find()) {
+            String run = matcher.group();
+            if (STOP_TOKENS.contains(run)) {
+                continue;
+            }
+            tokens.add(run);
+            if (run.length() >= 3) {
+                tokens.add(run.substring(0, 2));
+            }
+            if (run.length() >= 4) {
+                tokens.add(run.substring(0, Math.min(4, run.length())));
+            }
+        }
+    }
+
+    static Set<String> extractTypeHints(String question) {
+        Set<String> hints = new HashSet<>();
+        if (question == null) {
+            return hints;
+        }
+        String normalized = question.toLowerCase(Locale.ROOT);
+        if (normalized.contains("复盘") || normalized.contains("postmortem")) {
+            hints.add("postmortem");
+        }
+        if (normalized.contains("活动") || normalized.contains("签到") || normalized.contains("维护")) {
+            hints.add("operation");
+        }
+        if (normalized.contains("faq") || normalized.contains("常见问题")) {
+            hints.add("faq");
+        }
+        if (normalized.contains("公告") || normalized.contains("版本") || normalized.contains("热修")) {
+            hints.add("release");
+        }
+        return hints;
+    }
+
+    static String normalizeTitle(String title) {
+        if (title == null) {
+            return "";
+        }
+        return title.replaceFirst("^超自然行动组[-\\s]*", "")
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
+    private static KnowledgeVectorStore.SearchCandidate withScore(
+            KnowledgeVectorStore.SearchCandidate candidate, double score) {
+        return new KnowledgeVectorStore.SearchCandidate(
+                candidate.documentId(),
+                candidate.versionId(),
+                candidate.versionNo(),
+                candidate.chunkId(),
+                candidate.title(),
+                candidate.content(),
+                score,
+                candidate.documentType(),
+                candidate.sectionHeading(),
+                candidate.effectiveWindow());
+    }
+
+    record QuerySignals(
+            List<String> versions,
+            List<String> entityTokens,
+            List<EntityGroup> entityGroups,
+            Set<String> typeHints) {
+    }
+
+    record EntityGroup(List<String> tokens, List<String> versions) {
+    }
+
+    private record ScoredCandidate(KnowledgeVectorStore.SearchCandidate candidate, double boost) {
+    }
+}

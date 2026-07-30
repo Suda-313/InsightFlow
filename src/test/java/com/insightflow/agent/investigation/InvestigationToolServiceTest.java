@@ -19,7 +19,9 @@ import com.insightflow.repository.CellIssueRepository;
 import com.insightflow.repository.FeedbackEventRepository;
 import com.insightflow.repository.IssueCatalogRepository;
 import com.insightflow.repository.IssueMetricBucketRepository;
+import com.insightflow.service.DashboardService;
 import com.insightflow.service.WorkspaceService;
+import com.insightflow.service.analysis.ExpressionRulesLoader;
 import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.Instant;
@@ -44,6 +46,8 @@ class InvestigationToolServiceTest {
     private final AlertRepository alertRepository = mock(AlertRepository.class);
     private final CellIssueRepository cellIssueRepository = mock(CellIssueRepository.class);
     private final FeedbackEventRepository feedbackEventRepository = mock(FeedbackEventRepository.class);
+    private final DashboardService dashboardService = mock(DashboardService.class);
+    private final ExpressionRulesLoader expressionRulesLoader = expressionRulesLoader();
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-25T00:00:00Z"), ZoneOffset.UTC);
 
     /** 异常调查只能读取命中主题的当前 Workspace 指标、告警和脱敏样本。 */
@@ -101,6 +105,93 @@ class InvestigationToolServiceTest {
         });
     }
 
+    /** 表达层调查应返回 L2 五类分布，并在识别吐槽时给出 L2→L1 交叉分布。 */
+    @Test
+    void returnsExpressionDistributionAndDrilldownForComplaintQuestion() throws Exception {
+        UUID workspacePublicId = UUID.randomUUID();
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace(7L));
+        when(catalogRepository.findByWorkspaceId(7L)).thenReturn(List.of(catalog(10L, "bug_gameplay", "玩法Bug")));
+
+        DashboardService.WindowInfo window = new DashboardService.WindowInfo(
+                OffsetDateTime.parse("2026-07-18T00:00:00Z"),
+                OffsetDateTime.parse("2026-07-25T00:00:00Z"));
+        List<DashboardService.ExpressionCount> distribution = List.of(
+                new DashboardService.ExpressionCount("expr_suggestion", "建议/诉求", 10),
+                new DashboardService.ExpressionCount("expr_complaint", "吐槽/不满", 40),
+                new DashboardService.ExpressionCount("expr_praise", "好评/推荐", 5),
+                new DashboardService.ExpressionCount("expr_neutral", "体验分享", 8),
+                new DashboardService.ExpressionCount("expr_other", "其他", 2));
+        DashboardService.ExpressionSummary expressionSummary = new DashboardService.ExpressionSummary(
+                distribution, List.of(), 0, "game-chaoziran", "v1");
+        when(dashboardService.getDashboard(workspacePublicId, null, null)).thenReturn(
+                new DashboardService.DashboardResponse(
+                        null, window, List.of(), List.of(), null, null, expressionSummary));
+        when(dashboardService.getExpressionTopics(workspacePublicId, "expr_complaint", null, null))
+                .thenReturn(new DashboardService.ExpressionTopicsResponse(
+                        "expr_complaint",
+                        "game-chaoziran",
+                        "v1",
+                        List.of(new DashboardService.TopicCount(
+                                UUID.randomUUID(), "bug_gameplay", "玩法Bug", 25)),
+                        window));
+
+        InvestigationResult result = service().investigate(
+                workspacePublicId,
+                "吐槽分布里玩法Bug占多少？",
+                new InvestigationPlanner(new InvestigationIntentDetector()).plan("吐槽分布里玩法Bug占多少？"));
+
+        assertThat(result.evidence()).extracting(InvestigationEvidence::tool).containsExactly(
+                InvestigationToolType.EXPRESSION_DISTRIBUTION,
+                InvestigationToolType.EXPRESSION_TOPIC_DRILLDOWN,
+                InvestigationToolType.EXPRESSION_TOPIC_SAMPLES);
+        assertThat(result.renderForPrompt())
+                .contains("L2 表达分布")
+                .contains("吐槽/不满 40 条")
+                .contains("L2→L1 交叉分布")
+                .contains("玩法Bug 25 条");
+        verify(dashboardService).getDashboard(workspacePublicId, null, null);
+        verify(dashboardService).getExpressionTopics(workspacePublicId, "expr_complaint", null, null);
+    }
+
+    /** L2×L1 交叉样本在识别表达类型与主题后返回脱敏文本，且不暴露内部主键。 */
+    @Test
+    void returnsExpressionTopicSamplesWhenBothDimensionsResolved() throws Exception {
+        UUID workspacePublicId = UUID.randomUUID();
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace(7L));
+        when(catalogRepository.findByWorkspaceId(7L)).thenReturn(List.of(catalog(10L, "bug_gameplay", "玩法Bug")));
+
+        DashboardService.WindowInfo window = new DashboardService.WindowInfo(
+                OffsetDateTime.parse("2026-07-18T00:00:00Z"),
+                OffsetDateTime.parse("2026-07-25T00:00:00Z"));
+        DashboardService.ExpressionSummary expressionSummary = new DashboardService.ExpressionSummary(
+                List.of(new DashboardService.ExpressionCount("expr_complaint", "吐槽/不满", 5)),
+                List.of(),
+                0,
+                "game-chaoziran",
+                "v1");
+        when(dashboardService.getDashboard(workspacePublicId, null, null)).thenReturn(
+                new DashboardService.DashboardResponse(
+                        null, window, List.of(), List.of(), null, null, expressionSummary));
+        when(dashboardService.getExpressionTopics(workspacePublicId, "expr_complaint", null, null))
+                .thenReturn(new DashboardService.ExpressionTopicsResponse(
+                        "expr_complaint", "game-chaoziran", "v1", List.of(), window));
+        when(dashboardService.getExpressionTopicSamples(
+                        workspacePublicId, "expr_complaint", "bug_gameplay", null, null))
+                .thenReturn(List.of(new DashboardService.FeedbackSample(
+                        "更新后闪退太频繁", OffsetDateTime.now(clock), "ticket")));
+
+        InvestigationResult result = service().investigate(
+                workspacePublicId,
+                "吐槽里玩法Bug有哪些反馈样本？",
+                new InvestigationPlanner(new InvestigationIntentDetector()).plan("吐槽里玩法Bug有哪些反馈样本？"));
+
+        assertThat(result.evidence()).anySatisfy(evidence -> {
+            assertThat(evidence.tool()).isEqualTo(InvestigationToolType.EXPRESSION_TOPIC_SAMPLES);
+            assertThat(evidence.sufficient()).isTrue();
+            assertThat(evidence.content()).contains("更新后闪退");
+        });
+    }
+
     /** 每个测试使用独立服务实例，防止工作区数据通过可变成员意外残留。 */
     private InvestigationToolService service() {
         return new InvestigationToolService(
@@ -110,8 +201,17 @@ class InvestigationToolServiceTest {
                 alertRepository,
                 cellIssueRepository,
                 feedbackEventRepository,
+                dashboardService,
+                expressionRulesLoader,
                 new ObjectMapper(),
                 clock);
+    }
+
+    /** 加载真实平台 L2 规则，使 resolveExpressionKey 与生产口径一致。 */
+    private static ExpressionRulesLoader expressionRulesLoader() {
+        ExpressionRulesLoader loader = new ExpressionRulesLoader();
+        loader.load();
+        return loader;
     }
 
     /** Workspace 的内部键只由服务端解析，测试不将其交给 Tool 外部输入。 */

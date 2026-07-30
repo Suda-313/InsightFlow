@@ -19,4 +19,7 @@ public interface FeedbackReviewCandidateRepository extends JpaRepository<Feedbac
     boolean existsByWorkspaceProjectionIdAndFeedbackEventIdAndReasonCode(Long workspaceProjectionId,
                                                                            Long feedbackEventId,
                                                                            String reasonCode);
+
+    /** Dashboard 首屏"L1 待复核"次要 KPI；只统计待处理，不含 confirmed/ignored 终态。 */
+    long countByWorkspaceIdAndStatus(Long workspaceId, String status);
 }

@@ -3,11 +3,11 @@ package com.insightflow.evaluation;
 import com.insightflow.agent.LlmMetrics;
 import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.prompt.ChatPromptTemplate;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,8 +27,8 @@ public class GoldEvaluationRunner {
     /** 只记录题目与版本等非敏感可观测字段，不记录固定答案正文或上游异常文本。 */
     private static final Logger log = LoggerFactory.getLogger(GoldEvaluationRunner.class);
 
-    /** 评测调用使用与线上聊天相同的模型客户端。 */
-    private final ChatClient chatClient;
+    /** 字面量模型调用，fixture 与题目可含大括号占位符。 */
+    private final LiteralChatModelCaller literalChatModelCaller;
     /** 金标题目来源，负责保证题量和类别契约。 */
     private final GoldEvaluationDatasetLoader datasetLoader;
     /** 固定脱敏数据来源，禁止评测退回到真实工作区。 */
@@ -42,13 +42,13 @@ public class GoldEvaluationRunner {
 
     /** 通过构造器注入，使运行器在测试中可用同样的调用边界替换外部模型。 */
     public GoldEvaluationRunner(
-            ChatClient chatClient,
+            LiteralChatModelCaller literalChatModelCaller,
             GoldEvaluationDatasetLoader datasetLoader,
             EvaluationFixtureLoader fixtureLoader,
             ChatPromptTemplate promptTemplate,
             EvaluationCaseScorer scorer,
             @Value("${spring.ai.openai.chat.options.model:unknown}") String modelName) {
-        this.chatClient = chatClient;
+        this.literalChatModelCaller = literalChatModelCaller;
         this.datasetLoader = datasetLoader;
         this.fixtureLoader = fixtureLoader;
         this.promptTemplate = promptTemplate;
@@ -79,11 +79,9 @@ public class GoldEvaluationRunner {
             log.info("Gold evaluation case started: case_id={}, category={}, prompt_version={}",
                     evaluationCase.caseId(), evaluationCase.category(), promptTemplate.version());
             LlmMetrics.logStarted("Evaluation", evaluationCase.question());
-            ChatResponse response = chatClient.prompt()
-                    .system(promptTemplate.render(fixtureContext, "\n## 最近对话\n暂无历史对话。\n"))
-                    .user(evaluationCase.question())
-                    .call()
-                    .chatResponse();
+            ChatResponse response = literalChatModelCaller.call(
+                    promptTemplate.render(fixtureContext, "\n## 最近对话\n暂无历史对话。\n"),
+                    evaluationCase.question());
             long latencyMs = System.currentTimeMillis() - startedAtMs;
             LlmMetrics.log("Evaluation", startedAtMs, response);
             String output = response.getResult().getOutput().getContent();

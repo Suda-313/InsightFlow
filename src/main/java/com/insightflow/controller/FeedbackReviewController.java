@@ -52,10 +52,13 @@ public class FeedbackReviewController {
     public List<CandidateResponse> pending(@PathVariable UUID workspaceId) {
         Workspace workspace = accessService.requireRead(workspaceId);
         return candidateService.pending(workspaceId).stream()
-                .map(candidate -> CandidateResponse.from(candidate, feedbackEvents
-                        .findByIdAndWorkspaceId(candidate.getFeedbackEventId(), workspace.getId())
-                        .map(FeedbackEvent::getSanitizedText)
-                        .orElse("样本不可用")))
+                .map(candidate -> {
+                    FeedbackEvent event = feedbackEvents
+                            .findByIdAndWorkspaceId(candidate.getFeedbackEventId(), workspace.getId())
+                            .orElse(null);
+                    String sampleText = event != null ? event.getSanitizedText() : "样本不可用";
+                    return CandidateResponse.from(candidate, sampleText, event);
+                })
                 .toList();
     }
 
@@ -63,14 +66,14 @@ public class FeedbackReviewController {
     @PostMapping("/{candidateId}/confirm")
     public CandidateResponse confirm(@PathVariable UUID workspaceId, @PathVariable UUID candidateId) {
         FeedbackReviewCandidate candidate = candidateService.confirm(workspaceId, candidateId);
-        return CandidateResponse.from(candidate, sample(candidate));
+        return CandidateResponse.from(candidate, sample(candidate), event(candidate).orElse(null));
     }
 
     /** 人工忽略候选，保留终态供后续审计。 */
     @PostMapping("/{candidateId}/ignore")
     public CandidateResponse ignore(@PathVariable UUID workspaceId, @PathVariable UUID candidateId) {
         FeedbackReviewCandidate candidate = candidateService.ignore(workspaceId, candidateId);
-        return CandidateResponse.from(candidate, sample(candidate));
+        return CandidateResponse.from(candidate, sample(candidate), event(candidate).orElse(null));
     }
 
     /**
@@ -86,18 +89,30 @@ public class FeedbackReviewController {
 
     /** 再次按 Workspace 读取样本，避免命令响应绕过行级隔离。 */
     private String sample(FeedbackReviewCandidate candidate) {
-        return feedbackEvents.findByIdAndWorkspaceId(candidate.getFeedbackEventId(), candidate.getWorkspaceId())
-                .map(FeedbackEvent::getSanitizedText)
-                .orElse("样本不可用");
+        return event(candidate).map(FeedbackEvent::getSanitizedText).orElse("样本不可用");
     }
 
-    /** 对外契约仅含候选 public_id、受控建议和脱敏样本，不含内部主键或模型原文。 */
+    private java.util.Optional<FeedbackEvent> event(FeedbackReviewCandidate candidate) {
+        return feedbackEvents.findByIdAndWorkspaceId(candidate.getFeedbackEventId(), candidate.getWorkspaceId());
+    }
+
+    /** 对外契约含候选 public_id、受控建议、脱敏样本及反馈发生时间/来源；不含内部主键。 */
     public record CandidateResponse(UUID id, String reasonCode, String suggestedIssueKey,
                                     String suggestedSentiment, String sampleText, String status,
-                                    OffsetDateTime createdAt, OffsetDateTime resolvedAt) {
-        static CandidateResponse from(FeedbackReviewCandidate source, String sampleText) {
-            return new CandidateResponse(source.getPublicId(), source.getReasonCode(), source.getSuggestedIssueKey(),
-                    source.getSuggestedSentiment(), sampleText, source.getStatus(), source.getCreatedAt(), source.getResolvedAt());
+                                    OffsetDateTime createdAt, OffsetDateTime resolvedAt,
+                                    OffsetDateTime feedbackOccurredAt, String sourceKind) {
+        static CandidateResponse from(FeedbackReviewCandidate source, String sampleText, FeedbackEvent event) {
+            return new CandidateResponse(
+                    source.getPublicId(),
+                    source.getReasonCode(),
+                    source.getSuggestedIssueKey(),
+                    source.getSuggestedSentiment(),
+                    sampleText,
+                    source.getStatus(),
+                    source.getCreatedAt(),
+                    source.getResolvedAt(),
+                    event != null ? event.getOccurredAt() : null,
+                    event != null ? event.getSourceKind() : null);
         }
     }
 

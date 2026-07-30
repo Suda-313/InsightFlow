@@ -1,0 +1,7 @@
+# Workspace Topic Pack 元数据；每个 Workspace 恰好绑定一个 Pack 版本，换游戏即换 Pack 目录。
+# 本文件不包含任何分类规则，仅描述 Pack 身份，供 TopicPackLoader 与 Dashboard 展示。
+pack_id = "game-chaoziran"
+version = "game-chaoziran:v2"
+display_name = "游戏《超自然》舆情议题包"
+# Phase C：Pack 级 LLM Topic Skill；须全局 insightflow.analysis.topic-llm-skill.enabled=true 且配置 DASHSCOPE_API_KEY。
+topic_llm_skill_enabled = false

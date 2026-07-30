@@ -6,10 +6,10 @@ import com.insightflow.agent.LlmMetrics;
 import com.insightflow.agent.dto.RiskResult;
 import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.entity.AgentRun;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import com.insightflow.prompt.OperationalPromptCatalog;
 import com.insightflow.service.AgentRunService;
 import java.util.UUID;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
 public class RiskAnalyzer implements InsightAgent<RiskResult> {
 
     /** 模型调用边界由 Spring 配置层装配。 */
-    private final ChatClient chatClient;
+    private final LiteralChatModelCaller literalChatModelCaller;
     /** 自由文本必须转换为风险 DTO 才能进入领域投影。 */
     private final ObjectMapper objectMapper;
     /** 集中 Prompt 目录负责正文与版本。 */
@@ -38,12 +38,12 @@ public class RiskAnalyzer implements InsightAgent<RiskResult> {
 
     /** 显式注入依赖，支持真实执行和无外部调用的单元测试。 */
     public RiskAnalyzer(
-            ChatClient chatClient,
+            LiteralChatModelCaller literalChatModelCaller,
             ObjectMapper objectMapper,
             OperationalPromptCatalog promptCatalog,
             AgentRunService agentRunService,
             @Value("${spring.ai.openai.chat.options.model:unknown}") String modelName) {
-        this.chatClient = chatClient;
+        this.literalChatModelCaller = literalChatModelCaller;
         this.objectMapper = objectMapper;
         this.promptCatalog = promptCatalog;
         this.agentRunService = agentRunService;
@@ -68,7 +68,7 @@ public class RiskAnalyzer implements InsightAgent<RiskResult> {
         LlmMetrics.logStarted("Risk", promptVersion(), userInput);
         ChatResponse response;
         try {
-            response = chatClient.prompt().system(systemPrompt()).user(userInput).call().chatResponse();
+            response = literalChatModelCaller.call(systemPrompt(), userInput);
         } catch (RuntimeException exception) {
             LlmMetrics.logFailure("Risk", promptVersion(), start, "model_call");
             fail(workspacePublicId, run, start);

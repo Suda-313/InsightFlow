@@ -32,6 +32,27 @@ public class InvestigationIntentDetector {
         if (containsAny(normalized, "趋势", "变化", "走势", "增长", "下降")) {
             return InvestigationIntent.TREND_EXPLANATION;
         }
+        if (containsAny(
+                normalized,
+                "吐槽",
+                "建议",
+                "好评",
+                "差评",
+                "表达分布",
+                "表达占比",
+                "情绪分布",
+                "玩家诉求",
+                "体验分享",
+                "不满分布",
+                "诉求分布",
+                "好评议题",
+                "差评议题",
+                "吐槽议题",
+                "建议议题",
+                "表达层",
+                "l2")) {
+            return InvestigationIntent.EXPRESSION_INQUIRY;
+        }
         return InvestigationIntent.GENERAL_INQUIRY;
     }
 

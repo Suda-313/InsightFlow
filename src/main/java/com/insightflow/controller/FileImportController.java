@@ -7,6 +7,7 @@ import com.insightflow.entity.AsyncTask;
 import com.insightflow.service.FileImportService;
 import jakarta.validation.Valid;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -51,6 +52,15 @@ public class FileImportController {
             @PathVariable UUID workspaceId,
             @RequestPart("file") MultipartFile file) {
         return ResponseEntity.status(HttpStatus.CREATED).body(fileImportService.upload(workspaceId, file));
+    }
+
+    /**
+     * 返回当前 Workspace 最近一次上传文件，供导入页从服务端恢复映射与进度轮询上下文。
+     */
+    @GetMapping("/latest")
+    public ResponseEntity<FileImportService.ImportedFileView> getLatest(@PathVariable UUID workspaceId) {
+        Optional<FileImportService.ImportedFileView> latest = fileImportService.getLatest(workspaceId);
+        return latest.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     /**

@@ -104,14 +104,18 @@ public class AnalysisReportTaskRunner {
     }
 
     private MergedData buildMergedData(UUID workspacePublicId) {
-        DashboardService.DashboardResponse dashboard = dashboardService.getDashboard(workspacePublicId);
+        DashboardService.DashboardResponse dashboard = dashboardService.getDashboard(workspacePublicId, null, null);
         int totalTickets = dashboard.coverage().totalEvents();
         Map<String, Integer> issueMentions = new LinkedHashMap<>();
         for (DashboardService.IssueSummary issue : dashboard.topIssues()) {
             issueMentions.put(issue.canonicalKey(), issue.feedbackCount());
         }
+        Map<String, Integer> expressionMentions = new LinkedHashMap<>();
+        for (DashboardService.ExpressionCount expression : dashboard.expressionSummary().distribution()) {
+            expressionMentions.put(expression.key(), expression.feedbackCount());
+        }
         String summary = "看板数据聚合摘要";
-        return new MergedData(summary, totalTickets, issueMentions);
+        return new MergedData(summary, totalTickets, issueMentions, expressionMentions);
     }
 
     /**

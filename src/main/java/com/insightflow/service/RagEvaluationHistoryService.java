@@ -40,10 +40,25 @@ public class RagEvaluationHistoryService {
     /** 在同一事务中解析 Workspace、固化 JSON 并写入不可变 RAG 历史批次。 */
     @Transactional
     public RagEvaluationRun record(UUID workspacePublicId, RagEvaluationRunResult result) {
+        return recordInternal(workspacePublicId, result, result.caseResults());
+    }
+
+    /**
+     * 人工金标 Runner 专用：逐题结果使用脱敏 {@code RagGoldManualEvaluationCaseResult} JSON。
+     */
+    @Transactional
+    public RagEvaluationRun recordManual(
+            UUID workspacePublicId,
+            RagEvaluationRunResult result,
+            List<?> manualCaseResults) {
+        return recordInternal(workspacePublicId, result, manualCaseResults);
+    }
+
+    private RagEvaluationRun recordInternal(UUID workspacePublicId, RagEvaluationRunResult result, Object caseResults) {
         Workspace workspace = workspaceService.get(workspacePublicId);
         RagEvaluationRun run = RagEvaluationRun.create(
                 workspace.getId(), result.datasetVersion(), result.promptVersion(), result.modelName(),
-                result.retrievalVersion(), serialize(result.metrics()), serialize(result.caseResults()));
+                result.retrievalVersion(), serialize(result.metrics()), serialize(caseResults));
         return repository.save(run);
     }
 

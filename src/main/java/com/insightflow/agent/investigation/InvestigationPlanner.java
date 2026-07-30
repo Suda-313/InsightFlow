@@ -46,9 +46,14 @@ public class InvestigationPlanner {
                     InvestigationToolType.PERIOD_COMPARISON,
                     InvestigationToolType.DATA_AVAILABILITY);
             case REPORT_GENERATION -> List.of(
+                    InvestigationToolType.EXPRESSION_DISTRIBUTION,
                     InvestigationToolType.TOPIC_DISTRIBUTION,
                     InvestigationToolType.ALERT_HISTORY,
                     InvestigationToolType.ISSUE_TREND);
+            case EXPRESSION_INQUIRY -> List.of(
+                    InvestigationToolType.EXPRESSION_DISTRIBUTION,
+                    InvestigationToolType.EXPRESSION_TOPIC_DRILLDOWN,
+                    InvestigationToolType.EXPRESSION_TOPIC_SAMPLES);
             case GENERAL_INQUIRY -> List.of(InvestigationToolType.TOPIC_DISTRIBUTION);
         };
     }

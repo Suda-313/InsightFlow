@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.ai.chat.client.ChatClient;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
@@ -36,7 +36,7 @@ class ChatServiceTest {
     void logsTraceAndFailureStatusWhenModelCallThrows(CapturedOutput output) {
         UUID workspaceId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
-        ChatClient chatClient = mock(ChatClient.class);
+        LiteralChatModelCaller literalChatModelCaller = mock(LiteralChatModelCaller.class);
         ConversationService conversationService = mock(ConversationService.class);
         AgentRunService agentRunService = mock(AgentRunService.class);
         InvestigationPlanner planner = mock(InvestigationPlanner.class);
@@ -58,9 +58,10 @@ class ChatServiceTest {
         when(toolService.investigate(workspaceId, "为什么出现异常？", plan)).thenReturn(investigation);
         when(knowledgeSearchTool.retrieve(workspaceId, "为什么出现异常？"))
                 .thenReturn(new KnowledgeRetrievalResult(1, List.of()));
-        when(chatClient.prompt()).thenThrow(new IllegalStateException("模型不可用"));
+        when(literalChatModelCaller.call(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new IllegalStateException("模型不可用"));
         ChatService service = new ChatService(
-                chatClient, conversationService, agentRunService, planner, toolService, knowledgeSearchTool,
+                literalChatModelCaller, conversationService, agentRunService, planner, toolService, knowledgeSearchTool,
                 new ObjectMapper(), new ChatPromptTemplate());
 
         org.assertj.core.api.Assertions.assertThatThrownBy(

@@ -17,6 +17,7 @@ import com.insightflow.repository.OrganizationRepository;
 import com.insightflow.service.WorkspaceService;
 import com.insightflow.storage.KnowledgeObjectStorage;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -60,10 +61,71 @@ class KnowledgeDocumentServiceTest {
         KnowledgeDocumentVersion version = new KnowledgeDocumentService(
                 workspaceService, documentRepository, versionRepository, objectStorage, organizationRepository)
                 .upload(workspacePublicId, new KnowledgeDocumentService.UploadCommand(
-                        "7 月版本公告", KnowledgeDocumentType.RELEASE_NOTE, true, file));
+                        "7 月版本公告", KnowledgeDocumentType.RELEASE_NOTE, true, file, null));
 
         assertThat(version.getStatus().name()).isEqualTo("PENDING_REVIEW");
         verify(objectStorage).put(eq("knowledge/" + organizationPublicId + "/" + documentPublicId + "/v1/source"),
+                any(), eq((long) file.getSize()), eq("text/markdown"));
+    }
+
+    /** 上传时可携带语料元数据，并在待审核版本中持久化。 */
+    @Test
+    void uploadPersistsVersionMetadata() {
+        UUID workspacePublicId = UUID.randomUUID();
+        UUID documentPublicId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile("file", "event.md", "text/markdown", "# 事件".getBytes());
+        OffsetDateTime effectiveFrom = OffsetDateTime.parse("2026-07-01T00:00:00+08:00");
+        KnowledgeDocumentVersion.VersionMetadata metadata = new KnowledgeDocumentVersion.VersionMetadata(
+                "https://example.com/source", effectiveFrom, effectiveFrom, null, "运营组", "仅 TapTap 渠道");
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
+        when(workspace.getOrganizationId()).thenReturn(3L);
+        when(organizationRepository.findById(3L)).thenReturn(java.util.Optional.of(organization));
+        when(organization.getPublicId()).thenReturn(UUID.randomUUID());
+        when(documentRepository.save(any(KnowledgeDocument.class))).thenReturn(persistedDocument);
+        when(persistedDocument.getId()).thenReturn(12L);
+        when(persistedDocument.getPublicId()).thenReturn(documentPublicId);
+        when(versionRepository.save(any(KnowledgeDocumentVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        KnowledgeDocumentVersion version = new KnowledgeDocumentService(
+                workspaceService, documentRepository, versionRepository, objectStorage, organizationRepository)
+                .upload(workspacePublicId, new KnowledgeDocumentService.UploadCommand(
+                        "渠道活动", KnowledgeDocumentType.OPERATION_EVENT, true, file, metadata));
+
+        assertThat(version.getSourceUrl()).isEqualTo("https://example.com/source");
+        assertThat(version.getOwner()).isEqualTo("运营组");
+        assertThat(version.getFactBoundary()).isEqualTo("仅 TapTap 渠道");
+        assertThat(version.getEffectiveFrom()).isEqualTo(effectiveFrom);
+    }
+
+    /** 向已有文档追加上传时版本号递增，且不创建新的文档行。 */
+    @Test
+    void uploadVersionAppendsPendingVersionToExistingDocument() {
+        UUID workspacePublicId = UUID.randomUUID();
+        UUID documentPublicId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile("file", "release-v2.md", "text/markdown", "# v2".getBytes());
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
+        when(workspace.getOrganizationId()).thenReturn(3L);
+        when(workspace.getId()).thenReturn(7L);
+        UUID organizationPublicId = UUID.randomUUID();
+        when(organizationRepository.findById(3L)).thenReturn(java.util.Optional.of(organization));
+        when(organization.getPublicId()).thenReturn(organizationPublicId);
+        when(persistedDocument.getId()).thenReturn(12L);
+        when(persistedDocument.getPublicId()).thenReturn(documentPublicId);
+        when(persistedDocument.getOrganizationId()).thenReturn(3L);
+        when(persistedDocument.getTargetWorkspaceId()).thenReturn(7L);
+        when(documentRepository.findByPublicId(documentPublicId)).thenReturn(java.util.Optional.of(persistedDocument));
+        KnowledgeDocumentVersion previous = KnowledgeDocumentVersion.pending(12L, 1, "k/v1", "c", "v1.md", "text/markdown", 5L);
+        when(versionRepository.findTopByDocumentIdOrderByVersionNoDesc(12L)).thenReturn(java.util.Optional.of(previous));
+        when(versionRepository.save(any(KnowledgeDocumentVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        KnowledgeDocumentVersion version = new KnowledgeDocumentService(
+                workspaceService, documentRepository, versionRepository, objectStorage, organizationRepository)
+                .uploadVersion(workspacePublicId, documentPublicId, file, null);
+
+        assertThat(version.getVersionNo()).isEqualTo(2);
+        assertThat(version.getStatus().name()).isEqualTo("PENDING_REVIEW");
+        verify(documentRepository, org.mockito.Mockito.never()).save(any(KnowledgeDocument.class));
+        verify(objectStorage).put(eq("knowledge/" + organizationPublicId + "/" + documentPublicId + "/v2/source"),
                 any(), eq((long) file.getSize()), eq("text/markdown"));
     }
 }

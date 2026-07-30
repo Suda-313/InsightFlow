@@ -10,6 +10,7 @@
       </div>
       <nav class="flex-1 p-2 space-y-0.5">
         <router-link to="/" class="nav-link" active-class="active"><MessageSquare class="w-4 h-4" /> 主页</router-link>
+        <router-link to="/dashboard" class="nav-link" active-class="active"><LayoutDashboard class="w-4 h-4" /> 仪表盘</router-link>
         <router-link to="/data" class="nav-link" active-class="active"><BarChart3 class="w-4 h-4" /> 数据分析</router-link>
         <router-link to="/reports" class="nav-link" active-class="active"><FileText class="w-4 h-4" /> 分析报告</router-link>
         <router-link to="/investigations" class="nav-link" active-class="active"><ShieldAlert class="w-4 h-4" /> 调查中心</router-link>
@@ -32,7 +33,7 @@
 </template>
 
 <script setup>
-import { Activity, MessageSquare, BarChart3, FileText, Upload, Gauge, BookOpen, ShieldAlert } from 'lucide-vue-next'
+import { Activity, MessageSquare, BarChart3, LayoutDashboard, FileText, Upload, Gauge, BookOpen, ShieldAlert } from 'lucide-vue-next'
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkspaceStore } from './stores/workspace'

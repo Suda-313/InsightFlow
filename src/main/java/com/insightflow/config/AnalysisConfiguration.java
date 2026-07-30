@@ -1,14 +1,26 @@
 package com.insightflow.config;
 
 import com.insightflow.service.analysis.DataCellBuilder;
+import com.insightflow.service.analysis.ExpressionClassifier;
+import com.insightflow.service.analysis.ExpressionRulesLoader;
 import com.insightflow.service.analysis.IssueRulesLoader;
 import com.insightflow.service.analysis.IssueTextNormalizer;
 import com.insightflow.service.analysis.RuleFirstIssueClassifier;
+import com.insightflow.service.analysis.TopicPackLoader;
+import com.insightflow.service.analysis.TopicPackRegistry;
+import com.insightflow.service.analysis.TopicPackTopicLlmSkill;
+import com.insightflow.service.analysis.ChatTopicPackTopicLlmSkill;
+import com.insightflow.service.analysis.NoOpTopicPackTopicLlmSkill;
+import com.insightflow.service.analysis.PackTopicClassifier;
+import com.insightflow.service.analysis.TopicLlmSkillProperties;
+import com.insightflow.prompt.OperationalPromptCatalog;
 import com.insightflow.service.analysis.AlertDetector;
 import com.insightflow.service.analysis.EwmaBaselineService;
 import com.insightflow.repository.AlertRepository;
 import com.insightflow.repository.IssueBaselineProfileRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.insightflow.prompt.LiteralChatModelCaller;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -53,6 +65,13 @@ public class AnalysisConfiguration {
     @Value("${insightflow.analysis.global-alert-threshold}")
     private int globalAlertThreshold;
 
+    /**
+     * MVP 仅支持单一全局 Topic Pack；目录名对应 config/analysis/packs/{packDirectory}/。
+     * 未来支持按 Workspace 动态绑定 Pack 时，此处应改为从 Workspace 配置读取而非固定值。
+     */
+    @Value("${insightflow.analysis.topic-pack-directory:game-chaoziran}")
+    private String topicPackDirectory;
+
     // ── Bean 定义 ────────────────────────────────────────────────────────────
 
     /**
@@ -86,6 +105,66 @@ public class AnalysisConfiguration {
     @Bean
     RuleFirstIssueClassifier ruleFirstIssueClassifier(IssueRulesLoader loader) {
         return new RuleFirstIssueClassifier(loader.rules());
+    }
+
+    /**
+     * 平台 L2 表达规则加载器 Bean，独立于 L1 的 IssueRulesLoader，
+     * 因为 L2 是全平台固定枚举、跨 Workspace 共用同一份规则文件。
+     */
+    @Bean
+    ExpressionRulesLoader expressionRulesLoader() {
+        ExpressionRulesLoader loader = new ExpressionRulesLoader();
+        loader.load();
+        return loader;
+    }
+
+    /**
+     * 平台 L2 表达分类器 Bean；无状态纯函数，规则来自 expressionRulesLoader。
+     */
+    @Bean
+    ExpressionClassifier expressionClassifier(ExpressionRulesLoader loader) {
+        return new ExpressionClassifier(loader.rules());
+    }
+
+    /**
+     * Workspace Topic Pack 注册表；启动期扫描 packs 目录，支持按 Workspace 绑定解析。
+     * 投影 L1 分类与 Dashboard Pack 展示均通过 Registry 取得实际生效的 Pack。
+     */
+    @Bean
+    TopicPackRegistry topicPackRegistry() {
+        TopicPackRegistry registry = new TopicPackRegistry(topicPackDirectory);
+        registry.load();
+        return registry;
+    }
+
+    /**
+     * 兼容既有注入点：返回全局默认 Pack 的 Loader（等于 Registry 的默认回退 Pack）。
+     */
+    @Bean
+    TopicPackLoader topicPackLoader(TopicPackRegistry registry) {
+        return registry.requireByPackId(registry.defaultPackId());
+    }
+
+    /**
+     * Pack LLM Topic Skill：全局开关 + Pack 开关 + LiteralChatModelCaller 齐备时用 Chat 实现，否则 NoOp。
+     */
+    @Bean
+    TopicPackTopicLlmSkill topicPackTopicLlmSkill(
+            @Autowired(required = false) LiteralChatModelCaller literalChatModelCaller,
+            ObjectMapper objectMapper,
+            OperationalPromptCatalog promptCatalog,
+            TopicLlmSkillProperties properties) {
+        if (properties.enabled() && literalChatModelCaller != null) {
+            return new ChatTopicPackTopicLlmSkill(literalChatModelCaller, objectMapper, promptCatalog);
+        }
+        return new NoOpTopicPackTopicLlmSkill();
+    }
+
+    /** Pack L1 编排 Bean：规则优先，LLM 仅补 topic_general 子集。 */
+    @Bean
+    PackTopicClassifier packTopicClassifier(
+            TopicPackTopicLlmSkill llmSkill, TopicLlmSkillProperties properties) {
+        return new PackTopicClassifier(llmSkill, properties);
     }
 
     /**

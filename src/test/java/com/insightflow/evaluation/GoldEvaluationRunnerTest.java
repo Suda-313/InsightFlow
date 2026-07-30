@@ -2,14 +2,16 @@ package com.insightflow.evaluation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.insightflow.prompt.ChatPromptTemplate;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -26,9 +28,7 @@ class GoldEvaluationRunnerTest {
     void runsCasesWithFixedFixtureAndReturnsScoredMetrics() {
         GoldEvaluationDatasetLoader datasetLoader = mock(GoldEvaluationDatasetLoader.class);
         EvaluationFixtureLoader fixtureLoader = mock(EvaluationFixtureLoader.class);
-        ChatClient chatClient = mock(ChatClient.class);
-        ChatClient.ChatClientRequestSpec request = mock(ChatClient.ChatClientRequestSpec.class);
-        ChatClient.CallResponseSpec responseSpec = mock(ChatClient.CallResponseSpec.class);
+        LiteralChatModelCaller literalChatModelCaller = mock(LiteralChatModelCaller.class);
         ChatResponse response = mock(ChatResponse.class);
         Generation generation = mock(Generation.class);
         AssistantMessage assistant = mock(AssistantMessage.class);
@@ -38,22 +38,17 @@ class GoldEvaluationRunnerTest {
 
         when(datasetLoader.load()).thenReturn(new GoldEvaluationDataset("gold:v1", List.of(evaluationCase)));
         when(fixtureLoader.load("game-support:v1")).thenReturn("## 当前数据概览\n玩法 Bug 85 条\n");
-        when(chatClient.prompt()).thenReturn(request);
-        when(request.system(anyString())).thenReturn(request);
-        when(request.user(anyString())).thenReturn(request);
-        when(request.call()).thenReturn(responseSpec);
-        when(responseSpec.chatResponse()).thenReturn(response);
+        when(literalChatModelCaller.call(anyString(), anyString())).thenReturn(response);
         when(response.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistant);
         when(assistant.getContent()).thenReturn("玩法 Bug 85 条，需要继续排查。");
         when(response.getMetadata()).thenReturn(null);
 
         GoldEvaluationRunResult result = new GoldEvaluationRunner(
-                chatClient, datasetLoader, fixtureLoader, new ChatPromptTemplate(),
+                literalChatModelCaller, datasetLoader, fixtureLoader, new ChatPromptTemplate(),
                 new EvaluationCaseScorer(), "qwen-test").run();
 
-        verify(request).system(org.mockito.ArgumentMatchers.contains("玩法 Bug 85 条"));
-        verify(request).user("玩法 Bug 趋势如何？");
+        verify(literalChatModelCaller).call(contains("玩法 Bug 85 条"), eq("玩法 Bug 趋势如何？"));
         assertThat(result.datasetVersion()).isEqualTo("gold:v1");
         assertThat(result.promptVersion()).isEqualTo("chat:v4");
         assertThat(result.modelName()).isEqualTo("qwen-test");

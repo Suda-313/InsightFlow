@@ -10,6 +10,12 @@ insightflow:
     enabled: true
     # DashScope 长回答可能超过旧版 50 秒读超时；若本地仍设 AGENT_HTTP_READ_TIMEOUT_SECONDS，请同步调大。
     # http-read-timeout-seconds: 110
+    # RAG 评测单题超时须大于 http-read-timeout-seconds，例如 200。
+    # evaluation:
+    #   rag:
+    #     case-timeout-seconds: 200
+    # 主模型额度或限流失败时自动切换；示例：qwen3.7-plus
+    # fallback-chat-model: qwen3.7-plus
   evaluation:
     rag:
       # 单题超时需大于 http-read-timeout-seconds；整批租约需覆盖全部题目。

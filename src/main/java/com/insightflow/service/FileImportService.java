@@ -192,6 +192,21 @@ public class FileImportService {
     }
 
     /**
+     * 返回当前 Workspace 最近一次上传的导入文件；无文件时为空，供前端切页返回后从服务端恢复 UI。
+     */
+    public java.util.Optional<ImportedFileView> getLatest(UUID workspacePublicId) {
+        Workspace workspace = workspaceService.get(workspacePublicId);
+        return importFileRepository.findFirstByWorkspaceIdOrderByCreatedAtDesc(workspace.getId())
+                .map(file -> {
+                    try (InputStream stream = objectStorage.open(file.getObjectKey())) {
+                        return ImportedFileView.from(file, csvPreviewReader.preview(stream), readMapping(file));
+                    } catch (IOException exception) {
+                        throw new IllegalStateException("Unable to read latest import file preview", exception);
+                    }
+                });
+    }
+
+    /**
      * 返回文件最近一次导入任务的受控结果；从未启动时结果为空而不是伪造完成状态。
      */
     public ImportResultView getResult(UUID workspacePublicId, UUID filePublicId) {
@@ -329,6 +344,7 @@ public class FileImportService {
     public record ImportResultView(
             @com.fasterxml.jackson.annotation.JsonProperty("file_id") UUID fileId,
             @com.fasterxml.jackson.annotation.JsonProperty("file_status") String fileStatus,
+            @com.fasterxml.jackson.annotation.JsonProperty("projection_status") String projectionStatus,
             @com.fasterxml.jackson.annotation.JsonProperty("task_id") UUID taskId,
             @com.fasterxml.jackson.annotation.JsonProperty("task_status") String taskStatus,
             @com.fasterxml.jackson.annotation.JsonProperty("imported_count") Integer importedCount,
@@ -342,7 +358,7 @@ public class FileImportService {
          */
         static ImportResultView from(ImportFile file, AsyncTask task, ImportTaskResult result) {
             return new ImportResultView(
-                    file.getPublicId(), file.getStatus(),
+                    file.getPublicId(), file.getStatus(), file.getProjectionStatus(),
                     task == null ? null : task.getPublicId(), task == null ? null : task.getStatus(),
                     result == null ? null : result.importedCount(),
                     result == null ? null : result.duplicateCount(),

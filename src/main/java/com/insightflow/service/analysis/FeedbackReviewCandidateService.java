@@ -13,8 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 复核候选的唯一业务入口。
  *
- * <p>自动创建仅在投影事务内调用，人工确认与忽略必须有当前 Workspace 的 ANALYST 或
- * OWNER 权限。它不触碰规则文件、既有主题链接和统计表。</p>
+ * <p>自动创建仅在投影事务内调用，人工确认与忽略必须有当前 Workspace 的 OWNER、ANALYST 或
+ * OPERATOR 权限。它不触碰规则文件、既有主题链接和统计表。</p>
  */
 @Service
 public class FeedbackReviewCandidateService {
@@ -61,7 +61,8 @@ public class FeedbackReviewCandidateService {
 
     /** 统一执行角色和 Workspace 隔离校验，再执行实体受限状态机。 */
     private FeedbackReviewCandidate candidateForWrite(UUID workspacePublicId, UUID candidatePublicId, boolean confirm) {
-        Workspace workspace = accessService.requireRole(workspacePublicId, MemberRole.OWNER, MemberRole.ANALYST);
+        Workspace workspace = accessService.requireRole(
+                workspacePublicId, MemberRole.OWNER, MemberRole.ANALYST, MemberRole.OPERATOR);
         FeedbackReviewCandidate candidate = repository.findByWorkspaceIdAndPublicId(workspace.getId(), candidatePublicId)
                 .orElseThrow(() -> new IllegalArgumentException("复核候选不存在或不属于当前工作区"));
         if (confirm) {
@@ -69,6 +70,6 @@ public class FeedbackReviewCandidateService {
         } else {
             candidate.ignore();
         }
-        return candidate;
+        return repository.save(candidate);
     }
 }

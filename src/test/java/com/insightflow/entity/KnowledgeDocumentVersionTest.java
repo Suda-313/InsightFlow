@@ -14,6 +14,24 @@ import org.junit.jupiter.api.Test;
  */
 class KnowledgeDocumentVersionTest {
 
+    /** 待审核版本可携带可选语料元数据，发布前即固定不可变。 */
+    @Test
+    void pendingVersionStoresOptionalMetadata() {
+        OffsetDateTime collectedAt = OffsetDateTime.parse("2026-07-20T00:00:00+08:00");
+        KnowledgeDocumentVersion version = KnowledgeDocumentVersion.pending(
+                11L, 1, "knowledge/org/doc/v1/source", "checksum", "postmortem.md", "text/markdown", 42L,
+                new KnowledgeDocumentVersion.VersionMetadata(
+                        "https://example.com/pm", collectedAt,
+                        OffsetDateTime.parse("2026-07-01T00:00:00+08:00"),
+                        OffsetDateTime.parse("2026-07-31T00:00:00+08:00"),
+                        "值班长", "不含玩家隐私原文"));
+
+        assertThat(version.getSourceUrl()).isEqualTo("https://example.com/pm");
+        assertThat(version.getSourceCollectedAt()).isEqualTo(collectedAt);
+        assertThat(version.getOwner()).isEqualTo("值班长");
+        assertThat(version.getFactBoundary()).isEqualTo("不含玩家隐私原文");
+    }
+
     /**
      * 待审核版本只有在切片和嵌入均成功后才能发布，发布时必须记录稳定审计时间。
      */

@@ -14,6 +14,15 @@ public enum InvestigationToolType {
     /** 读取工作区主题的聚合分布。 */
     TOPIC_DISTRIBUTION,
 
+    /** 读取平台 L2 表达层（建议/吐槽/好评等）在分析窗口内的分布。 */
+    EXPRESSION_DISTRIBUTION,
+
+    /** 读取某一 L2 表达类目下 L1 议题的交叉分布（L2→L1 钻取）。 */
+    EXPRESSION_TOPIC_DRILLDOWN,
+
+    /** 读取某一 L2×L1 交叉单元内数量受限的脱敏反馈样本。 */
+    EXPRESSION_TOPIC_SAMPLES,
+
     /** 读取主题或工作区的告警摘要与基线。 */
     ALERT_HISTORY,
 

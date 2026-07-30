@@ -73,7 +73,8 @@ insightflow:
     dispatch-delay-ms: ${PROJECTION_DISPATCH_DELAY_MS:5000}
     lease-seconds: ${PROJECTION_TASK_LEASE_SECONDS:120}
     max-dispatch-per-cycle: ${PROJECTION_MAX_DISPATCH_PER_CYCLE:2}
-    rule-version: ${PROJECTION_RULE_VERSION:rules:v1}
+    # v2 含 L2 标注管线；变更后会生成新 idempotency_key，避免旧 succeeded 任务阻塞重投影。
+    rule-version: ${PROJECTION_RULE_VERSION:rules:v2-l2}
   analysis:
     ewma-alpha: ${ANALYSIS_EWMA_ALPHA:0.3}
     min-history-days: ${ANALYSIS_MIN_HISTORY_DAYS:3}
@@ -83,6 +84,11 @@ insightflow:
     longtail-max: ${ANALYSIS_LONGTAIL_MAX:2}
     alert-cooldown-hours: ${ANALYSIS_ALERT_COOLDOWN_HOURS:6}
     global-alert-threshold: ${ANALYSIS_GLOBAL_ALERT_THRESHOLD:10}
+    # Phase C：Pack 级 LLM Topic Skill；须 Pack pack.toml topic_llm_skill_enabled=true 且配置 API 密钥。
+    topic-llm-skill:
+      enabled: ${TOPIC_LLM_SKILL_ENABLED:false}
+      confidence-threshold: ${TOPIC_LLM_CONFIDENCE_THRESHOLD:0.7}
+      min-text-length: ${TOPIC_LLM_MIN_TEXT_LENGTH:15}
   investigation:
     # 调查任务只读取告警与受控 Tool 证据；独立租约避免与导入、报告任务相互阻塞。
     dispatch-delay-ms: ${INVESTIGATION_DISPATCH_DELAY_MS:5000}
@@ -91,6 +97,8 @@ insightflow:
   agent:
     # 基础分析可在无模型密钥的本地环境运行；Agent 是显式开启的可选能力。
     enabled: ${AGENT_ENABLED:false}
+    # 主模型额度或限流失败时自动切换；留空表示不启用备用模型。
+    fallback-chat-model: ${AGENT_FALLBACK_CHAT_MODEL:}
     # 同步模型调用的连接与读取上限；必须小于 RAG 单题应用层兜底，避免阻塞线程长期占用。
     http-read-timeout-seconds: ${AGENT_HTTP_READ_TIMEOUT_SECONDS:110}
     max-retries: ${AGENT_MAX_RETRIES:2}
@@ -107,6 +115,17 @@ insightflow:
     embedding-dimensions: ${KNOWLEDGE_EMBEDDING_DIMENSIONS:1024}
     # 首版同步发布小型 Markdown/TXT；窗口改变会影响可复现的切片与 RAG 金标结果。
     chunk-max-characters: ${KNOWLEDGE_CHUNK_MAX_CHARACTERS:1000}
+    reranker:
+      # 默认关闭；dev-fast-40 对比验证通过后再由部署开启
+      enabled: ${KNOWLEDGE_RERANKER_ENABLED:false}
+      model: ${KNOWLEDGE_RERANKER_MODEL:qwen3-rerank}
+      # qwen3-rerank 走 compatible-api，与 embedding 的 compatible-mode 不同
+      base-url: ${KNOWLEDGE_RERANKER_BASE_URL:https://dashscope.aliyuncs.com/compatible-api}
+      candidate-limit: ${KNOWLEDGE_RERANKER_CANDIDATE_LIMIT:${KNOWLEDGE_RERANKER_INPUT_LIMIT:30}}
+      # 离线实验参数；默认 0 保持既有纯 rerank + Top8 行为
+      rrf-weight: ${KNOWLEDGE_RERANKER_RRF_WEIGHT:0}
+      diversity-penalty: ${KNOWLEDGE_RERANKER_DIVERSITY_PENALTY:0}
+      timeout-seconds: ${KNOWLEDGE_RERANKER_TIMEOUT_SECONDS:5}
   security:
     # 密钥和首个 Owner 初始化口令必须由部署环境提供；空值使应用启动失败，避免出现默认可登录账号。
     jwt-secret: ${INSIGHTFLOW_JWT_SECRET:}

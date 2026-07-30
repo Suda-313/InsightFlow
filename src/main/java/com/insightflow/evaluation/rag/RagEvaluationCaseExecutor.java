@@ -1,5 +1,7 @@
 package com.insightflow.evaluation.rag;
 
+import com.insightflow.knowledge.KnowledgeRetrievalDiagnostics;
+import com.insightflow.knowledge.KnowledgeRetrievalOptions;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
 import com.insightflow.knowledge.KnowledgeSearchTool;
 import java.util.UUID;
@@ -62,18 +64,25 @@ public class RagEvaluationCaseExecutor {
     }
 
     /**
+     * 执行一题并把异常收敛为固定失败阶段；精排开关跟随全局配置。
+     */
+    public RagEvaluationCaseExecution execute(UUID workspacePublicId, RagEvaluationCaseDefinition evaluationCase) {
+        return execute(workspacePublicId, evaluationCase, false);
+    }
+
+    /**
      * 执行一题并把异常收敛为固定失败阶段。
      *
      * <p>取消 Future 只是业务层的第二道保险；网络客户端另有读超时，
      * 两者共同避免中断不被供应商 SDK 立即响应时长期占用调用线程。</p>
      */
-    public RagEvaluationCaseExecution execute(UUID workspacePublicId, RagEvaluationCaseDefinition evaluationCase) {
+    public RagEvaluationCaseExecution execute(
+            UUID workspacePublicId, RagEvaluationCaseDefinition evaluationCase, boolean rerankerEnabled) {
         long startedAt = System.nanoTime();
         AtomicReference<String> stage = new AtomicReference<>("retrieval");
-        // 生成阶段异常会跨 Future 边界，必须保存已完成的检索耗时，不能仅凭最终阶段名称猜测归因。
         AtomicReference<Long> retrievalLatencyMs = new AtomicReference<>();
         Future<RagEvaluationCaseExecution> future = callExecutor.submit(
-                () -> executeCall(workspacePublicId, evaluationCase, stage, retrievalLatencyMs, startedAt));
+                () -> executeCall(workspacePublicId, evaluationCase, rerankerEnabled, stage, retrievalLatencyMs, startedAt));
         try {
             return future.get(caseTimeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException exception) {
@@ -94,11 +103,20 @@ public class RagEvaluationCaseExecutor {
     private RagEvaluationCaseExecution executeCall(
             UUID workspacePublicId,
             RagEvaluationCaseDefinition evaluationCase,
+            boolean rerankerEnabled,
             AtomicReference<String> stage,
             AtomicReference<Long> retrievalLatencyMs,
             long startedAt) {
         long retrievalStartedAt = System.nanoTime();
-        KnowledgeRetrievalResult retrieval = knowledgeSearchTool.retrieve(workspacePublicId, evaluationCase.question());
+        KnowledgeRetrievalDiagnostics diagnostics = knowledgeSearchTool.retrieveWithDiagnostics(
+                workspacePublicId,
+                evaluationCase.question(),
+                null,
+                KnowledgeRetrievalOptions.withDecomposition(
+                        rerankerEnabled,
+                        null,
+                        evaluationCase.category()));
+        KnowledgeRetrievalResult retrieval = diagnostics.result();
         long retrievalLatency = elapsedMillis(retrievalStartedAt);
         retrievalLatencyMs.set(retrievalLatency);
         stage.set("generation");
@@ -107,7 +125,7 @@ public class RagEvaluationCaseExecutor {
         long generationLatencyMs = elapsedMillis(generationStartedAt);
         return new RagEvaluationCaseExecution(
                 retrieval, answer == null ? "" : answer, "succeeded", null,
-                retrievalLatency, generationLatencyMs, elapsedMillis(startedAt));
+                retrievalLatency, generationLatencyMs, elapsedMillis(startedAt), diagnostics);
     }
 
     /** 将阶段转为固定错误码；生成阶段前的超时只报告检索耗时，不伪造生成指标。*/

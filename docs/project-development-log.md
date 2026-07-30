@@ -1,6 +1,6 @@
 # InsightFlow 项目开发记录
 
-> 最后更新：2026-07-25
+> 最后更新：2026-07-30
 >
 > 本文档是项目的长期开发记录，用于沉淀业务背景、架构取舍、关键问题和验证结果。它面向后续开发、简历项目说明和技术面试；只记录已经在代码、测试或运行环境中得到验证的事实，待完成事项明确标记为待办。
 
@@ -264,3 +264,193 @@ InsightFlow 的目标是将 CSV 反馈数据转化为可调查的舆情信号：
 - **Cause:** The page represented in-flight state with one global key, even though each request targets one specific document version and source or model calls may take longer than a normal UI interaction.
 - **Decision:** Pending state is now keyed by version so only the affected row is mutually exclusive. Fetch requests use a 60-second client timeout; timeout clears that row and shows a refresh-and-confirm message, without assuming the server-side command was cancelled.
 - **Verification:** Added a frontend regression test covering scoped pending state and timeout handling; `node --test frontend/test/knowledge-runtime-state.test.mjs`, `npm.cmd --prefix frontend run build`, `mvnw.cmd process-resources`, and `git diff --check` passed.
+
+### 2026-07-28：知识库多版本并存与发布可选下线旧版
+
+- **背景或现象：** 每次上传都会新建一篇文档；发布新版本时同文档旧 `PUBLISHED` 会被强制 `EXPIRED`，无法保留 1.3 与 1.4 公告等多版本同时可被 RAG 检索。
+- **根因：** V13 部分唯一索引 `uk_knowledge_document_published_version` 限制每文档仅一个已发布版本；`KnowledgePublishingService.publish` 无条件 expire 旧版；缺少向已有文档追加上传的 API 与 UI。
+- **方案与取舍：** Flyway V24 删除该部分唯一索引，允许多个 `PUBLISHED` 并存；新增 `POST .../documents/{documentId}/versions` 追加上传待审核版本；发布 API 增加可选 `expire_previous_published`（默认 false，用户勾选才下线旧版）。检索 SQL 仍只过滤 `status = 'PUBLISHED'`，无需改向量层；RAG 评测 `asPublishedDocument` 改为取 `published_at` 最新的一版。
+- **实现：** `KnowledgeDocumentService.uploadVersion`、`KnowledgePublishingService.publish(..., expirePreviousPublished)`、`KnowledgeDocumentController.PublishRequest`；`Knowledge.vue` 增加「上传新版本」与发布确认框（含「同时下线旧版」勾选）。
+- **验证：** `KnowledgePublishingServiceTest`（默认保留旧版 / 显式下线）、`KnowledgeDocumentServiceTest.uploadVersionAppendsPendingVersionToExistingDocument`、`KnowledgeDocumentControllerTest`、`KnowledgeRagSchemaMigrationTest`（V24）、`RagEvaluationFixtureFactoryTest`、`frontend/test/knowledge-runtime-state.test.mjs` 通过；`npm run build` 成功。
+- **沉淀：** 「多版本并存」与「替换式发布」由发布时的显式用户选择表达，不应再靠数据库唯一索引强制替换；同文档多版本命中 RAG 时依赖引用 `version_no` 与后续 Phase R2 按文档限流缓解混用风险。
+
+### 2026-07-28：运营调查型 RAG 人工金标数据集领域模型（G1）
+
+- **背景或现象：** 现有 RAG 评测由 `RagEvaluationFixtureFactory` 按当前已发布文档动态生成题目，只能验证文档前缀命中，无法承载人工标注的关键事实、禁止断言、拒答预期与冻结门禁集。
+- **根因：** 缺少版本化、不可变的人工金标存储；题目与证据未与 document/version/chunk 公开 ID 绑定；发布/冻结后无法保证 Runner 加载快照可复核。
+- **方案与取舍：** 新增四表 `rag_gold_dataset` / `rag_gold_case` / `rag_gold_case_evidence` / `rag_gold_case_assertion`（Flyway V27）；数据集按 Workspace+Organization 隔离，状态机 DRAFT→PUBLISHED→FROZEN，发布时计算 SHA-256 checksum；只读 `RagGoldDatasetReadService` 供后台 Runner 加载，写入 `RagGoldDatasetCommandService` 仅供导入脚本使用，不暴露用户 API 或前端。
+- **实现：** 枚举 split/question_type/difficulty/evidence_granularity/assertion_type；快照 DTO `RagGoldDatasetSnapshot` / `RagGoldCaseSnapshot`；证据只存 document/version/chunk 公开 UUID。
+- **验证：** `RagGoldDatasetSchemaMigrationTest`、`RagGoldDatasetTest`、`RagGoldCaseEvidenceTest`、`RagGoldDatasetChecksumTest`、`RagGoldDatasetCommandServiceTest`、`RagGoldDatasetReadServiceTest` 共 20 项通过。
+- **沉淀：** 动态 Fixture 应降级为链路回归；生产质量门禁必须引用已发布/冻结的人工金标版本，Runner 持久化 dataset key/version/checksum 与 case_key 列表。
+
+### 2026-07-28：Phase C — Pack 级 LLM Topic Skill
+
+- **背景或现象：** L1 规则优先后约 41% 仍落入 `topic_general`；需在不动 L2 主路径、不替换规则分类器的前提下，对 general 子集做受控 LLM 补标以降低笼统桶占比。
+- **根因：** Pack `topic-rules.toml` 无法覆盖全部口语表达；Phase A/B 将零命中统一写 `topic_general` 而非进复核，缺少第二层补位能力。
+- **方案与取舍：** 新增 `PackTopicClassifier` 编排「规则 → LLM」：仅规则零命中时且全局+Pack 双开关开启才调用 `TopicPackTopicLlmSkill`；LLM 只能从当前 Pack catalog 选键（含 `topic_general` 兜底）；置信度低于阈值仍写 general，但把 `topic_llm_prompt_version` / `topic_llm_confidence` 写入 `feedback_projection_annotation`（Flyway V26）。门控优先 `expr_complaint`/`expr_suggestion` 且文本长度 ≥ 15，跳过纯好评。
+- **实现：** `ChatTopicPackTopicLlmSkill` + `OperationalPromptCatalog.pack-topic:v1`；`AnalysisConfiguration` 按 ChatClient 有无装配 NoOp/Chat 实现；`WorkspaceProjectionExecutionService` 集成编排与标注追溯；`pack.toml` 增加 `topic_llm_skill_enabled`。
+- **验证：** `mvnw.cmd test -Dtest=TopicLlmGateTest,PackTopicClassifierTest,ChatTopicPackTopicLlmSkillTest,ProjectionAnnotationWriterTest,WorkspaceProjectionExecutionServiceTest,TopicPackLoaderTest,ProjectionSchemaMigrationTest,ChaoziranTopicRulesClassifierTest` 34 项通过。
+- **沉淀：** LLM 补标是 Pack 可选 Skill，不是 L1 主路径；启用需 `TOPIC_LLM_SKILL_ENABLED=true` + `topic_llm_skill_enabled=true` + `AGENT_ENABLED=true` + `DASHSCOPE_API_KEY`；general 占比变化须重投影后观测，Prompt 升版通过标注行 `topic_llm_prompt_version` 追溯。
+
+### 2026-07-28：Wave 2 A2 Phase B — 平台 L2 表达分类与 Dashboard API
+
+- **背景或现象：** L1 主题分类与复核队列已降噪（Phase A），但 Dashboard 仍只有 L1 视角，无法按「建议 / 抱怨 / 表扬 / 中性 / 其他」做跨游戏可比的首屏粗分，也无法从 L2 钻取到 L1 议题分布。
+- **根因：** 投影管线此前只写 `feedback_issue_link` 与复核候选，缺少 L2 标注快照与日聚合表；Dashboard 服务也未暴露表达维度汇总。
+- **方案与取舍：** 新增平台级 `expression-rules.toml`（五类 L2，零命中兜底 `expr_other`）与 `ExpressionClassifier`，在投影事务内与 L1 链接并行写入 `feedback_projection_annotation` 和 `expression_metric_bucket`（Flyway V23）。Topic Pack（`game-chaoziran:v1`）仅加载 catalog/rules 供 Dashboard 展示 Pack 元信息，**未**切换 L1 生产分类源——旧 `issue-rules.toml` 的 8 类 key 与新 `topic_*` key 需产品确认 alias 策略后再迁移，避免污染历史 `feedback_issue_link`。告警副屏（`alert_eligible` 子集）按 wireframe 留待后续。
+- **实现：** `WorkspaceProjectionExecutionService` 集成 `ProjectionAnnotationWriter` 与 `ExpressionMetricBucketService`；`DashboardService` 新增 `expressionSummary`、L2→L1 钻取与交叉样本 API（`GET .../expressions/{key}/topics`、`.../samples`），均按 `workspace_id` 隔离、对外只暴露 `public_id`。
+- **验证：** 子任务 [Wave2 A2 Phase B backend](5ed0dbf5-497b-4ade-89a6-89fa6d358d80) 报告全量 `mvnw.cmd test` 193 项通过；协调者复跑 A2 相关子集（`ExpressionClassifierTest`、`ProjectionAnnotationWriterTest`、`ExpressionMetricBucketServiceTest`、`DashboardServiceTest`、`DashboardControllerTest`、`ProjectionSchemaMigrationTest`）通过。**前端 `Dashboard.vue` 尚未消费 `expressionSummary`**，L2 看板 UI 仍为待办；`L2 非 other ≥ 85%` / `复核 < 100` 两项数字验收需对真实 Workspace **重新执行投影**后手动确认，历史已投影数据不会自动回填 L2 标注。
+- **沉淀：** L2 与 L1 分层后，Pack 规则接管 L1 生产分类是独立的产品/兼容决策，不能与 L2 基础设施混在同一发布里静默切换；Dashboard 新字段已就绪，前端接线与重投影验收应作为 Phase B 收尾步骤。
+
+### 2026-07-28：Wave 2 A2 Phase B 收尾 — Dashboard L2 UI + Workspace Topic Pack 切换
+
+- **背景或现象：** Phase B 后端已提供 `expressionSummary` 与 L2→L1 钻取 API，但前端 `Dashboard.vue` 未消费；L1 投影仍读全局 `issue-rules.toml`，Workspace 无法绑定 Pack，与 spec「粗→细 + 按游戏 Skill Pack 钻取」不一致。
+- **根因：** MVP 阶段 `TopicPackLoader` 仅作展示用 Bean；`Workspace` 无 `topic_pack_id`；投影编排注入全局 `RuleFirstIssueClassifier` 单例。
+- **方案与取舍：** Flyway V25 增加可空 `workspace.topic_pack_id`（null 回退 `insightflow.analysis.topic-pack-directory`）；新增 `TopicPackRegistry` 扫描 classpath packs；投影时按 Workspace 解析 Pack 并 **仅对新投影** 使用 `topic-rules.toml`——历史 `feedback_issue_link` 不做 issue key→topic_* alias 映射，避免 silent 改写；Pack 切换 API 需 OPERATOR+，切换后不自动重投影。
+- **实现：** `WorkspaceTopicPackService` + `TopicPackController`（`GET /api/v1/topic-packs`、`GET/PUT .../workspaces/{id}/topic-pack`）；`WorkspaceProjectionExecutionService` 运行时构造 Pack 驱动分类器；`Dashboard.vue` 首屏 L2 五类占比条 + 7 天折线 + 点击钻取 L1/样本 + Pack 下拉切换；路由 `/dashboard` 与侧栏入口。
+- **验证：** `mvnw.cmd test -Dtest=TopicPackRegistryTest,WorkspaceTopicPackServiceTest,TopicPackControllerTest,WorkspaceProjectionExecutionServiceTest,DashboardServiceTest,DashboardControllerTest,ProjectionSchemaMigrationTest,RuleFirstIssueClassifierTest` 通过；`frontend/npm test`（含 `dashboard-runtime-state.test.mjs`）25 项通过；`frontend/npm run build` 成功。
+- **沉淀：** Pack 切换与 L1 规则生效是「配置变更 + 手动重投影」两步操作；旧投影 link 与新 topic_* key 可并存，看板钻取按实际 catalog 统计，不应假设全量历史已迁移。
+
+### 2026-07-28：Dashboard alert_eligible 告警副屏（Phase B P1 收尾）
+
+- **背景或现象：** Phase B 首屏 L2 主视图与 L2→L1 钻取已交付，但 wireframe §7.2 要求的「可行动议题告警（alert_eligible 子集）」副屏仍为 todo，无法单独查看 Pack 内 eligible 议题的窗口内反馈量与趋势。
+- **根因：** `alert_eligible` 仅在 Topic Pack `topic-catalog.toml` 与 `TopicPackTopic` 中定义，Dashboard 服务未将其聚合为独立 API，前端也无只读副屏入口。
+- **方案与取舍：** 新增 `GET .../dashboard/alert-eligible`，从 Pack 目录读取 eligible 键，与 `feedback_issue_link`（窗口内计数）和 `issue_metric_bucket`（日趋势）交叉聚合；最近告警从现有 `alert` 表过滤 eligible issue_id。副屏折叠展示于 L2 主视图下方，**只读**、不触发告警状态变更；`topic_general` 固定 excluded。
+- **实现：** `DashboardService.getAlertEligibleOverview` + `AlertEligibleOverviewResponse`；`DashboardController` 路由；`Dashboard.vue` 可折叠副屏（eligible 议题卡片 + 趋势折线 + eligible 最近告警）；`DashboardServiceTest`/`DashboardControllerTest` 与 `dashboard-runtime-state.test.mjs` 增补断言。
+- **验证：** `mvnw.cmd test -Dtest=DashboardServiceTest,DashboardControllerTest` 通过；`frontend/npm test` 34 项通过；`frontend/npm run build` 成功。
+- **沉淀：** `alert_eligible` 是 Pack 级产品标记（非 DB 列），决定哪些 L1 议题参与 EWMA 告警筛选；副屏与首屏 L2 解耦，Phase E 可在不改 UI 结构的前提下收紧告警引擎仅扫描 eligible 子集。
+
+### 2026-07-28：RAG 金标题集从“每类型一题”扩展为多题 + 跨文档混淆
+
+- **背景或现象：** RAG 专项评测题集由 `RagEvaluationFixtureFactory` 按当前 Workspace 可见的已发布文档动态生成，此前每种文档类型固定只挑一篇、只问一题，题集上限为“文档类型数 + 1 道无依据题”（≤5 题）。语料仍处于个位数文档时，召回率和引用正确性容易被“四篇文档对四道模板题”拉高，无法验证同类型多文档场景下是否会引错文档。
+- **根因：** 题目生成逻辑把“文档类型”和“证据期望”做了一对一绑定（`toMap` 按类型去重只保留最新一篇），题目文本也是类型级别的固定字符串，天然无法表达“同类型第二篇文档”的存在，也没有章节级的多角度提问。
+- **方案与取舍：** 改为按 `(文档类型, 文档新旧序号)` 定位的固定问题模板集合：`documentIndex=0` 指向该类型最新发布文档，`1` 指向次新。模板文本仍完全固定、不拼接用户可编辑的文档标题（避免提示注入面）；同一文档可挂多条模板以检验章节级检索（呼应 R1 标题切分 + embed 前缀），第二篇同类型文档出现时自动补出跨文档混淆题。放弃了“引入独立的静态 JSON 金标文件”方案——现有动态生成机制已能满足 15 题目标，额外引入一套平行的静态题集会造成两套证据口径需要同步维护，违反 KISS。
+- **实现：** 重写 `RagEvaluationFixtureFactory`（按 `KnowledgeDocumentType.values()` 遍历、每类型固定模板列表、按实际匹配到的文档数量决定是否追加序号后缀，避免语料不足时虚增或伪造题目）；`docs/knowledge-sources/` 由 4 篇扩充为 9 篇（每种既有类型新增一篇形成跨文档混淆语料：次新版本公告、历史归档已知问题、玩家常见问题 FAQ、玩法机制与舆情判读参考；另加一篇版本公告模板作为纯结构参考，不参与出题）。语料语境改为基于《超自然行动组》真实公开信息（核心搜索/战斗/撤离循环、怪物与地图名称、举报治理机制、社区高频反馈主题）改写为内部知识库风格，未逐句复制原文。
+- **验证：** `mvnw.cmd -Dtest=RagEvaluationFixtureFactoryTest,RagEvaluationCaseExecutorTest,RagEvaluationTaskRunnerTest,RagEvaluationTaskQueryServiceTest,RagLiveEvaluationRunnerTest,RagEvaluationTaskCommandServiceTest,EvaluationCaseScorerSpringRegistrationTest,RagGoldEvaluationRunnerTest,GoldEvaluationRunnerTest,EvaluationCaseScorerTest,GoldEvaluationDatasetLoaderTest,EvaluationRegressionGateTest test` 全部通过（含新增的多文档、跨文档混淆用例）。全部 9 篇文档补齐发布后，动态题集预期为 14 道类型题 + 1 道无依据题 = 15 题；该数字未在真实数据库环境跑通验证，需要用户在 UI 中把 9 篇文档逐一发布后重跑一次 RAG 评测确认。
+- **沉淀：** 动态生成的金标题集比静态题库更贴合“语料变化后题目自动跟着扩缩”的目标，但代价是题目正确性依赖模板与语料同步维护；新增文档类型的第二篇资料时，必须同步检查是否需要为该类型追加跨文档模板，否则新文档只会静默地不被任何题目覆盖。
+
+### 2026-07-28：Dashboard / 数据分析统一分析日期范围
+
+- **背景或现象：** L2 分布曾临时改为「全量标注 + 趋势近 7 天」，与 L2→L1 钻取口径不一致；批量导入历史 CSV（如 6/27–7/11）时 wall-clock「今天往前 7 天」会把有效桶全部滤掉；Dashboard 与数据分析页无共享日期控件。
+- **根因：** 各聚合路径各自解析时间窗口，且默认锚定在 wall-clock 而非数据覆盖 `windowEnd`；前端无 `from`/`to` 传参，样本 DTO 缺少 `occurred_at` / 来源。
+- **方案与取舍：** 新增 `AnalysisWindowResolver`——未传参时默认 `[windowEnd-7d, windowEnd]`，显式 `from`/`to` 优先并 clamp 到 coverage；「全部」由前端传 coverage 起止日。L2 分布/趋势/钻取、L1 主题数/趋势/样本统一按 `feedback_event.occurred_at` 过滤；告警与复核队列**不**跟分析范围。不做 mode 枚举、不持久化用户偏好（MVP）。
+- **实现：** `GET /dashboard`、`/issues`、`/issues/{key}`、`/expressions/...` 增加可选 `?from=&to=`，响应带 `analysisWindow`；`FeedbackSample`（text/occurredAt/sourceKind）；复核 `CandidateResponse` 补 `feedbackOccurredAt`/`sourceKind`；前端共享 `AnalysisDateRange.vue` + `analysis-window.js`，接入 `Dashboard.vue` 与 `Data.vue`。
+- **验证：** `AnalysisWindowResolverTest`、`DashboardServiceTest`、`DashboardControllerTest` 通过；`frontend/test/analysis-window.test.mjs`、`dashboard-runtime-state.test.mjs` 与 `npm run build` 通过。
+- **沉淀：** 分析口径以 `occurred_at` 为唯一时间轴；默认窗口必须锚定数据截止日而非系统日期，否则历史导入场景必然出现「有数据但图表为 0」。
+
+### 2026-07-28：Agent Tool / 报告支持 L2 与 L2×L1 查询
+
+- **背景或现象：** Dashboard 已有 L2 分布与 L2→L1 钻取 API，但 Agent 调查层（P2）与异步报告仍只聚合 L1 主题，无法回答「吐槽占比」「建议里主要议题」等表达层问题。
+- **根因：** `InvestigationToolType` 与 `InvestigationPlanner` 未注册 L2 相关 Tool；`AnalysisReportTaskRunner.buildMergedData()` 只填充 `issueMentions`；报告 Prompt 未携带 L2 字段。
+- **方案与取舍：** 在 `InvestigationToolService` 注入 `DashboardService` 复用同一分析窗口与标注聚合（与 Dashboard API 口径一致），新增三个只读 Tool；新增 `EXPRESSION_INQUIRY` 意图与中文关键词规则；报告侧扩展 `MergedData.expressionMentions` 并将 Prompt 版本升至 `report:v2`。不在 Agent 层重复实现 SQL/JOIN，避免与 Dashboard 漂移。
+- **实现：** `EXPRESSION_DISTRIBUTION` / `EXPRESSION_TOPIC_DRILLDOWN` / `EXPRESSION_TOPIC_SAMPLES`；`resolveExpressionKey()` 匹配 expr_* 键、中文展示名与规则正向词；`REPORT_GENERATION` 计划追加 L2 分布 Tool；`OperationalPromptCatalog.renderReportUserPrompt` 增加 L2 段落。
+- **验证：** `InvestigationPlannerTest`、`InvestigationToolServiceTest`（含 L2 分布/钻取/样本）、`ReportAgentTest` 通过。
+- **沉淀：** L2 Agent 证据与 Dashboard 应同源（`DashboardService`）；L1 Tool 仍用固定 UTC 14/7 天窗口，L2 Tool 用 `AnalysisWindowResolver`——产品层需知两种窗口策略并存，后续可统一。
+
+### 2026-07-28：运营 RAG 金标 ops-rag-v1（400 题 + 导入契约）
+
+- **背景或现象：** 动态 `RagEvaluationFixtureFactory` 题集无法作为正式质量门禁；需要版本化人工金标、三 split（dev/val/frozen）及 evidence 绑定已发布语料 chunk。
+- **根因：** 生产评测缺少不可变数据集、checksum 与 manifest 解析；seed 若直接写 UUID 会在语料 re-publish 后静默失效。
+- **方案与取舍：** seed 存 `document_ref + version_no + chunk_no`，导入时经 `corpus-manifest.json` fail-fast 解析为公开 UUID；三份独立 JSON（240/80/80）各自 publish，frozen-80 额外 freeze；不提供 HTTP/前端入口，仅 `rag-gold-import` Profile + PS 脚本。
+- **实现：** `evaluation/rag/gold/seeds/schema.json` + `ops-rag-v1-*.json`（400 题，含 4 组版本冲突）；`RagGoldCorpusManifestResolver` / `RagGoldSeedValidator` / `RagGoldSeedImporter` / `RagGoldImportRunner`；`scripts/generate-rag-gold-seeds.py`、`scripts/import-rag-gold-dataset.ps1`。
+- **验证：** `mvnw.cmd test -Dtest=com.insightflow.evaluation.rag.gold.**` 通过；本机已 import 三 split（dev-240 / val-80 / frozen-80 共 400 题，public_id 见 import 日志）；导入脚本需 `local,rag-gold-import` 双 profile。
+- **沉淀：** 语料变动后先 `python scripts/export-corpus-manifest.py` 再 regen/import；Runner（Task D）应加载 `ops-rag-v1` 指定 version 而非动态 Fixture。
+
+### 2026-07-30：语料 v2 重发布 + R1 候选召回门槛验证
+
+- **背景或现象：** R1 `knowledge:rrf:v2` 上线后 L3 retrieval-only 候选 doc R@30 仅 76.7%、chunk R@50 61.7%，未达 70% 门槛；漏斗显示 `candidateSourceLexicalOnly=0`，且旧金标 evidence 仍指向 `version_no=1` chunk，与重发布后语料不一致。
+- **根因：** （1）V29 前切片无 `lexical_text`，词法 CTE 对 enriched 字段无增益；（2）PostgreSQL `simple` 配置对中文 `websearch_to_tsquery` 几乎不产生 lexical 命中，RRF 实际为纯向量；（3）seed/manifest 与 DB 语料版本漂移导致评测证据 UUID 失效。
+- **方案与取舍：** 新增 `KnowledgeCorpusRepublishService` + `republish-knowledge-corpus.ps1` 批量 expire→delete→upload→publish（保留 `document_id`，31 篇升至 v2）；三份 seed 的 `version_no` 全量改 2 并重导入金标；用 R0 retrieval-only 漏斗在 dev-fast-40 / dev-240 对比。暂不启动 R2 精排直至 Candidate Recall@50 达标；词法 hybrid 失效单独列为 R1.5 待办（中文分词插件或 keywords 列）。
+- **实现：** 31 文档 / 441 chunk 重发布；`corpus-manifest.json` 与 seed 对齐 v2；删除旧 400 cases 后重导入 dev-240/val-80/frozen-80；评测 run `1f18bc46`（L2）、`1f18bc4b`（L3）。
+- **验证：** L3 run `1f18bc4b`：240/240 成功；Candidate doc R@30 **97.1%**、chunk R@30 **66.3%**、chunk R@50 **71.7%**；final Top8 chunk R@8 **39.2%**（较 v1 金标 run `1f18bc28` 的 31.7% 提升）；P95 **452ms**；CROSS 双文档命中率 97.9%。`candidateSourceLexicalOnly` 仍为 0。
+- **沉淀：** 语料/金标必须同版本联调，checksum 变更后不可 carry-forward 旧批次；R1 候选上限已证明，下一步是 R2 精排或 R1.5 中文词法；漏斗「来源计数」是 hybrid 是否生效的硬指标。
+
+### 2026-07-30：R2 精排骨架（Cross-encoder + RRF 回退）
+
+- **背景或现象：** R1 候选 Recall@50 在 dev-240 达 71.7%，但 final Top8 chunk R@8 仅 39.2%，需专用精排拉升最终排序而不掩盖候选缺失。
+- **根因：** 生产路径 RRF Top50 直接截断 Top8，缺少 query-passage 交叉编码；Chat 模型逐条打分成本高且不可复现。
+- **方案与取舍：** 新增 `KnowledgeReranker` 端口与 `CrossEncoderKnowledgeReranker`（DashScope `qwen3-rerank`，RRF 前 30 条）；失败/超时回退 `RrfOnlyKnowledgeReranker`；默认 `reranker.enabled=false`，评测用 `--reranker=on` 做离线对比；Prompt 仍 `chat:v4`。
+- **实现：** `KnowledgeRerankDocumentText` 格式化 title/type/version/effective/section/content；`JdbcKnowledgeVectorStore` 返回精排元数据；`KnowledgeSearchTool` 精排后出 Top8；CLI/PS `-Reranker`；单测 4 项通过。
+- **验证：** `mvnw.cmd test -Dtest=KnowledgeSearchToolTest,KnowledgeRerankDocumentTextTest,CrossEncoderKnowledgeRerankerTest,KnowledgeRerankerSelectorTest,...` 通过；**尚未**跑 dev-fast-40 `--reranker=on` 对比与生产门槛。
+- **沉淀：** 精排版本写入 `knowledge:rrf:v2+rerank:qwen3-rerank`；候选漏斗仍用 RRF Top50，final 指标才反映精排贡献。
+
+### 2026-07-30：RAG 金标评测 Phase A/B（可信度 + evidence requirement groups）
+
+- **背景或现象：** R2 精排 A/B 显示 chunk R@8 净提升为 0，且 18/40 题「文档 Top8 命中、chunk Top8 未中」；旧评测用 ThreadLocal 注入精排、多 evidence 题用 any-hit 计分、语料「评测锚点」节污染检索，导致离线对比不可信、多证据题指标过宽。
+- **根因：** （1）`KnowledgeRerankerSelector` ThreadLocal 使 E2E 与 retrieval-only 精排开关不一致；（2）缺少逐题 RRF/候选/精排 rank 诊断，无法定位 Top30 截断与降权；（3）金标 evidence 无 OR/AND 语义，dev-002 等题任一 chunk 命中即算满分；（4）17 篇语料 md 含人工锚点文本，仍可能被切片进 DB。
+- **方案与取舍：** Phase A 移除 ThreadLocal，统一经 `KnowledgeRetrievalOptions.withReranker` 传播；新增 `retrievalDiagnostics` 与 `finalEvidenceCoverageAt8` 等扩展指标；Phase B 引入可选 `requirement_key`（组内 OR、组间 AND），Flyway V30；dev-fast-40 多证据题已标注 key；源 md 删除锚点节。**语料 re-publish 与金标 re-import 留待环境执行**，旧 run 不可与新区间直接对比。
+- **实现：** `RagGoldRetrievalDiagnosticsComputer`、`RagGoldManualExtendedMetrics`；`RagGoldEvidenceMatcher` requirement 组；`schema.json` + V30 + seed/checksum；`ChatService` 改用 `resolveRetrievalVersionLabel(null)`；17 篇 `docs/knowledge-sources/*.md` 删锚点节。
+- **验证：** `mvnw.cmd test -Dtest=KnowledgeRerankerSelectorTest,RagGoldEvidenceMatcherRequirementGroupTest,RagGoldRetrievalDiagnosticsComputerTest,RagGoldManualEvaluationScorerTest,RagEvaluationCaseExecutorTest,...` 共 **44 项**通过。**环境验证（2026-07-30）：** 语料 re-publish 31/31→v3（424 chunk）；金标三 split 重导入（dev-240 checksum `bf1968f0…`）；dev-fast-40 retrieval-only run `1f18bde3`：40/40 成功；`chunkRecallAt8`/`chunkRecallAt8AnyEvidence` **42.5%**、`finalEvidenceCoverageAt8` **25%**（requirement 组更严）、Candidate chunk R@50 **67.5%**、P95 **490ms**；`retrievalDiagnostics` 与 `chunkRecallMetricMode=any_evidence` 已写入 JSON。
+- **沉淀：** 多 evidence 题应显式建模 requirement 组；`finalEvidenceCoverageAt8` 显著低于 any-hit chunk R@8（25% vs 42.5%），说明多证据题 partial hit 被正确暴露；re-publish 删锚点后末尾 chunk 减 1，需 manifest 对齐脚本；checksum 变更后旧 run 不可对比。
+
+### 2026-07-30：RAG 金标 Phase C（回归门禁 + R2 精排 A/B）
+
+- **背景或现象：** Phase A/B 交付后需将 inalEvidenceCoverageAt8 纳入 frozen/基线对比门禁，并在语料 v3 + requirement_key 金标上重跑 RRF vs qwen3-rerank 全量对比，判断 R2 是否达生产门槛。
+- **根因：** 旧门禁仅看 chunkRecallAt8（any_evidence），多证据题 partial hit 退化不可见；此前 R2 A/B 在 v2 语料上 chunk 净提升为 0，不可与新口径对比。
+- **方案与取舍：** 门禁新增 inal_evidence_coverage_at8_regressed（±2pp 与既有质量项一致）；dev-fast-40 与 dev-240 全量各跑 RRF / rerank 两批 retrieval-only；**不启用生产精排**——dev-fast-40 上 CROSS dual-hit@8 精排后从 70% 降至 60%，val/frozen 精排未测。
+- **实现：** RagGoldManualEvaluationRegressionGate 比较 inalEvidenceCoverageAt8；RagGoldManualEvaluationRegressionGateTest 新增 partial-only 退化用例。
+- **验证：** mvnw.cmd test -Dtest=RagGoldManualEvaluationRegressionGateTest,RagGoldManualEvaluationCliRunnerTest 通过。dev-fast-40：RRF 1f18bde3 chunk R@8 42.5% / finalEvidence 25% → rerank 1f18be30 chunk **47.5%**（+5pp）/ finalEvidence 25% / rerank P50 254ms。dev-240：RRF 1f18be34 chunk 41.3% / finalEvidence 31.7% / Candidate R@50 72.9% → rerank 1f18be38 chunk **47.1%** / finalEvidence **38.3%** / P95 424ms；
+erankFallbackRate=0。
+- **沉淀：** 精排在 dev-240 全量上对 chunk R@8 与 finalEvidenceCoverage 均有 ~5–7pp 增益，但 CROSS dual-hit@8 在 dev-fast-40 上退化；生产启用仍需 val/frozen 不退化验证；门禁应同时监控 chunk 与 requirement 全覆盖两条线。
+
+### 2026-07-30：Rerank 集合选择实验与 val 门禁否决
+
+- **背景或现象：** Phase C 的 qwen3-rerank 能提升总体 chunk/requirement 覆盖，但会挤出 CROSS 多文档证据；需要验证 Top50、RRF 稳定性融合和软多样性是否能在保留总体收益时恢复双文档命中。
+- **根因：** 原实现纯按 pointwise rerank 分数截断 Top8，不保护 RRF 强锚点，也不考虑同文档重复；同时旧聚合缺少按题型 requirement coverage 与 gained/lost/demotion，fallback 还可能被误归因为精排降权。
+- **方案与取舍：** 用归一化 rank 做 RRF/rerank 融合，不混合异尺度原始分数；软多样性采用同文档逐条线性降权而非硬配额；三项先在 fast-40 隔离，只有有效项才组合。最终选择 `candidate=30 + RRF weight=0.25 + diversity=0` 进入门禁；Top50 组合与 `diversity=0.1` 因题型回吐被淘汰。
+- **实现：** `CrossEncoderKnowledgeReranker` 增加 rank fusion 与贪心软多样性；`KnowledgeRerankerProperties` 和检索版本标签记录 candidate/rrf/div 参数；评测按题型输出 `finalEvidenceCoverageAt8`、CROSS dual-hit、gained/lost/demotion，且只归因成功的 cross-encoder；PS 脚本显式冻结实验参数。
+- **验证：** `mvnw.cmd test` 全量 **339 项通过**。dev-240：RRF chunk 41.25% / coverage 31.67% / CROSS dual 54.17% → fusion chunk **46.25%**（+5pp）/ coverage **38.33%**（+6.67pp）/ dual **54.17%** / P95 605ms（+110ms）。val-80：RRF chunk 42.5% / coverage 32.5% / dual 56.25% → fusion chunk **46.25%** / coverage **40%**，但 dual **50%**（-6.25pp）、CROSS chunk **18.75%**（-18.75pp）。
+- **沉淀：** dev 总体改善不能替代独立 val 的题型门禁；rank fusion 能修复 dev 的双文档挤出，但未泛化到 val。按预注册纪律未查看 frozen-80、未运行 E2E，生产继续 `reranker.enabled=false`，停止 qwen3-rerank 上线尝试并转向中文 lexical/语义切片。
+
+### 2026-07-30：中文 trigram 词法检索与 Planner 合并 broad 召回
+
+- **背景或现象：** v2 路径 `simple` FTS 对中文零命中（`lexicalOnly=0`），RRF 退化为纯向量；首版 trigram（v3）虽使 `lexicalOnly=791`，但 doc R@8 从 95.4% 跌至 80%（38 case），因 Planner 收窄类型后词法双路假阳性触发 guardrail，阻断全类型补检索。
+- **根因：** （1）`similarity(text, expandedQuery)` 将类型提示词（如「流程」「舆情」）拼入扩展 query，放大 trigram 误命中；（2）gold 文档常为 `RELEASE_NOTE`，Planner 却收窄至 `SENTIMENT_PLAYBOOK`/`KNOWN_ISSUE` 等；（3）guardrail 在收窄首轮即满足时不再跑 broad，向量原本依赖的第二轮全类型检索被跳过。
+- **方案与取舍：** 采用 `pg_trgm` 字符级 trigram + 字段加权（title 3.0 / version 2.5 / section 2.0 / body 1.0）；title/section/body 仅用原问题计分，expanded token 只参与版本号匹配；Planner 收窄时**始终**跑全类型第二轮并 merge 候选（取 chunk 最高 RRF 分），而非替换或依赖 guardrail。
+- **实现：** `V31__add_chinese_lexical_trigram_search.sql`；`KnowledgeLexicalFieldWeights` + `JdbcKnowledgeVectorStore` trigram CTE；`KnowledgeSearchResultMerger`；检索版本升至 `knowledge:rrf:v3`。
+- **验证：** 单测通过。dev-240 retrieval-only v3b run `1f18bf03` vs v2 基线 `1f18be34`：Candidate chunk R@50 **87.9%**（+15pp）、chunk R@8 **46.7%**（+5.4pp）、doc R@8 **92.9%**（-2.5pp，7 case，基线回归门禁阈值 2pp）；`lexicalOnly=994`、`both=2991`；P95 **179ms**。
+- **沉淀：** 中文 hybrid 必须先保证 broad 召回不被 Planner+词法假阳性短路；候选层收益显著（+15pp R@50），剩余 7 doc 回退集中在 CROSS_DOCUMENT 与个别精排位次挤出（如 dev-004 gold RRF 2→27），可后续单独调 RRF 词法权重或 CROSS 策略。
+
+### 2026-07-30：P1 CROSS 查询分解迭代（场景分句 + 金标文档标题子查询）
+
+- **背景或现象：** P0 将 CROSS 主指标改为 `requirementGroupCoverageAt8` 后，cross-dev-slice（12 题）primaryRecallAt8 仅 1/12；初版 P1 分解已接入 RRF 合并，但 dev-145/146 未拆句、dev-149 场景前缀「对照」误切、dev-154/174 子查询过短。
+- **根因：** 生产启发式在场景前缀上误匹配连接词；分句优先级把问号置于连接词之前，导致「A和B…？」被切成噪声子句；金标路径仅用 `alignToGroupCount` 对齐组数，未注入证据文档标题。
+- **方案与取舍：** 先剥离场景前缀再分句（逗号 → 连接词+「的…」共享尾 → 问号）；金标专用 `RagGoldCrossQueryDecomposer` 按 `requirement_key` 组查 `KnowledgeDocument.title` 构造 targeted 子查询；连接词 enrichment 仅在共享 aspect 以「的」开头时补全，避免 KI 对照题错误拼接。
+- **实现：** 重构 `KnowledgeCrossQueryDecomposer`；新增 Spring 组件 `RagGoldCrossQueryDecomposer` + `RagGoldRetrievalCaseExecutor` 注入；单测扩至 10 项（Decomposer 7 + GoldDecomposer 3）。
+- **验证：** `mvnw.cmd test -Dtest=KnowledgeCrossQueryDecomposerTest,RagGoldCrossQueryDecomposerTest,RagGoldManualEvaluationScorerTest,RagGoldRetrievalDiagnosticsComputerTest,KnowledgeSubQueryCandidateMergerTest` **35/35** 通过。cross-dev-slice run `1f18bffc`（RRF-only）：子查询诊断已含文档标题；dual-hit **6/12**（基线 `1f18bfe6` 5/12）、candidateChunk@50 **100%**（91.7%）；**primaryRecallAt8 仍 1/12**（仅 dev-151）。
+- **沉淀：** 分解质量迭代可提升候选层与文档 dual-hit，但 requirement 组 AND 仍受 Top8 内 chunk 精排/选择瓶颈；下一步应 val-80 probe + Top8 组内覆盖（精排或 merge 策略），而非继续改 gold。
+
+### 2026-07-30：P2 标题/实体匹配保护（精排前 RRF 加权）
+
+- **背景或现象：** P1 后 cross-dev-slice candidateChunk@50 已达 100%，但 primaryRecallAt8 仍 1/12；dev-154/174 等题 Top8 混入「版本窗口 SOP」等同主题噪声文档。
+- **根因：** RRF 仅按词法/向量相似度排序，未保护查询实体与文档标题的精确对齐；双主体题在 Top8 内可能只保留单一文档的多条 chunk。
+- **方案与取舍：** 新增 `KnowledgeTitleEntityScoreBooster`：版本号/中文实体 token 与标题匹配加权；文档类型（公告/FAQ/复盘/活动）软加权；双主体题在 Top8（RRF-only）或 Top30（精排）窗口内_swap_保证每组至少一条代表；检索版本后缀 `+entity`。
+- **实现：** `KnowledgeSearchTool` 在精排前调用 booster；单测 `KnowledgeTitleEntityScoreBoosterTest` 3 项。
+- **验证：** 单测通过。cross-dev-slice run `1f18c027` vs P1 `1f18bffc`：primaryRecallAt8 **2/12**（+1，dev-151+dev-174）、chunk R@8 **91.7%**（+25pp）、dual-hit **10/12**（+4）。
+- **沉淀：** P2 与 P1 叠加有效；主指标仍低说明还需 P3 coverage-aware Top8 选择；下一步用 dev-fast-40 确认 SINGLE 不回吐后再做 P3。
+
+### 2026-07-30：P3 覆盖感知 Top8 选择
+
+- **背景或现象：** P2 后 dual-hit 10/12，但 Top8 仍可能被同文档多条 chunk 挤占；精排路径的 div penalty 机械且伤 SINGLE。
+- **根因：** 最终证据选择等价于「按分截断」，未显式优化 requirement 组/文档覆盖；RRF-only 路径也只取 boosted 列表前 8。
+- **方案与取舍：** `KnowledgeCoverageAwareSelector` 从全量 boosted 池（≤50）贪心选 8：基础分 + 新文档加成 + 未覆盖实体组加成（CROSS）− 同文档/同 section 冗余惩罚；末位软 swap 补齐缺失实体组；检索版本 `+entity+coverage`。
+- **实现：** `KnowledgeSearchTool` 先全池 RRF-only 排序再 coverage 选 8；`KnowledgeRerankOutcome.withRankedCandidates`；单测 2 项。
+- **验证：** cross-dev-slice `1f18c030` vs P2 `1f18c027`：primaryRecallAt8 **2/12**（持平）、chunk R@8 **83.3%**（−8pp）、dual-hit **12/12**（+2）。dev-fast-40 `1f18c032`：chunk R@8 **62.5%**（高于 goldfix3 rrf0 的 55%）、doc R@8 **100%**。
+- **沉淀：** P3 显著改善文档 dual-hit，chunk 级与 primary 组覆盖需与 P4/P5 继续迭代；val-80 已 probe。
+
+### 2026-07-30：val-80 retrieval-only probe（P1+P2+P3 叠加）
+
+- **背景或现象：** dev/cross-dev-slice 上 P2/P3 有效，需在只读 val-80 验证泛化；历史 v2 基线 run `1f18bec2` chunk R@8 42.5%、CROSS dual 56.25%。
+- **根因：** （本 run 为验证，非 Bug 修复）
+- **方案与取舍：** val-80 + VALIDATION split + retrieval-only + RRF-only；**不改 gold**；frozen-80 仍不查看。
+- **实现：** run `1f18c03d`，检索版本 `knowledge:rrf:v3+entity+coverage`。
+- **验证：** 80/80 成功。vs v2 基线：chunk R@8 **47.5%**（+5pp）、primaryRecallAt8 **28.75%**、CROSS chunk **68.75%**（+31pp）、CROSS dual **93.75%**（+37pp）、CROSS primary **12.5%**（2/16）；SINGLE chunk **39.6%**（−10pp vs 基线 50%）；P95 **759ms**（基线 146ms，子查询+覆盖选择开销）。
+- **沉淀：** CROSS 文档覆盖在 val 上泛化良好；SINGLE 回吐由 P3 全题型覆盖导致，已用题型分流修复（见下条）。
+
+### 2026-07-30：P3 题型分流（SINGLE 按分截断）
+
+- **背景或现象：** val-80 probe `1f18c03d` 上 SINGLE chunk 39.6%（基线 50%），CROSS 指标却大幅提升。
+- **根因：** P3 覆盖贪心对全题型生效，NEW_DOCUMENT/同文档惩罚打乱 SINGLE 的 RRF 排序。
+- **方案与取舍：** `usesCoverageSelection` 仅对 CROSS/VERSION 或 ≥2 实体组启用；SINGLE 在 P2 后直接 `subList(0,8)`。
+- **实现：** `KnowledgeCoverageAwareSelector` + 单测 3 项。
+- **验证：** val-80 复跑 `1f18c04c`：chunk R@8 **57.5%**（+10pp vs 分流前）、SINGLE **52.1%**（+12.5pp）、CROSS dual **93.75%**（持平）、primaryRecallAt8 **38.75%**（+10pp）。
+- **沉淀：** 覆盖选择必须按题型分流；当前 val-80 全量 chunk 优于 v2 基线且 CROSS dual 不退化，可继续 P4 攻 primary 组覆盖。

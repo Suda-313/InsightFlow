@@ -1,0 +1,32 @@
+# Frozen regression slice: rerank probe (do NOT edit gold based on run results)
+# Source: v3b run 1f18bf03 — cand50 hit, top8 miss, gold RRF rank 9-20
+# val-80 / frozen-80 are read-only for gold edits; this slice is independent dev regression only
+dev-015
+# dev-033 type=SINGLE_DOCUMENT_FACT gold_rrf_rank=9
+dev-033
+# dev-036 type=SINGLE_DOCUMENT_FACT gold_rrf_rank=9
+dev-036
+# dev-060 type=SINGLE_DOCUMENT_FACT gold_rrf_rank=9
+dev-060
+# dev-130 type=SINGLE_DOCUMENT_FACT gold_rrf_rank=9
+dev-130
+# dev-154 type=CROSS_DOCUMENT gold_rrf_rank=9
+dev-154
+# dev-016 type=SINGLE_DOCUMENT_FACT gold_rrf_rank=10 (evidence chunk 3)
+dev-016
+# dev-054 type=SINGLE_DOCUMENT_FACT gold_rrf_rank=10
+dev-054
+# dev-110 type=SINGLE_DOCUMENT_FACT gold_rrf_rank=10
+dev-110
+# dev-174 type=CROSS_DOCUMENT gold_rrf_rank=10
+dev-174
+# dev-183 type=CROSS_DOCUMENT gold_rrf_rank=10
+dev-183
+# dev-203 type=VERSION_CONFLICT gold_rrf_rank=10
+dev-203
+# dev-151 type=CROSS_DOCUMENT gold_rrf_rank=12
+dev-151
+# dev-219 type=OPERATION_PROCESS gold_rrf_rank=15
+dev-219
+# dev-212 type=VERSION_CONFLICT gold_rrf_rank=17
+dev-212

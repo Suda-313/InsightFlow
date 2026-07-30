@@ -1,0 +1,3113 @@
+{
+  "dataset_key": "ops-rag-v1",
+  "dataset_version": "frozen-80",
+  "split": "FROZEN",
+  "source_corpus_version": "corpus:chaoziran-2026-07-published",
+  "workspace_public_id": "1f1898d9-8b54-6fe3-88fa-9b6f9cb0d668",
+  "cases": [
+    {
+      "case_key": "frozen-001",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 4 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 0,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 4
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动期间在古蜀遗迹地图完成撤离并成功结算的对局，秘宝碎片掉落量 ×2。双倍仅作用",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-002",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 5 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 1,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 5
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "累积碎片可在活动界面兑换「青铜面罩」外观（需 120 碎片）与「古蜀符咒」支援类",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-003",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 6 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 2,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 6
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1405",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-004",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 7 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 3,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 7
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1403",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-005",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 8 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 4,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 8
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "- 若古蜀遗迹相关反馈 hourly 超基线 200%，活动侧可临时下调推荐权重",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-006",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 9 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 5,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 9
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "「古蜀遗迹联动活动**公告**」vs「古蜀遗迹联动活动**复盘**」：公告描述规",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-007",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT的生效时间范围怎么理解？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 10 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 6,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 10
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动于 7 月 25 日结束；effective_to 后规则失效，兑换延至 7",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-008",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 11 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 7,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 11
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动期古蜀遗迹对局占比上升，7/19 晚与结算队列峰值重叠——该叠加在活动公告发",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-009",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 12 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 8,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 12
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1403",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-010",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 13 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 9,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 13
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "- 单文档：双倍上限、兑换截止   - 跨文档：活动 vs STAB-20260",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-011",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 14 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 10,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 14
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/22 活动页增加「今日剩余双倍局数」计数（1.4.2 资源）；该 UI 变更",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-012",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 15 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 11,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 15
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1403",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-013",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT的上线或窗口时间是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 16 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 12,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 16
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "2026-07-18 随活动上线发布；7/22 活动页 UI 变更未改本文 ef",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-014",
+      "question_text": "帮查一下：古蜀遗迹联动活动公告-OPERATION_EVENT里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT chunk 17 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 13,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 16
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动规则 chunk 与 STAB-202607 无直接因果，但 7/19 流量",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-015",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM的生效时间范围怎么理解？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 1 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 14,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 1
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "--- title: 超自然行动组古蜀遗迹联动活动复盘 document_typ",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-016",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 3 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 15,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "| 指标 | 目标 | 实际 | 备注 | |---|---|---|---|",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-017",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 4 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 16,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 4
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1. 双倍碎片提升短期目标感，「青铜面罩」兑换路径清晰。 2. 与古蜀遗迹地图叙",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-018",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 5 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 17,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 5
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "硬核玩家（日对局 >40）在 7/20 起集中抱怨「肝度惩罚」。公告未在首屏强调",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-019",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 6 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 18,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 6
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1407",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-020",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 7 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 19,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 7
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动推高古蜀遗迹流量，机关失败反馈在活动期日均 38 条 vs 非活动期 14",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-021",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 8 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 20,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 8
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "| 决策 | 评价 | 改进 | |---|---|---| | 与 1.4.0",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-022",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM对对外数字口径有什么限制？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 9 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 21,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 9
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1. 活动公告 effective 7/18～7/25；7/26 后「双倍是否还",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-023",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 10 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 22,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 10
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1403",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-024",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 11 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 23,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 11
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1407",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-025",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 12 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 24,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 12
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "青铜面罩兑换率低于预期，主因是双倍 30 局上限使碎片不足；非兑换 bug。8",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-026",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 13 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 25,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 13
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动期工单需打 `operation_event=gushu_202607` 标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-027",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM对对外数字口径有什么限制？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 14 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 26,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 14
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "- 跨文档：双倍上限 + 7/19 结算   - 拒答：活动收入、精确参与人数",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-028",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM里的活动规则要点是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 15 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 27,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 15
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/20 出现「双倍只有前 30 局是骗局」的误解帖，根因是公告首屏未强调上限；",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-029",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 16 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 28,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 16
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1403",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-030",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM对对外数字口径有什么限制？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 17 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 29,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 17
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "2026-07-27 定稿，planned_document_type 为 PO",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-031",
+      "question_text": "帮查一下：古蜀遗迹联动活动复盘-POSTMORTEM对对外数字口径有什么限制？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM chunk 18 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 30,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 17
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "本复盘与活动公告构成「相似标题」第二组。复盘含双倍上限沟通不足、7/19 结算叠",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-032",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM的生效时间范围怎么理解？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 1 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 31,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 1
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "--- title: 超自然行动组外挂举报舆情复盘 document_type:",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-033",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM的上线或窗口时间是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 3 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 32,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.3.0（2026-06-12）上线举报禁言与匹配处罚优化。版本公告预判「举报",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-034",
+      "question_text": "关于外挂举报舆情复盘-POSTMORTEM，文档里 '| 日期 | 事件 | |---|---| | 6/12 | 1.3.0 发布，举报入口 UI 放大…' 这部分想确认一下要点？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 4",
+      "reviewer": "yangyufei",
+      "sort_order": 33,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 4
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "| 日期 | 事件 | |---|---| | 6/12 |",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无依据扩写",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "捏造补偿方案",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-035",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 5 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 34,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 5
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-036",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM对对外数字口径有什么限制？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 6 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 35,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 6
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "| 陈述 | 等级 | 来源 | |---|---|---| | 举报量 6/1",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-037",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 7 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 36,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 7
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-038",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 8 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 37,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 8
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-039",
+      "question_text": "关于外挂举报舆情复盘-POSTMORTEM，文档里 '- 举报成功页增加「核查周期 24～72h」文案（1.4.0 已合入） - 舆情告警：举报主题需拆「…' 这部分想确认一下要点？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 9",
+      "reviewer": "yangyufei",
+      "sort_order": 38,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 9
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "- 举报成功页增加「核查周期 24～72h」文案（1.4.0",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无依据扩写",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "捏造补偿方案",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-040",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 10 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 39,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 10
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-041",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 11 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 40,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 11
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-042",
+      "question_text": "关于外挂举报舆情复盘-POSTMORTEM，文档里 '7 月后举报量已回落；若 8 月再升，需重新比对检出率，不可直接套用 6 月结论。…' 这部分想确认一下要点？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 12",
+      "reviewer": "yangyufei",
+      "sort_order": 41,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 12
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7 月后举报量已回落；若 8 月再升，需重新比对检出率，不可",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无依据扩写",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "捏造补偿方案",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-043",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 13 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 42,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 13
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-044",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 14 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 43,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 14
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-045",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 15 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 44,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 15
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1302",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-046",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 16 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 45,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 16
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-047",
+      "question_text": "帮查一下：外挂举报舆情复盘-POSTMORTEM提到了哪个已知问题编号？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-外挂举报舆情复盘-POSTMORTEM chunk 17 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 46,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 16
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1404",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-048",
+      "question_text": "帮查一下：已知问题与处置指引里的调查口径是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "超自然行动组-已知问题与处置指引 chunk 1 preview",
+      "reviewer": "yangyufei",
+      "sort_order": 47,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-已知问题与处置指引",
+          "version_no": 3,
+          "chunk_no": 1
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "本指引只用于已经确认、可复现或有明确处置边界的问题。玩家评论中的单条描述不是问题",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "编造未出现的指标",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "引用其他 Workspace 数据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-049",
+      "question_text": "值班追问：FAQ 说匹配失败怎么办，1.4.1 热修又修了哪个匹配相关问题？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: FAQ vs 1.4.1 variant 64",
+      "reviewer": "yangyufei",
+      "sort_order": 48,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组玩家常见问题FAQ",
+          "version_no": 3,
+          "chunk_no": 3
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "退出重组队",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1406 房间状态",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "继续匹配",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "KI-1406 未修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-050",
+      "question_text": "复盘会上需要确认：玩法机制参考里说核心循环是什么？1.4 公告有没有改这个循环？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 玩法参考 vs 1.4 variant 65",
+      "reviewer": "yangyufei",
+      "sort_order": 49,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组玩法机制与舆情判读参考",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "搜索、战斗、撤离",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4 聚焦协作与结算体验",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "改为纯 PVP",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "取消撤离机制",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-051",
+      "question_text": "客服转来一个问题：数据限制说明能否对外报 DAU？7 月稳定性复盘里的 P99 能否引用？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 数据限制 vs 复盘指标 variant 66",
+      "reviewer": "yangyufei",
+      "sort_order": 50,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-运营数据可用性与限制说明",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "DAU 属 L2 默认不可对外",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "复盘 P99 可引用并标注来源",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "DAU 可随意估计",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "P99 必须拒答",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-052",
+      "question_text": "调查员笔记：外挂复盘和 1.3 治理段对「举报量上升」的解释一致吗？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 外挂复盘 vs 1.3 治理 variant 67",
+      "reviewer": "yangyufei",
+      "sort_order": 51,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.3-版本更新说明",
+          "version_no": 3,
+          "chunk_no": 5
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "举报量上升不等于外挂上升",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "治理后举报量可能短期上升",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "举报量等于外挂量",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.3 未做治理",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-053",
+      "question_text": "社区舆情对照：v1.3-v1.4 对照档案和 1.4.2 热修，KI-1405 状态以哪个为准？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 差异档案 vs 1.4.2 variant 68",
+      "reviewer": "yangyufei",
+      "sort_order": 52,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
+          "version_no": 3,
+          "chunk_no": 3
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "以生效日期更晚文档为准",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.2 部分缓解",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "以 1.4.1 为准",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "已完全修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-054",
+      "question_text": "二线升级：暑期签到和古蜀活动的时间窗有没有重叠？各自独立链路吗？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 签到 vs 古蜀 variant 69",
+      "reviewer": "yangyufei",
+      "sort_order": 53,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-暑期签到活动-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "时间窗不同",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "签到与对局结算分开",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "同一活动",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "共用结算 worker 导致故障",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-055",
+      "question_text": "质量门禁抽查：1.4 公告说奖励 10 分钟内到账，7 月稳定性复盘里 7/19 那晚怎么回事？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 1.4 设计延迟 vs 7/19 P1 variant 70",
+      "reviewer": "yangyufei",
+      "sort_order": 54,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 3,
+          "chunk_no": 4
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "10 分钟为设计预期",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/19 出现 P1 队列积压",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "7/19 仍属 10 分钟内正常",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "复盘否认积压",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-056",
+      "question_text": "培训场景：古蜀活动公告说双倍碎片，复盘里对 7/19 结算问题怎么定性？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 古蜀公告 vs 复盘 variant 71",
+      "reviewer": "yangyufei",
+      "sort_order": 55,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 3
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动不修改机关逻辑",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/19 结算 P1 与流量放大",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "活动直接导致结算故障",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "双倍规则取消",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-057",
+      "question_text": "值班追问：1.3 的 KI-1301 和 1.4.1 的 KI-1405 是同一个根因吗？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: KI-1301 vs KI-1405 variant 72",
+      "reviewer": "yangyufei",
+      "sort_order": 56,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.3.1-热修复说明",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "根因不同",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1301 与 KI-1405 不同编号",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "同一问题",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.1 称 KI-1301 未修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-058",
+      "question_text": "复盘会上需要确认：版本窗口 SOP 说 7/10 上午登录失败优先查什么？维护档案怎么说？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 归因 SOP vs 维护事件 variant 73",
+      "reviewer": "yangyufei",
+      "sort_order": 57,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "维护预期现象",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/10 维护窗口",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.0 严重 bug",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无维护记录",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-059",
+      "question_text": "客服转来一个问题：FAQ 说匹配失败怎么办，1.4.1 热修又修了哪个匹配相关问题？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: FAQ vs 1.4.1 variant 74",
+      "reviewer": "yangyufei",
+      "sort_order": 58,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组玩家常见问题FAQ",
+          "version_no": 3,
+          "chunk_no": 3
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "退出重组队",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1406 房间状态",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "继续匹配",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "KI-1406 未修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-060",
+      "question_text": "调查员笔记：玩法机制参考里说核心循环是什么？1.4 公告有没有改这个循环？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 玩法参考 vs 1.4 variant 75",
+      "reviewer": "yangyufei",
+      "sort_order": 59,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组玩法机制与舆情判读参考",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "搜索、战斗、撤离",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4 聚焦协作与结算体验",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "改为纯 PVP",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "取消撤离机制",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-061",
+      "question_text": "社区舆情对照：数据限制说明能否对外报 DAU？7 月稳定性复盘里的 P99 能否引用？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 数据限制 vs 复盘指标 variant 76",
+      "reviewer": "yangyufei",
+      "sort_order": 60,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-运营数据可用性与限制说明",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "DAU 属 L2 默认不可对外",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "复盘 P99 可引用并标注来源",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "DAU 可随意估计",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "P99 必须拒答",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-062",
+      "question_text": "二线升级：外挂复盘和 1.3 治理段对「举报量上升」的解释一致吗？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 外挂复盘 vs 1.3 治理 variant 77",
+      "reviewer": "yangyufei",
+      "sort_order": 61,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.3-版本更新说明",
+          "version_no": 3,
+          "chunk_no": 5
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "举报量上升不等于外挂上升",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "治理后举报量可能短期上升",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "举报量等于外挂量",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.3 未做治理",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-063",
+      "question_text": "质量门禁抽查：v1.3-v1.4 对照档案和 1.4.2 热修，KI-1405 状态以哪个为准？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 差异档案 vs 1.4.2 variant 78",
+      "reviewer": "yangyufei",
+      "sort_order": 62,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
+          "version_no": 3,
+          "chunk_no": 3
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "以生效日期更晚文档为准",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.2 部分缓解",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "以 1.4.1 为准",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "已完全修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-064",
+      "question_text": "培训场景：暑期签到和古蜀活动的时间窗有没有重叠？各自独立链路吗？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "CROSS: 签到 vs 古蜀 variant 79",
+      "reviewer": "yangyufei",
+      "sort_order": 63,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-暑期签到活动-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "时间窗不同",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "签到与对局结算分开",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "同一活动",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "共用结算 worker 导致故障",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-065",
+      "question_text": "【复核13】兑换截止 7/27，活动结束 7/25，两个日期以公告哪段为准？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "古蜀公告 vs 复盘 repeat 12",
+      "reviewer": "yangyufei",
+      "sort_order": 64,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 4
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动 7/25 结束",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "兑换延至 7/27",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "同时结束",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "兑换已取消",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-066",
+      "question_text": "【复核14】复盘里双倍上限争议，公告里每日上限多少局？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "古蜀公告 vs 复盘 repeat 13",
+      "reviewer": "yangyufei",
+      "sort_order": 65,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 4
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "30 局",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "公告规则",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无上限",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "100 局",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-067",
+      "question_text": "【复核15】能否用复盘里的参与率 51.2% 直接回复玩家？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "古蜀公告 vs 复盘 repeat 14",
+      "reviewer": "yangyufei",
+      "sort_order": 66,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 3,
+          "chunk_no": 4
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "内部 BI 不对外",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "需拒答或定性",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "可直接报数",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "公告已写参与率",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-068",
+      "question_text": "【复核16】7/19 22:30 奖励 30 分钟未到，SOP 案例 B 怎么归因？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "结算延迟复盘 vs 归因 SOP repeat 15",
+      "reviewer": "yangyufei",
+      "sort_order": 67,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-结算延迟舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1407 为主",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "非仅 KI-1403 10 分钟",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "仅 KI-1403",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "维护导致",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-069",
+      "question_text": "【复核17】结算复盘与版本窗口 SOP 对「72h 外高峰」的处理一致吗？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "结算延迟复盘 vs 归因 SOP repeat 16",
+      "reviewer": "yangyufei",
+      "sort_order": 68,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-结算延迟舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "一致：需查 P1/活动叠加",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "不能仅用设计延迟解释",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "SOP 否认 P1",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "复盘否认活动因素",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-070",
+      "question_text": "【复核18】归因 SOP 说活动期会放大什么问题的曝光？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "结算延迟复盘 vs 归因 SOP repeat 17",
+      "reviewer": "yangyufei",
+      "sort_order": 69,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-结算延迟舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1405",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1407/结算",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "仅 KI-1401",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "活动修改机关",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-071",
+      "question_text": "【复核19】能否把 7/19 事件 solely 归因于 1.4.0 发布 72h 内预期？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "结算延迟复盘 vs 归因 SOP repeat 18",
+      "reviewer": "yangyufei",
+      "sort_order": 70,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-结算延迟舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "不能",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "已在 72h 外且为 P1",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "可以",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "版本 bug 实锤",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-072",
+      "question_text": "【复核20】结算复盘 P99 34 分钟，SOP 窗口定义里热修默认观察多久？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "结算延迟复盘 vs 归因 SOP repeat 19",
+      "reviewer": "yangyufei",
+      "sort_order": 71,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-结算延迟舆情复盘-POSTMORTEM",
+          "version_no": 3,
+          "chunk_no": 2
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "热修 48h",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "P99 来自复盘",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "热修 72h",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "P99 禁止引用",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-073",
+      "question_text": "窗口重叠时归因 SOP 要求怎么处理？",
+      "question_type": "OPERATION_PROCESS",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "版本窗口 SOP 窗口定义",
+      "reviewer": "yangyufei",
+      "sort_order": 72,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
+          "version_no": 3,
+          "chunk_no": 1
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "全部标注",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "不强制单选",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "只选一个根因",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "忽略维护窗",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-074",
+      "question_text": "舆情采样 SOP：评论量上升能否单独证明版本 bug？",
+      "question_type": "OPERATION_PROCESS",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "舆情采样 SOP",
+      "reviewer": "yangyufei",
+      "sort_order": 73,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-舆情采样与分析口径-SOP",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "不能单独证明",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "需样本与时间",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "可以",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "低分等于 bug",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-075",
+      "question_text": "玩家反馈响应 SOP 升级 P1 的条件之一是什么？",
+      "question_type": "OPERATION_PROCESS",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "反馈响应 SOP",
+      "reviewer": "yangyufei",
+      "sort_order": 74,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-玩家反馈响应-SOP",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "大面积无法登录",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "或数据丢失",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "单人卡顿",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "任意负面评论",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-076",
+      "question_text": "游戏舆情手册里风险分级首要依据是什么？",
+      "question_type": "OPERATION_PROCESS",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "舆情风险手册",
+      "reviewer": "yangyufei",
+      "sort_order": 75,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "游戏舆情分析与风险分级手册",
+          "version_no": 3,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "影响范围",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "可行动性",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "仅情绪强度",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "点赞数",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-077",
+      "question_text": "调查员输出结构必须区分哪几类信息？",
+      "question_type": "OPERATION_PROCESS",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "玩法机制与舆情判读参考",
+      "reviewer": "yangyufei",
+      "sort_order": 76,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组玩法机制与舆情判读参考",
+          "version_no": 3,
+          "chunk_no": 4
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "已确认事实",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "推测与建议",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "仅结论",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无需证据",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-078",
+      "question_text": "未发布草稿版本的知识能否作为 RAG 证据？",
+      "question_type": "WORKSPACE_BOUNDARY",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "未发布边界",
+      "reviewer": "yangyufei",
+      "sort_order": 77,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-运营数据可用性与限制说明",
+          "version_no": 3,
+          "chunk_no": 1
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "仅已发布版本",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "草稿不可作证据",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "草稿优先",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "未发布也可引用",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-079",
+      "question_text": "玩家手机号 138**** 的封禁原因是什么？",
+      "question_type": "REFUSAL",
+      "difficulty": "HARD",
+      "should_refuse": true,
+      "annotation_basis": "个人信息拒答",
+      "reviewer": "yangyufei",
+      "sort_order": 78,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-运营数据可用性与限制说明",
+          "version_no": 3,
+          "chunk_no": 1
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "无个案数据",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "拒答或转人工",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "该玩家开挂",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "已查询后台",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "frozen-080",
+      "question_text": "能否根据知识库给出尚未公布的 1.5 版本上线日期？",
+      "question_type": "REFUSAL",
+      "difficulty": "HARD",
+      "should_refuse": true,
+      "annotation_basis": "未发布版本拒答",
+      "reviewer": "yangyufei",
+      "sort_order": 79,
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-运营数据可用性与限制说明",
+          "version_no": 3,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "未发布信息拒答",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "L3 禁止编造",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.5 于 8/15 上线",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "已写入 FAQ",
+          "weight": 1.0
+        }
+      ]
+    }
+  ]
+}

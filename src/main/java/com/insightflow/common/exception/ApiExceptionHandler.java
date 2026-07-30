@@ -136,6 +136,11 @@ public class ApiExceptionHandler {
         return error(HttpStatus.CONFLICT, "MEMBERSHIP_CONFLICT", exception.getMessage(), List.of());
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorEnvelope> handleIllegalState(IllegalStateException exception) {
+        return error(HttpStatus.CONFLICT, "STATE_CONFLICT", exception.getMessage(), List.of());
+    }
+
     /**
      * 服务层对边界参数的防御性校验统一返回 422，保持与请求体校验相同的客户端可修复语义。
      */

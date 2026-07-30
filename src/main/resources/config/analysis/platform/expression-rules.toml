@@ -1,0 +1,36 @@
+# 平台 L2 表达/意图粗分规则；全 Workspace、全游戏口径一致，跨游戏可直接对比占比。
+# 与 L1 Workspace Topic Pack 规则相互独立：本文件绝不出现任何单一游戏的专属议题词。
+# 未命中任何规则时由 ExpressionClassifier 回退到 expr_other（见 ExpressionDefaults），不在此声明规则。
+version = "platform:expression:v1"
+
+# 建议/诉求优先级最高：同分命中时优先解释为"玩家想要什么改变"，而不是笼统的体验分享或吐槽。
+[[rules]]
+canonical_key = "expr_suggestion"
+name = "建议/诉求"
+priority = 40
+any_patterns = ["建议", "希望", "能不能", "可不可以", "应该", "优化", "提议", "加个", "加点", "求加", "最好能"]
+exclude_patterns = []
+
+# 吐槽/不满次于建议：明确负向情绪词与"劝退/退游"等强烈信号优先归入本类而非中性体验分享。
+[[rules]]
+canonical_key = "expr_complaint"
+name = "吐槽/不满"
+priority = 30
+any_patterns = ["差", "坑", "劝退", "退游", "失望", "垃圾", "崩溃", "气死", "闪退", "太烂", "无语", "恶心"]
+exclude_patterns = []
+
+# 好评/推荐：正向安利词汇；不与建议/吐槽的关键词重叠，避免同一文本被两类同时高分命中。
+[[rules]]
+canonical_key = "expr_praise"
+name = "好评/推荐"
+priority = 20
+any_patterns = ["好玩", "推荐", "安利", "良心", "神作", "喜欢玩", "真香", "惊艳", "值得玩", "不错哦"]
+exclude_patterns = []
+
+# 体验分享优先级最低（不含 other）：客观叙述与短咨询暂并入本类，作为兜底之上的"有信息量但无强诉求"分类。
+[[rules]]
+canonical_key = "expr_neutral"
+name = "体验分享"
+priority = 10
+any_patterns = ["玩了", "总体来说", "个人感觉", "体验了一下", "怎么样", "请问", "小时", "总的来说"]
+exclude_patterns = []

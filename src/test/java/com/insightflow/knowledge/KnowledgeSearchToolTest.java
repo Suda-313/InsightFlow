@@ -12,7 +12,9 @@ import com.insightflow.entity.KnowledgeDocumentType;
 import com.insightflow.entity.Workspace;
 import com.insightflow.service.WorkspaceService;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -28,22 +30,75 @@ class KnowledgeSearchToolTest {
     @Mock private KnowledgeVectorStore vectorStore;
     @Mock private Workspace workspace;
 
+    private KnowledgeSearchTool searchTool;
+
+    @BeforeEach
+    void setUp() {
+        KnowledgeRerankerSelector rerankerSelector = new KnowledgeRerankerSelector(
+                new RrfOnlyKnowledgeReranker(), null, null);
+        KnowledgeCrossQueryDecomposer crossQueryDecomposer = new KnowledgeCrossQueryDecomposer();
+        KnowledgeTitleEntityScoreBooster titleEntityScoreBooster =
+                new KnowledgeTitleEntityScoreBooster(crossQueryDecomposer);
+        searchTool = new KnowledgeSearchTool(
+                workspaceService,
+                embeddings,
+                vectorStore,
+                new KnowledgeRetrievalPlanner(),
+                new KnowledgeEvidenceGuardrail(),
+                new KnowledgeQueryExpander(),
+                rerankerSelector,
+                crossQueryDecomposer,
+                titleEntityScoreBooster,
+                new KnowledgeCoverageAwareSelector(titleEntityScoreBooster));
+    }
+
+    /**
+     * Planner 收窄类型后必须再跑全类型检索并合并，避免词法假阳性误判 guardrail 后漏掉 gold 文档。
+     */
+    @Test
+    void mergesBroadSearchWhenTypesAreNarrowed() {
+        UUID workspacePublicId = UUID.randomUUID();
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
+        when(workspace.getId()).thenReturn(7L);
+        when(workspace.getOrganizationId()).thenReturn(3L);
+        when(embeddings.embed(any())).thenReturn(List.of(List.of(0.1d, 0.2d)));
+        KnowledgeVectorStore.SearchCandidate strongHit = new KnowledgeVectorStore.SearchCandidate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                "title",
+                "content",
+                0.05d,
+                KnowledgeDocumentType.KNOWN_ISSUE.name(),
+                "section",
+                null);
+        when(vectorStore.searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any()))
+                .thenReturn(new KnowledgeSearchResult(List.of(strongHit), Set.of(), Set.of(), Set.of(strongHit.chunkId())))
+                .thenReturn(emptySearchResult());
+
+        KnowledgeRetrievalResult result = searchTool.retrieve(workspacePublicId, "7 月版本有哪些已知问题？");
+
+        assertThat(result.rounds()).isEqualTo(2);
+        verify(vectorStore, times(2)).searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any());
+    }
+
     /** 首轮无证据时最多再检索一次，第二轮不能突破当前 Workspace 的组织范围。 */
     @Test
     void performsAtMostOneSupplementalSearchInsideCurrentWorkspaceScope() {
         UUID workspacePublicId = UUID.randomUUID();
         when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
-        when(workspace.getId()).thenReturn(7L); when(workspace.getOrganizationId()).thenReturn(3L);
+        when(workspace.getId()).thenReturn(7L);
+        when(workspace.getOrganizationId()).thenReturn(3L);
         when(embeddings.embed(any())).thenReturn(List.of(List.of(0.1d, 0.2d)));
-        when(vectorStore.search(eq(3L), eq(7L), anyString(), any(), any(), eq(8))).thenReturn(List.of());
+        when(vectorStore.searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any()))
+                .thenReturn(emptySearchResult());
 
-        KnowledgeRetrievalResult result = new KnowledgeSearchTool(workspaceService, embeddings, vectorStore,
-                new KnowledgeRetrievalPlanner(), new KnowledgeEvidenceGuardrail())
-                .retrieve(workspacePublicId, "7 月版本有哪些已知问题？");
+        KnowledgeRetrievalResult result = searchTool.retrieve(workspacePublicId, "7 月版本有哪些已知问题？");
 
         assertThat(result.rounds()).isEqualTo(2);
         assertThat(result.evidence()).isEmpty();
-        verify(vectorStore, times(2)).search(eq(3L), eq(7L), eq("7 月版本有哪些已知问题？"), any(), any(), eq(8));
+        verify(vectorStore, times(2)).searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any());
     }
 
     /**
@@ -57,16 +112,25 @@ class KnowledgeSearchToolTest {
         when(workspace.getId()).thenReturn(7L);
         when(workspace.getOrganizationId()).thenReturn(3L);
         when(embeddings.embed(any())).thenReturn(List.of(List.of(0.1d, 0.2d)));
-        when(vectorStore.search(eq(3L), eq(7L), anyString(), any(), any(), eq(8))).thenReturn(List.of());
+        when(vectorStore.searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any()))
+                .thenReturn(emptySearchResult());
 
-        new KnowledgeSearchTool(workspaceService, embeddings, vectorStore,
-                new KnowledgeRetrievalPlanner(), new KnowledgeEvidenceGuardrail())
-                .retrieve(workspacePublicId, "7 月已知问题有哪些？");
+        searchTool.retrieve(workspacePublicId, "7 月已知问题有哪些？");
 
         InOrder calls = Mockito.inOrder(vectorStore);
-        calls.verify(vectorStore).search(eq(3L), eq(7L), eq("7 月已知问题有哪些？"),
-                eq(List.of(KnowledgeDocumentType.KNOWN_ISSUE)), any(), eq(8));
-        calls.verify(vectorStore).search(eq(3L), eq(7L), eq("7 月已知问题有哪些？"),
-                eq(List.of()), any(), eq(8));
+        calls.verify(vectorStore)
+                .searchWithOptions(
+                        eq(3L),
+                        eq(7L),
+                        anyString(),
+                        eq(List.of(KnowledgeDocumentType.KNOWN_ISSUE)),
+                        any(),
+                        any());
+        calls.verify(vectorStore)
+                .searchWithOptions(eq(3L), eq(7L), anyString(), eq(List.of()), any(), any());
+    }
+
+    private static KnowledgeSearchResult emptySearchResult() {
+        return new KnowledgeSearchResult(List.of(), Set.of(), Set.of(), Set.of());
     }
 }

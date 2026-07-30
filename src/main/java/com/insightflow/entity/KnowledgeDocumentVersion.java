@@ -80,6 +80,33 @@ public class KnowledgeDocumentVersion {
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
 
+    /** 语料原始出处 URL；可为空，用于审计与 Agent 引用溯源，不参与对象键生成。 */
+    @Column(name = "source_url", length = 2000, updatable = false)
+    private String sourceUrl;
+
+    /** 语料采集或归档时刻；与 created_at（上传完成）区分，便于调查时判断信息新鲜度。 */
+    @Column(name = "source_collected_at", updatable = false)
+    private OffsetDateTime sourceCollectedAt;
+
+    /** 适用起始时刻；空值表示自发布起始终有效，检索时不做下限过滤。 */
+    @Column(name = "effective_from", updatable = false)
+    private OffsetDateTime effectiveFrom;
+
+    /** 适用结束时刻；空值表示无明确失效时间，检索时不做上限过滤。 */
+    @Column(name = "effective_to", updatable = false)
+    private OffsetDateTime effectiveTo;
+
+    /** 语料责任人或维护团队标识；仅用于管理展示与 embed 上下文，不作为权限键。 */
+    @Column(length = 100, updatable = false)
+    private String owner;
+
+    /**
+     * 事实边界说明：本版本可断言的范围与不可推断的内容。
+     * 写入 embed 前缀，帮助向量检索区分“可引用事实”与“推测/建议”。
+     */
+    @Column(name = "fact_boundary", length = 2000, updatable = false)
+    private String factBoundary;
+
     /** 仅供 JPA 映射创建；业务代码必须从 {@link #pending} 建立待审核版本。 */
     protected KnowledgeDocumentVersion() {
     }
@@ -94,11 +121,12 @@ public class KnowledgeDocumentVersion {
      * @param sourceName 用户可见的原文件名
      * @param contentType 校验后的文本 MIME 类型
      * @param contentLength 非空原文件字节数
+     * @param metadata 可选语料元数据；全部字段可空，不影响待审核状态机
      * @return 只可等待发布的版本实体
      */
     public static KnowledgeDocumentVersion pending(
             Long documentId, int versionNo, String objectKey, String checksum,
-            String sourceName, String contentType, long contentLength) {
+            String sourceName, String contentType, long contentLength, VersionMetadata metadata) {
         if (documentId == null || versionNo < 1 || contentLength < 1) {
             throw new IllegalArgumentException("知识版本的文档、版本号和文件大小必须有效");
         }
@@ -113,7 +141,32 @@ public class KnowledgeDocumentVersion {
         version.contentType = contentType;
         version.contentLength = contentLength;
         version.createdAt = OffsetDateTime.now();
+        if (metadata != null) {
+            version.sourceUrl = metadata.sourceUrl();
+            version.sourceCollectedAt = metadata.sourceCollectedAt();
+            version.effectiveFrom = metadata.effectiveFrom();
+            version.effectiveTo = metadata.effectiveTo();
+            version.owner = metadata.owner();
+            version.factBoundary = metadata.factBoundary();
+        }
         return version;
+    }
+
+    /** 无元数据时的便捷重载，保持既有测试与调用方兼容。 */
+    public static KnowledgeDocumentVersion pending(
+            Long documentId, int versionNo, String objectKey, String checksum,
+            String sourceName, String contentType, long contentLength) {
+        return pending(documentId, versionNo, objectKey, checksum, sourceName, contentType, contentLength, null);
+    }
+
+    /** 上传时可携带的语料元数据；全部可选，服务层负责 trim 与空串归一化。 */
+    public record VersionMetadata(
+            String sourceUrl,
+            OffsetDateTime sourceCollectedAt,
+            OffsetDateTime effectiveFrom,
+            OffsetDateTime effectiveTo,
+            String owner,
+            String factBoundary) {
     }
 
     /** 仅允许待审核版本在发布物完整构建后变为可检索状态。 */
@@ -187,4 +240,22 @@ public class KnowledgeDocumentVersion {
 
     /** 返回逻辑删除审计时刻。 */
     public OffsetDateTime getDeletedAt() { return deletedAt; }
+
+    /** 返回语料原始出处 URL。 */
+    public String getSourceUrl() { return sourceUrl; }
+
+    /** 返回语料采集或归档时刻。 */
+    public OffsetDateTime getSourceCollectedAt() { return sourceCollectedAt; }
+
+    /** 返回适用起始时刻。 */
+    public OffsetDateTime getEffectiveFrom() { return effectiveFrom; }
+
+    /** 返回适用结束时刻。 */
+    public OffsetDateTime getEffectiveTo() { return effectiveTo; }
+
+    /** 返回语料责任人标识。 */
+    public String getOwner() { return owner; }
+
+    /** 返回事实边界说明。 */
+    public String getFactBoundary() { return factBoundary; }
 }

@@ -2,6 +2,7 @@ package com.insightflow.agent.analyzer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -11,11 +12,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.agent.dto.RiskResult;
 import com.insightflow.agent.dto.SentimentResult;
 import com.insightflow.entity.AgentRun;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import com.insightflow.prompt.OperationalPromptCatalog;
 import com.insightflow.service.AgentRunService;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatResponse;
 
 /**
  * 分析类 Agent 的失败审计回归测试。
@@ -32,8 +34,10 @@ class AnalyzerAgentRunAuditTest {
         AgentRunService agentRunService = mock(AgentRunService.class);
         AgentRun run = AgentRun.start(7L, "sentiment", "sentiment:v1", "qwen-test", "none", "input");
         when(agentRunService.start(eq(workspaceId), any())).thenReturn(run);
+        LiteralChatModelCaller literalChatModelCaller = mock(LiteralChatModelCaller.class);
+        when(literalChatModelCaller.call(anyString(), anyString())).thenThrow(new IllegalStateException("model down"));
         SentimentAnalyzer analyzer = new SentimentAnalyzer(
-                mock(ChatClient.class), new ObjectMapper(), new OperationalPromptCatalog(), agentRunService, "qwen-test");
+                literalChatModelCaller, new ObjectMapper(), new OperationalPromptCatalog(), agentRunService, "qwen-test");
 
         SentimentResult result = analyzer.execute(workspaceId, "支付失败");
 
@@ -48,8 +52,10 @@ class AnalyzerAgentRunAuditTest {
         AgentRunService agentRunService = mock(AgentRunService.class);
         AgentRun run = AgentRun.start(7L, "risk", "risk:v1", "qwen-test", "none", "input");
         when(agentRunService.start(eq(workspaceId), any())).thenReturn(run);
+        LiteralChatModelCaller literalChatModelCaller = mock(LiteralChatModelCaller.class);
+        when(literalChatModelCaller.call(anyString(), anyString())).thenThrow(new IllegalStateException("model down"));
         RiskAnalyzer analyzer = new RiskAnalyzer(
-                mock(ChatClient.class), new ObjectMapper(), new OperationalPromptCatalog(), agentRunService, "qwen-test");
+                literalChatModelCaller, new ObjectMapper(), new OperationalPromptCatalog(), agentRunService, "qwen-test");
 
         RiskResult result = analyzer.execute(workspaceId, "账号被盗");
 

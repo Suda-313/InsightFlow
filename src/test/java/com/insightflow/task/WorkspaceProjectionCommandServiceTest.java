@@ -36,6 +36,7 @@ class WorkspaceProjectionCommandServiceTest {
         WorkspaceProjectionRepository projectionRepository = mock(WorkspaceProjectionRepository.class);
         ProjectionFileRepository projectionFileRepository = mock(ProjectionFileRepository.class);
         WorkspaceProjectionScheduler scheduler = mock(WorkspaceProjectionScheduler.class);
+        ProjectionRequeueSupport requeueSupport = mock(ProjectionRequeueSupport.class);
         ImportFile file = processedFile();
         setId(file, 11L);
         AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
@@ -45,13 +46,14 @@ class WorkspaceProjectionCommandServiceTest {
         when(taskRepository.findByWorkspaceIdAndTaskTypeAndIdempotencyKey(
                 7L, "projection", "projection:file:11:rules:v1"))
                 .thenReturn(Optional.empty(), Optional.of(task));
+        when(requeueSupport.isHealthyProjection(7L, task)).thenReturn(true);
         when(taskRepository.saveAndFlush(any(AsyncTask.class))).thenReturn(task);
         when(projectionRepository.saveAndFlush(any(WorkspaceProjection.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         WorkspaceProjectionCommandService service = new WorkspaceProjectionCommandService(
                 fileRepository, taskRepository, projectionRepository, projectionFileRepository,
-                new ObjectMapper(), scheduler, "rules:v1");
+                new ObjectMapper(), scheduler, requeueSupport, "rules:v1");
 
         AsyncTask created = service.enqueueForImportedFile(7L, 11L);
         AsyncTask repeated = service.enqueueForImportedFile(7L, 11L);
@@ -64,6 +66,48 @@ class WorkspaceProjectionCommandServiceTest {
         verify(projectionFileRepository).saveAndFlush(any(ProjectionFile.class));
         verify(scheduler).dispatchClaimableTasks();
         verify(taskRepository, never()).saveAndFlush(eq(created));
+    }
+
+    /**
+     * 已成功但缺少 L2 的旧任务应被拆除并创建新投影命令。
+     */
+    @Test
+    void reEnqueuesWhenExistingProjectionIsIncomplete() throws Exception {
+        ImportFileRepository fileRepository = mock(ImportFileRepository.class);
+        AsyncTaskRepository taskRepository = mock(AsyncTaskRepository.class);
+        WorkspaceProjectionRepository projectionRepository = mock(WorkspaceProjectionRepository.class);
+        ProjectionFileRepository projectionFileRepository = mock(ProjectionFileRepository.class);
+        WorkspaceProjectionScheduler scheduler = mock(WorkspaceProjectionScheduler.class);
+        ProjectionRequeueSupport requeueSupport = mock(ProjectionRequeueSupport.class);
+        ImportFile file = processedFile();
+        setId(file, 11L);
+        AsyncTask staleTask = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
+        setId(staleTask, 21L);
+        staleTask.claim("worker", java.time.OffsetDateTime.now().plusMinutes(5));
+        staleTask.markSucceeded("{}");
+
+        AsyncTask freshTask = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
+        setId(freshTask, 22L);
+
+        when(fileRepository.findByIdAndWorkspaceIdForUpdate(11L, 7L)).thenReturn(Optional.of(file));
+        when(taskRepository.findByWorkspaceIdAndTaskTypeAndIdempotencyKey(
+                7L, "projection", "projection:file:11:rules:v1"))
+                .thenReturn(Optional.of(staleTask));
+        when(requeueSupport.isHealthyProjection(7L, staleTask)).thenReturn(false);
+        when(taskRepository.saveAndFlush(any(AsyncTask.class))).thenReturn(freshTask);
+        when(projectionRepository.saveAndFlush(any(WorkspaceProjection.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkspaceProjectionCommandService service = new WorkspaceProjectionCommandService(
+                fileRepository, taskRepository, projectionRepository, projectionFileRepository,
+                new ObjectMapper(), scheduler, requeueSupport, "rules:v1");
+
+        AsyncTask created = service.enqueueForImportedFile(7L, 11L);
+
+        assertThat(created).isSameAs(freshTask);
+        verify(requeueSupport).removeProjectionChain(7L, staleTask);
+        verify(requeueSupport).wipeAnalysisFacts(7L);
+        verify(taskRepository).saveAndFlush(any(AsyncTask.class));
     }
 
     /**

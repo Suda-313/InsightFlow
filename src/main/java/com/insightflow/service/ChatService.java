@@ -13,11 +13,11 @@ import com.insightflow.knowledge.KnowledgeRetrievalResult;
 import com.insightflow.knowledge.KnowledgeSearchTool;
 import com.insightflow.agent.investigation.InvestigationToolType;
 import com.insightflow.prompt.ChatPromptTemplate;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,14 +36,11 @@ import com.insightflow.config.AgentApiKeyPresentCondition;
 @Conditional(AgentApiKeyPresentCondition.class)
 public class ChatService {
 
-    /** 审计中以该版本区分 P2 受控 Tool 调查与此前未检索的聊天调用。 */
-    private static final String TOOL_RETRIEVAL_VERSION = "tool:v1+rag:v1";
-
     /** 日志只记录 Trace、意图、Tool、耗时和用量，不输出用户正文、样本文本或完整提示词。 */
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
-    /** 模型客户端只负责生成最终文本，不能直接读取数据源或写入业务数据。 */
-    private final ChatClient chatClient;
+    /** 字面量模型调用，避免知识证据中的 {@code {…}} 触发 ChatClient 模板解析失败。 */
+    private final LiteralChatModelCaller literalChatModelCaller;
 
     /** 会话服务是历史读取与最终用户/助手消息持久化的唯一入口。 */
     private final ConversationService conversationService;
@@ -73,7 +70,7 @@ public class ChatService {
      * 构造器显式依赖调查边界而不依赖各数据仓储，确保聊天用例不能重新演化为静态全量数据拼接。
      */
     public ChatService(
-            ChatClient chatClient,
+            LiteralChatModelCaller literalChatModelCaller,
             ConversationService conversationService,
             AgentRunService agentRunService,
             InvestigationPlanner investigationPlanner,
@@ -81,7 +78,7 @@ public class ChatService {
             KnowledgeSearchTool knowledgeSearchTool,
             ObjectMapper objectMapper,
             ChatPromptTemplate promptTemplate) {
-        this.chatClient = chatClient;
+        this.literalChatModelCaller = literalChatModelCaller;
         this.conversationService = conversationService;
         this.agentRunService = agentRunService;
         this.investigationPlanner = investigationPlanner;
@@ -104,7 +101,11 @@ public class ChatService {
         var run = agentRunService.start(
                 workspacePublicId,
                 new AgentRunService.StartRequest(
-                        "chat", promptTemplate.version(), configuredModelName, TOOL_RETRIEVAL_VERSION, message));
+                        "chat",
+                        promptTemplate.version(),
+                        configuredModelName,
+                        knowledgeSearchTool.resolveRetrievalVersionLabel(null),
+                        message));
         long startedAtMs = System.currentTimeMillis();
 
         ChatResponse response;
@@ -118,11 +119,9 @@ public class ChatService {
             knowledge = knowledgeSearchTool.retrieve(workspacePublicId, message);
             log.info("Agent[Investigation] trace_id={}, status=succeeded, evidence_count={}",
                     run.getPublicId(), investigation.evidence().size());
-            response = chatClient.prompt()
-                    .system(buildSystemPrompt(investigation, knowledge, history))
-                    .user(message)
-                    .call()
-                    .chatResponse();
+            response = literalChatModelCaller.call(
+                    buildSystemPrompt(investigation, knowledge, history),
+                    message);
             String content = response.getResult().getOutput().getContent();
             finalContent = content == null || content.isBlank() ? "抱歉，暂时无法回答。" : content;
         } catch (RuntimeException exception) {

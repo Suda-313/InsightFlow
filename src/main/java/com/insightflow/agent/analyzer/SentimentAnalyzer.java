@@ -6,10 +6,10 @@ import com.insightflow.agent.LlmMetrics;
 import com.insightflow.agent.dto.SentimentResult;
 import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.entity.AgentRun;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import com.insightflow.prompt.OperationalPromptCatalog;
 import com.insightflow.service.AgentRunService;
 import java.util.UUID;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
 public class SentimentAnalyzer implements InsightAgent<SentimentResult> {
 
     /** 统一模型调用边界，Agent 不创建客户端或读取密钥。 */
-    private final ChatClient chatClient;
+    private final LiteralChatModelCaller literalChatModelCaller;
     /** 结构化结果按 DTO 契约解析，解析失败不向日志泄露模型原文。 */
     private final ObjectMapper objectMapper;
     /** 集中提示词目录是唯一的正文与版本来源。 */
@@ -39,12 +39,12 @@ public class SentimentAnalyzer implements InsightAgent<SentimentResult> {
 
     /** 通过构造器显式注入模型、Prompt 与审计依赖，保证可替换性。 */
     public SentimentAnalyzer(
-            ChatClient chatClient,
+            LiteralChatModelCaller literalChatModelCaller,
             ObjectMapper objectMapper,
             OperationalPromptCatalog promptCatalog,
             AgentRunService agentRunService,
             @Value("${spring.ai.openai.chat.options.model:unknown}") String modelName) {
-        this.chatClient = chatClient;
+        this.literalChatModelCaller = literalChatModelCaller;
         this.objectMapper = objectMapper;
         this.promptCatalog = promptCatalog;
         this.agentRunService = agentRunService;
@@ -69,7 +69,7 @@ public class SentimentAnalyzer implements InsightAgent<SentimentResult> {
         LlmMetrics.logStarted("Sentiment", promptVersion(), userInput);
         ChatResponse response;
         try {
-            response = chatClient.prompt().system(systemPrompt()).user(userInput).call().chatResponse();
+            response = literalChatModelCaller.call(systemPrompt(), userInput);
         } catch (RuntimeException exception) {
             LlmMetrics.logFailure("Sentiment", promptVersion(), start, "model_call");
             fail(workspacePublicId, run, start);

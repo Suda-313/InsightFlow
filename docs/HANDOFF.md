@@ -1,94 +1,73 @@
 # InsightFlow 开发交接
 
-> 最后更新：2026-07-26
->
-> 当前分支：`feature/data-cell-rule-issue-merging`
->
-> 远程仓库：`https://github.com/Suda-313/yuqiagent.git`
+> 最后更新：2026-07-30  
+> 当前任务：运营调查型 RAG 检索优化与低成本评测分层  
+> 完整执行方案：`docs/agent-optimization-todo.md` → **G4 / Step R（修订版）**
 
-## 先说结论
+## 当前结论
 
-可以切换到另一台电脑继续开发，但**当前工作区有大量未提交改动和未跟踪文件**。另一台电脑仅拉取当前分支，无法获得这些改动、知识库样例、前端构建产物或本地数据库数据。
+- 人工金标数据集 `ops-rag-v1/dev-240` 已完成一次 240/240 端到端执行；历史批次 `1f18b3a3-43bb-6046-b7d2-7124cd3c9991` 可用于排障，但其中部分指标受旧评分/carry-forward 逻辑影响，不能作为新检索版本的最终门禁。
+- Step M（度量修复）代码已完成：拒答率分子、document/chunk Recall 解耦、长断言匹配、carry-forward hit@K/MRR/nDCG/耗时字段、`latencySampleCount`。
+- Step M 相关定向测试已通过；**尚未在新代码下全量重跑 dev-240**，因此 `baseline-metrics-v2` 尚未产生。
+- 用户已确认采用“候选召回 → Candidate Recall → 专用精排 → 软多样性 → Top8”方案，并同意增加 retrieval-only 评测漏斗，避免每次调参都调用 240 次聊天模型。
 
-切换前应二选一：
+## 下一模型从这里开始
 
-1. 先审查并提交、推送本次确认要保留的代码与文档；此前约定的测试类不提交，应继续遵守。
-2. 若暂不提交，则完整、私密地复制当前工作目录和本地运行配置到新电脑；不要把密钥写入 Git 或交接文档。
+严格按以下顺序执行，不要直接开始 Cross-encoder，也不要先改 Prompt：
 
-不建议直接在新电脑重新开始：当前未提交内容混有多个阶段的改动，容易遗漏。
+1. 全量跑一次当前 `dev-240`，记录 Step M 修复后的 `baseline-metrics-v2`。
+2. 实现 G4/R0：
+   - `retrieval-only` 模式；
+   - 固定 `dev-fast-40` / `dev-e2e-30` case-key 文件；
+   - Candidate Recall@10/30/50 与候选来源指标；
+   - 评测专用 query embedding 缓存。
+3. 实现 G4/R1：
+   - lexical Top40 + vector Top40 → RRF Top30～50；
+   - 标题、文档类型、版本、章节进入 lexical 候选文本；
+   - 确定性版本号/KI 编号/日期 query expansion；
+   - planner 关键词补齐。
+4. 先用 `dev-fast-40`，再用全量 `dev-240 retrieval-only` 验证 Candidate Recall：
+   - document Recall@30 ≥75%；
+   - chunk Recall@30 ≥60%、Recall@50 ≥70%。
+5. 只有候选召回达标后才实现 G4/R2 的专用 reranker；必须保留 RRF fallback。
+6. 精排后使用软文档多样性，不采用“每文档绝对最多 2 chunk”。
+7. 最终执行 `dev-e2e-30 → dev-240 → val-80 → frozen-80`，Prompt 在整个 Step R 保持 `chat:v4`。
 
-## 当前目标与卡点
+## 重要取舍
 
-当前正在收口 RAG 评测链路，目标是建立一份可复跑、可比较的真实 RAG 质量基线。
+- 精排优先使用 Cross-encoder / 专用 reranker，不用聊天模型逐条评分。
+- 精排无法找回候选集外的证据；Candidate Recall 未达标时必须继续修召回。
+- 当前约 31 篇、约 441 chunk，继续使用 PostgreSQL + pgvector；不引入独立向量数据库。
+- 玩家评论不进入知识向量库；趋势和告警继续走受控数据 Tool。
+- 线上 Agent 仍只读；所有查询保持 Organization + Workspace + PUBLISHED + effective window 过滤。
+- 检索行为变化记录为 `knowledge:rrf:v2`；R0 仅评测能力变化，不应提前修改线上检索版本。
 
-### 已完成
+## 当前关键文件
 
-- RAG 长评测已改为异步任务：创建接口返回 `202 + task_id`，前端轮询任务状态，避免 HTTP 请求超时。
-- 每道 RAG 用例均输出 `RAG_EVAL` 日志，包含用例 ID、执行状态、失败阶段、检索/生成/总耗时；无法从现有 Spring AI 网关取得 token 时明确记录 `unavailable`，不伪造指标。
-- 增加 50 秒模型 HTTP 读取超时和 55 秒单用例评测超时，防止后台任务无限占用线程。
-- 评测任务只有在**全部用例成功**时才会保存为质量基线；任一用例失败即为 `partial_failed`，不生成可比较的 `run_id`。
-- 修正了生成阶段失败的耗时归因，避免将模型生成耗时错误记为检索耗时。
-- 已补充相关开发记录与 Todo：`docs/project-development-log.md`、`docs/agent-optimization-todo.md`。
+- 执行方案：`docs/agent-optimization-todo.md`
+- CLI：`scripts/run-rag-gold-evaluation.ps1`
+- 金标 Runner：`src/main/java/com/insightflow/evaluation/rag/RagGoldManualEvaluationRunner.java`
+- 单题执行：`src/main/java/com/insightflow/evaluation/rag/RagEvaluationCaseExecutor.java`
+- 聚合评分：`src/main/java/com/insightflow/evaluation/rag/RagGoldManualEvaluationScorer.java`
+- 检索入口：`src/main/java/com/insightflow/knowledge/KnowledgeSearchTool.java`
+- RRF SQL：`src/main/java/com/insightflow/knowledge/JdbcKnowledgeVectorStore.java`
+- 类型计划：`src/main/java/com/insightflow/knowledge/KnowledgeRetrievalPlanner.java`
+- 证据护栏：`src/main/java/com/insightflow/knowledge/KnowledgeEvidenceGuardrail.java`
+- dev 金标：`evaluation/rag/gold/seeds/ops-rag-v1-dev-240.json`
 
-### 当前外部卡点
+## 当前验证事实
 
-真实模型调用仍不稳定：部分 RAG 用例在约 50 秒后于 `generation_failed` 结束。最近一次真实任务已正确返回 `partial_failed`，且没有写入新的质量基线。
-
-这不是“评测代码已通过”的结论，而是当前保护逻辑生效的证明。尚不能使用历史 RAG 指标做模型、Prompt 或检索策略的优劣比较。
-
-另有一份早期历史 RAG 记录是在“部分用例成功即可保存”旧逻辑下生成的，其中多道用例失败；它仅可作为排障证据，**不能作为质量基线**，未经确认不要删除。
-
-## 下一步建议（按优先级）
-
-1. 启动本地服务后再次触发 RAG 评测，观察每道 `RAG_EVAL` 日志，确认失败集中在检索、重排还是模型生成阶段。
-2. 优先排查百炼/DashScope 的模型响应：模型选择、网络连通性、服务端限流和生成长度。不要为了“跑通”而静默缩短答案、删除用例或放宽成功标准。
-3. 当 5 道用例全部 `succeeded` 后，保存该次结果为第一份有效 RAG 基线；再以相同数据集和同一配置比较 Prompt、检索和后续向量库改动。
-4. 有了有效基线后，再继续 Todo 中的 Agent 只读工具、组织级知识库与工作区范围检索等能力；写操作仍必须人工确认。
-
-## 本地恢复清单
-
-### 代码与依赖
-
-1. 安装 JDK 17、Docker Desktop、Git；Maven 使用项目自带的 `mvnw.cmd`。
-2. 获取已同步的代码后切换到 `feature/data-cell-rule-issue-merging`。
-3. 运行 `docker compose up -d` 启动 PostgreSQL、MinIO 等依赖。
-4. 按项目的本地配置示例重新设置 API Key、JWT 密钥和本地存储配置；密钥只通过环境变量或受控本地配置提供。
-5. 启动后访问 `http://localhost:8080/actuator/health`。
-
-### 数据与知识库
-
-- 当前本地数据库中的工作区、导入评论、对话、评测历史和知识库索引不会随 Git 同步。若要保留现状，需要迁移本地数据库/卷；若只需重新验证功能，可在新电脑重新导入 CSV 并重新上传知识库文档。
-- 知识库样例与来源材料位于 `docs/knowledge-sources/`，属于当前未跟踪文件，切换前需确认是否随代码一起保留。
-- 不迁移本地数据时，不应期待新电脑能看到旧工作区、旧 RAG 任务或旧对话记录。
-
-## 关键实现位置
-
-- RAG 异步任务与严格成功判定：`src/main/java/com/insightflow/evaluation/rag/RagEvaluationTaskRunner.java`
-- 单用例超时与耗时归因：`src/main/java/com/insightflow/evaluation/rag/RagEvaluationCaseExecutor.java`
-- 逐题日志与指标汇总：`src/main/java/com/insightflow/evaluation/rag/RagLiveEvaluationRunner.java`
-- 任务创建、轮询接口：`src/main/java/com/insightflow/controller/EvaluationController.java`
-- 模型 HTTP 超时：`src/main/java/com/insightflow/config/AgentConfiguration.java`
-- 配置项：`src/main/resources/application.yml`
-- RAG 后续事项：`docs/agent-optimization-todo.md`
-- 关键决策与验证记录：`docs/project-development-log.md`
-
-## 已验证范围
-
-以下命令在本机最近一次执行通过：
+最近一次 Step M 定向测试通过：
 
 ```powershell
-.\mvnw.cmd '-Dtest=AgentConfigurationTest,EvaluationControllerTest,RagEvaluationControllerTest,RagEvaluationTaskCommandServiceTest,RagEvaluationTaskQueryServiceTest,RagEvaluationTaskRunnerTest,RagEvaluationCaseExecutorTest,RagLiveEvaluationRunnerTest' test
-npm --prefix frontend run build
-.\mvnw.cmd -DskipTests package
-git diff --check
+.\mvnw.cmd test -q "-Dtest=RagGoldAssertionMatcherTest,RagGoldManualEvaluationScorerTest,RagGoldManualEvaluationCarryForwardSupportTest,RagGoldEvidenceMatcherTest,RagGoldManualEvaluationRunnerTest"
 ```
 
-说明：未执行全量 Maven 测试；前端构建存在既有的 Vite CSS `@import` 顺序警告，构建本身成功。
+未执行全量 Maven 测试；未运行新代码下的完整 dev-240。不要声称 Step M 的线上指标已验证。
 
-## 不可突破的约束
+## 不可突破的边界
 
-- 遵循 `AGENTS.md`：KISS/YAGNI、默认外科手术式修改，跨文件设计先说明取舍再实施。
-- 外部 API 仅暴露 `public_id`；业务读写按 `workspace_id` 隔离；Agent 当前仅做只读调查，策略或数据写入必须人工确认。
-- 不保存或展示模型原始思维链；只保存用户消息、最终回答、可核验依据与必要的调用指标。
-- 不将 API Key、密码、Token、个人信息或未脱敏业务数据写入源码、测试、日志或文档。
-- 不执行 `git reset --hard`，不擅自清理当前未提交文件。
+- 不提交、推送、重置或删除 Git 内容，除非用户明确要求。
+- 不把 API Key、JWT、密码或原始业务数据写入代码、日志或文档。
+- 不保存模型原始思维链；评测缓存只保存必要的 query hash、候选公开 ID、rank、分数和版本元数据。
+- FROZEN split 不展示逐题金标细节；检索优化只能在 dev/val 调参。

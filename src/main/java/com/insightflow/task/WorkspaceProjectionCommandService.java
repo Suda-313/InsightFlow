@@ -45,6 +45,9 @@ public class WorkspaceProjectionCommandService {
     /** 提交后唤醒调度器；数据库扫描仍是崩溃恢复的权威路径。 */
     private final WorkspaceProjectionScheduler scheduler;
 
+    /** 半完成投影清理，解除 idempotency 对重跑的阻塞。 */
+    private final ProjectionRequeueSupport requeueSupport;
+
     /** 当前规则版本作为可追溯任务输入，主题规则尚未在本阶段执行。 */
     private final String ruleVersion;
 
@@ -56,6 +59,7 @@ public class WorkspaceProjectionCommandService {
             ProjectionFileRepository projectionFileRepository,
             ObjectMapper objectMapper,
             WorkspaceProjectionScheduler scheduler,
+            ProjectionRequeueSupport requeueSupport,
             @org.springframework.beans.factory.annotation.Value("${insightflow.projection.rule-version:rules:v1}") String ruleVersion) {
         this.importFileRepository = importFileRepository;
         this.taskRepository = taskRepository;
@@ -63,6 +67,7 @@ public class WorkspaceProjectionCommandService {
         this.projectionFileRepository = projectionFileRepository;
         this.objectMapper = objectMapper;
         this.scheduler = scheduler;
+        this.requeueSupport = requeueSupport;
         this.ruleVersion = ruleVersion;
     }
 
@@ -81,7 +86,11 @@ public class WorkspaceProjectionCommandService {
                 .findByWorkspaceIdAndTaskTypeAndIdempotencyKey(workspaceId, "projection", idempotencyKey)
                 .orElse(null);
         if (existing != null) {
-            return existing;
+            if (requeueSupport.isHealthyProjection(workspaceId, existing)) {
+                return existing;
+            }
+            requeueSupport.removeProjectionChain(workspaceId, existing);
+            requeueSupport.wipeAnalysisFacts(workspaceId);
         }
         String payload = writePayload(file);
         AsyncTask task = taskRepository.saveAndFlush(AsyncTask.queuedProjection(workspaceId, idempotencyKey, payload));

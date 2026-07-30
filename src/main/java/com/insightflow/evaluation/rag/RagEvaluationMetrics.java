@@ -10,5 +10,16 @@ public record RagEvaluationMetrics(
         double retrievalRecallRate,
         double citationCorrectnessRate,
         double ungroundedAnswerRate,
-        int caseCount) {
+        int caseCount,
+        /** 人工金标扩展指标；动态 Fixture 评测为 null。 */
+        RagGoldManualExtendedMetrics extended) {
+
+    /** 兼容既有三项 legacy 指标调用方。 */
+    public RagEvaluationMetrics(
+            double retrievalRecallRate,
+            double citationCorrectnessRate,
+            double ungroundedAnswerRate,
+            int caseCount) {
+        this(retrievalRecallRate, citationCorrectnessRate, ungroundedAnswerRate, caseCount, null);
+    }
 }

@@ -6,10 +6,10 @@ import com.insightflow.agent.LlmMetrics;
 import com.insightflow.agent.dto.ClassificationResult;
 import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.entity.AgentRun;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import com.insightflow.prompt.OperationalPromptCatalog;
 import com.insightflow.service.AgentRunService;
 import java.util.UUID;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
 public class ClassificationAnalyzer implements InsightAgent<ClassificationResult> {
 
     /** Spring AI 客户端由配置层统一提供，Agent 不持有密钥或供应商配置。 */
-    private final ChatClient chatClient;
+    private final LiteralChatModelCaller literalChatModelCaller;
 
     /** JSON 解析遵循对外 DTO 的 snake_case 契约，而非依赖模型自由文本。 */
     private final ObjectMapper objectMapper;
@@ -43,12 +43,12 @@ public class ClassificationAnalyzer implements InsightAgent<ClassificationResult
 
     /** 显式注入依赖，使模型调用和审计副作用均能在测试中受控替换。 */
     public ClassificationAnalyzer(
-            ChatClient chatClient,
+            LiteralChatModelCaller literalChatModelCaller,
             ObjectMapper objectMapper,
             OperationalPromptCatalog promptCatalog,
             AgentRunService agentRunService,
             @Value("${spring.ai.openai.chat.options.model:unknown}") String modelName) {
-        this.chatClient = chatClient;
+        this.literalChatModelCaller = literalChatModelCaller;
         this.objectMapper = objectMapper;
         this.promptCatalog = promptCatalog;
         this.agentRunService = agentRunService;
@@ -90,7 +90,7 @@ public class ClassificationAnalyzer implements InsightAgent<ClassificationResult
         LlmMetrics.logStarted("Classification", promptVersion(), userInput);
         ChatResponse response;
         try {
-            response = chatClient.prompt().system(systemPrompt()).user(userInput).call().chatResponse();
+            response = literalChatModelCaller.call(systemPrompt(), userInput);
         } catch (RuntimeException exception) {
             LlmMetrics.logFailure("Classification", promptVersion(), start, "model_call");
             failRun(workspacePublicId, run, start);

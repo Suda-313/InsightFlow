@@ -25,4 +25,17 @@ public interface FeedbackEventRepository extends JpaRepository<FeedbackEvent, Lo
      */
     java.util.List<FeedbackEvent> findByWorkspaceIdAndIngestedTaskIdInOrderByOccurredAtAsc(
             Long workspaceId, java.util.Collection<Long> ingestedTaskIds);
+
+    /**
+     * 按 Workspace 与 {@code occurred_at} 闭区间批量读取事件；Dashboard / 数据分析页统一分析窗口过滤入口。
+     */
+    java.util.List<FeedbackEvent> findByWorkspaceIdAndOccurredAtBetween(
+            Long workspaceId, java.time.OffsetDateTime start, java.time.OffsetDateTime end);
+
+    /** 按内部 id 集合批量读取，调用方必须带 workspaceId 做二次隔离校验。 */
+    java.util.List<FeedbackEvent> findByWorkspaceIdAndIdIn(
+            Long workspaceId, java.util.Collection<Long> ids);
+
+    /** 启动恢复与完整性探测：判断工作区是否已有导入反馈。 */
+    long countByWorkspaceId(Long workspaceId);
 }

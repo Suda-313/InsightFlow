@@ -1,0 +1,27 @@
+# CROSS dev slice: representative CROSS_DOCUMENT cases from dev-240 (read-only gold; tune retrieval only)
+# val-80 is read-only for gold edits; frozen-80 untouched
+# Use with: retrieval-only + --case-keys-file evaluation/rag/gold/slices/cross-dev-slice.txt
+dev-145
+# 1.4 公告 vs 7月稳定性复盘 / 7/19 到账
+dev-146
+# 古蜀活动 vs 7/19 结算复盘
+dev-147
+# KI-1301 vs KI-1405 同根因
+dev-151
+# 数据限制 DAU + P99 引用（双 requirement 组 AND）
+dev-154
+# 暑期签到 vs 古蜀活动时间窗重叠（示例分解题）
+dev-174
+# 暑期签到 vs 古蜀（二线升级措辞变体）
+dev-183
+# v1.3-v1.4 对照档案 vs 1.4.2 热修 KI-1405
+dev-148
+# 版本窗口 SOP vs 维护档案
+dev-149
+# FAQ 匹配失败 vs 1.4.1 热修
+dev-150
+# 玩法机制参考 vs 1.4 公告
+dev-152
+# 外挂复盘 vs 1.3 治理段
+dev-160
+# 玩法核心循环 vs 1.4 公告（培训场景）

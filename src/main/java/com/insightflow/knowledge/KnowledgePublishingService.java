@@ -32,9 +32,10 @@ public class KnowledgePublishingService {
         this.chunker = chunker; this.embeddings = embeddings; this.vectors = vectors;
     }
 
-    /** 发布前校验当前 Workspace 的组织范围，旧已发布版本在相同事务内失效。 */
+    /** 发布前校验当前 Workspace 的组织范围；是否下线旧版由调用方显式决定，默认保留并存。 */
     @Transactional
-    public KnowledgeDocumentVersion publish(UUID workspacePublicId, UUID documentPublicId, UUID versionPublicId) {
+    public KnowledgeDocumentVersion publish(UUID workspacePublicId, UUID documentPublicId, UUID versionPublicId,
+            boolean expirePreviousPublished) {
         Workspace workspace = workspaceService.get(workspacePublicId);
         KnowledgeDocument document = documents.findByPublicId(documentPublicId).orElseThrow();
         if (!document.getOrganizationId().equals(workspace.getOrganizationId())
@@ -53,10 +54,21 @@ public class KnowledgePublishingService {
                 .toList();
         List<List<Double>> vectorsResult = embeddings.embed(embedTexts);
         if (vectorsResult.size() != drafts.size()) throw new IllegalStateException("嵌入结果与知识切片数量不一致");
-        versions.findByDocumentIdAndStatus(document.getId(), KnowledgeVersionStatus.PUBLISHED).forEach(old -> old.expire(OffsetDateTime.now()));
+        if (expirePreviousPublished) {
+            versions.findByDocumentIdAndStatus(document.getId(), KnowledgeVersionStatus.PUBLISHED)
+                    .forEach(old -> old.expire(OffsetDateTime.now()));
+        }
         version.publish(OffsetDateTime.now()); versions.save(version);
-        vectors.store(version.getId(), java.util.stream.IntStream.range(0, drafts.size()).mapToObj(i ->
-                new KnowledgeVectorStore.EmbeddedChunk(drafts.get(i).chunkNo(), drafts.get(i).content(), drafts.get(i).tokenCount(), vectorsResult.get(i))).toList());
+        vectors.store(version.getId(), java.util.stream.IntStream.range(0, drafts.size()).mapToObj(i -> {
+            KnowledgeChunker.ChunkDraft draft = drafts.get(i);
+            return new KnowledgeVectorStore.EmbeddedChunk(
+                    draft.chunkNo(),
+                    draft.content(),
+                    draft.tokenCount(),
+                    vectorsResult.get(i),
+                    draft.sectionHeading(),
+                    KnowledgeLexicalIndexText.forChunk(document, version, draft));
+        }).toList());
         return version;
     }
 

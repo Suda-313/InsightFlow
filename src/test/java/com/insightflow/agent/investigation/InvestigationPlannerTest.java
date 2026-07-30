@@ -57,9 +57,31 @@ class InvestigationPlannerTest {
 
         assertThat(plan.intent()).isEqualTo(InvestigationIntent.REPORT_GENERATION);
         assertThat(plan.tools()).containsExactly(
+                InvestigationToolType.EXPRESSION_DISTRIBUTION,
                 InvestigationToolType.TOPIC_DISTRIBUTION,
                 InvestigationToolType.ALERT_HISTORY,
                 InvestigationToolType.ISSUE_TREND);
+    }
+
+    /** 表达层问题应走 L2 分布、L2→L1 钻取与交叉样本三类只读 Tool。 */
+    @Test
+    void plansExpressionInquiryWithL2Tools() {
+        InvestigationPlan plan = planner.plan("最近吐槽里主要议题有哪些？");
+
+        assertThat(plan.intent()).isEqualTo(InvestigationIntent.EXPRESSION_INQUIRY);
+        assertThat(plan.tools()).containsExactly(
+                InvestigationToolType.EXPRESSION_DISTRIBUTION,
+                InvestigationToolType.EXPRESSION_TOPIC_DRILLDOWN,
+                InvestigationToolType.EXPRESSION_TOPIC_SAMPLES);
+    }
+
+    /** 表达分布类泛问同样识别为表达层意图，由分布 Tool 提供五类占比。 */
+    @Test
+    void recognizesExpressionDistributionQuestion() {
+        InvestigationPlan plan = planner.plan("玩家表达分布怎么样？");
+
+        assertThat(plan.intent()).isEqualTo(InvestigationIntent.EXPRESSION_INQUIRY);
+        assertThat(plan.tools()).first().isEqualTo(InvestigationToolType.EXPRESSION_DISTRIBUTION);
     }
 
     /** 未命中已知意图时退回主题分布，避免自由文本触发高成本或无关查询。 */

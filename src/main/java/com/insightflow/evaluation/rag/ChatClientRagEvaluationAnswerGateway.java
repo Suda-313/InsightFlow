@@ -3,7 +3,7 @@ package com.insightflow.evaluation.rag;
 import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
 import com.insightflow.prompt.ChatPromptTemplate;
-import org.springframework.ai.chat.client.ChatClient;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
@@ -17,15 +17,16 @@ import org.springframework.stereotype.Component;
 @Conditional(AgentApiKeyPresentCondition.class)
 public class ChatClientRagEvaluationAnswerGateway implements RagEvaluationAnswerGateway {
 
-    /** 模型客户端只生成最终回答，不能直接操作知识库或其他业务数据。 */
-    private final ChatClient chatClient;
+    /** 字面量调用器，避免知识 chunk 中的 {@code {版本号}} 被 ChatClient 模板解析。 */
+    private final LiteralChatModelCaller literalChatModelCaller;
 
     /** 复用线上版本化 Prompt，保证评测结论对应真实生产护栏。 */
     private final ChatPromptTemplate promptTemplate;
 
     /** 通过构造器注入，便于在非模型环境中替换为测试网关。 */
-    public ChatClientRagEvaluationAnswerGateway(ChatClient chatClient, ChatPromptTemplate promptTemplate) {
-        this.chatClient = chatClient;
+    public ChatClientRagEvaluationAnswerGateway(
+            LiteralChatModelCaller literalChatModelCaller, ChatPromptTemplate promptTemplate) {
+        this.literalChatModelCaller = literalChatModelCaller;
         this.promptTemplate = promptTemplate;
     }
 
@@ -36,7 +37,6 @@ public class ChatClientRagEvaluationAnswerGateway implements RagEvaluationAnswer
                 "\n## 调查计划\n本轮是企业知识库评测，仅可使用下方企业知识证据。\n",
                 retrieval.renderForPrompt(),
                 "\n## 最近对话\n无\n");
-        String answer = chatClient.prompt().system(systemPrompt).user(question).call().content();
-        return answer == null ? "" : answer;
+        return literalChatModelCaller.callContent(systemPrompt, question);
     }
 }

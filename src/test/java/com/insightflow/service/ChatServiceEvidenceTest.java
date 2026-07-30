@@ -18,6 +18,7 @@ import com.insightflow.agent.investigation.InvestigationToolService;
 import com.insightflow.agent.investigation.InvestigationToolType;
 import com.insightflow.entity.AgentRun;
 import com.insightflow.prompt.ChatPromptTemplate;
+import com.insightflow.prompt.LiteralChatModelCaller;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
 import com.insightflow.knowledge.KnowledgeSearchTool;
 import com.insightflow.knowledge.KnowledgeEvidence;
@@ -25,7 +26,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -38,9 +38,7 @@ class ChatServiceEvidenceTest {
     void usesInvestigationEvidenceForPromptAndAuditSnapshot() {
         UUID workspaceId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
-        ChatClient chatClient = mock(ChatClient.class);
-        ChatClient.ChatClientRequestSpec request = mock(ChatClient.ChatClientRequestSpec.class);
-        ChatClient.CallResponseSpec responseSpec = mock(ChatClient.CallResponseSpec.class);
+        LiteralChatModelCaller literalChatModelCaller = mock(LiteralChatModelCaller.class);
         ChatResponse response = mock(ChatResponse.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
         Generation generation = mock(Generation.class);
         AssistantMessage assistant = mock(AssistantMessage.class);
@@ -70,24 +68,20 @@ class ChatServiceEvidenceTest {
                 "/api/v1/workspaces/" + workspaceId + "/knowledge/documents/document-a/versions/version-a/source");
         when(knowledgeSearchTool.retrieve(workspaceId, "玩法Bug 为什么暴增？"))
                 .thenReturn(new KnowledgeRetrievalResult(1, List.of(knowledgeEvidence)));
-        when(chatClient.prompt()).thenReturn(request);
-        when(request.system(anyString())).thenReturn(request);
-        when(request.user(anyString())).thenReturn(request);
-        when(request.call()).thenReturn(responseSpec);
-        when(responseSpec.chatResponse()).thenReturn(response);
+        when(literalChatModelCaller.call(anyString(), anyString())).thenReturn(response);
         when(response.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistant);
         when(assistant.getContent()).thenReturn("## 结论\n反馈增加。\n## 证据\n[证据: trend:gameplay:last_14_days]");
 
         ChatService service = new ChatService(
-                chatClient, conversationService, agentRunService,
+                literalChatModelCaller, conversationService, agentRunService,
                 planner, toolService, knowledgeSearchTool, new ObjectMapper(), new ChatPromptTemplate());
 
         ChatService.ChatReply reply = service.chat(workspaceId, sessionId, "玩法Bug 为什么暴增？");
 
         ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<AgentRunService.Completion> completionCaptor = ArgumentCaptor.forClass(AgentRunService.Completion.class);
-        verify(request).system(promptCaptor.capture());
+        verify(literalChatModelCaller).call(promptCaptor.capture(), eq("玩法Bug 为什么暴增？"));
         verify(agentRunService).succeed(eq(workspaceId), eq(run.getPublicId()), completionCaptor.capture());
         assertThat(promptCaptor.getValue())
                 .contains("## 结论")

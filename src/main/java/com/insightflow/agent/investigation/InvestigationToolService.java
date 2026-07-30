@@ -13,7 +13,11 @@ import com.insightflow.repository.CellIssueRepository;
 import com.insightflow.repository.FeedbackEventRepository;
 import com.insightflow.repository.IssueCatalogRepository;
 import com.insightflow.repository.IssueMetricBucketRepository;
+import com.insightflow.service.DashboardService;
 import com.insightflow.service.WorkspaceService;
+import com.insightflow.service.analysis.ExpressionDefaults;
+import com.insightflow.service.analysis.ExpressionRule;
+import com.insightflow.service.analysis.ExpressionRulesLoader;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -24,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,6 +73,12 @@ public class InvestigationToolService {
     /** 反馈事件仅读取已脱敏文本，且会再次校验 workspace_id。 */
     private final FeedbackEventRepository feedbackEventRepository;
 
+    /** 看板服务提供 L2 分布、L2→L1 钻取与交叉样本的只读聚合，与 Dashboard API 同源。 */
+    private final DashboardService dashboardService;
+
+    /** 平台 L2 规则用于从用户问题解析 expr_* 键与中文展示名，不执行分类写入。 */
+    private final ExpressionRulesLoader expressionRulesLoader;
+
     /** JSON 仅用于解析服务端保存的有限样本事件引用数组。 */
     private final ObjectMapper objectMapper;
 
@@ -83,6 +94,8 @@ public class InvestigationToolService {
             AlertRepository alertRepository,
             CellIssueRepository cellIssueRepository,
             FeedbackEventRepository feedbackEventRepository,
+            DashboardService dashboardService,
+            ExpressionRulesLoader expressionRulesLoader,
             ObjectMapper objectMapper) {
         this(
                 workspaceService,
@@ -91,6 +104,8 @@ public class InvestigationToolService {
                 alertRepository,
                 cellIssueRepository,
                 feedbackEventRepository,
+                dashboardService,
+                expressionRulesLoader,
                 objectMapper,
                 Clock.systemUTC());
     }
@@ -103,6 +118,8 @@ public class InvestigationToolService {
             AlertRepository alertRepository,
             CellIssueRepository cellIssueRepository,
             FeedbackEventRepository feedbackEventRepository,
+            DashboardService dashboardService,
+            ExpressionRulesLoader expressionRulesLoader,
             ObjectMapper objectMapper,
             Clock clock) {
         this.workspaceService = workspaceService;
@@ -111,6 +128,8 @@ public class InvestigationToolService {
         this.alertRepository = alertRepository;
         this.cellIssueRepository = cellIssueRepository;
         this.feedbackEventRepository = feedbackEventRepository;
+        this.dashboardService = dashboardService;
+        this.expressionRulesLoader = expressionRulesLoader;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -128,7 +147,7 @@ public class InvestigationToolService {
         Optional<IssueCatalog> issue = resolveIssue(question, catalogs);
         List<InvestigationEvidence> evidence = new ArrayList<>();
         for (InvestigationToolType tool : plan.tools()) {
-            evidence.add(executeTool(tool, workspaceId, catalogs, issue));
+            evidence.add(executeTool(tool, workspacePublicId, workspaceId, question, catalogs, issue));
         }
         return new InvestigationResult(plan, evidence);
     }
@@ -136,12 +155,17 @@ public class InvestigationToolService {
     /** 统一分派到固定 Tool 实现；没有 default 分支，新增枚举成员必须明确实现其数据边界。 */
     private InvestigationEvidence executeTool(
             InvestigationToolType tool,
+            UUID workspacePublicId,
             Long workspaceId,
+            String question,
             List<IssueCatalog> catalogs,
             Optional<IssueCatalog> issue) {
         return switch (tool) {
             case ISSUE_TREND -> issueTrend(workspaceId, issue);
             case TOPIC_DISTRIBUTION -> topicDistribution(workspaceId, catalogs);
+            case EXPRESSION_DISTRIBUTION -> expressionDistribution(workspacePublicId);
+            case EXPRESSION_TOPIC_DRILLDOWN -> expressionTopicDrilldown(workspacePublicId, question);
+            case EXPRESSION_TOPIC_SAMPLES -> expressionTopicSamples(workspacePublicId, question, catalogs);
             case ALERT_HISTORY -> alertHistory(workspaceId, catalogs, issue);
             case SAMPLE_FEEDBACK -> sampleFeedback(workspaceId, issue);
             case PERIOD_COMPARISON -> periodComparison(workspaceId, issue);
@@ -198,6 +222,191 @@ public class InvestigationToolService {
                 "主题分布",
                 "来源 issue_metric_bucket；最近7天 Top" + TOPIC_LIMIT + "：" + String.join("；", topTopics) + "。",
                 true);
+    }
+
+    /**
+     * L2 表达分布 Tool 复用看板首屏同一分析窗口与标注聚合逻辑，返回五类表达占比摘要。
+     *
+     * <p>时间边界由 {@link DashboardService} 的 {@code AnalysisWindowResolver} 决定，
+     * 不接受用户消息中的动态日期，与 L1 Tool 的固定 UTC 窗口策略并存但 L2 与 Dashboard 口径一致。</p>
+     */
+    private InvestigationEvidence expressionDistribution(UUID workspacePublicId) {
+        DashboardService.DashboardResponse dashboard = dashboardService.getDashboard(workspacePublicId, null, null);
+        List<DashboardService.ExpressionCount> distribution = dashboard.expressionSummary().distribution();
+        int total = distribution.stream().mapToInt(DashboardService.ExpressionCount::feedbackCount).sum();
+        if (total == 0) {
+            return insufficient(
+                    InvestigationToolType.EXPRESSION_DISTRIBUTION,
+                    "expression:distribution",
+                    "L2 表达分布",
+                    "当前分析窗口内没有可用的 L2 表达标注数据。");
+        }
+        List<String> parts = distribution.stream()
+                .filter(item -> item.feedbackCount() > 0)
+                .map(item -> item.name() + " " + item.feedbackCount() + " 条")
+                .toList();
+        DashboardService.WindowInfo window = dashboard.analysisWindow();
+        String content = String.format(
+                "来源 feedback_projection_annotation；分析窗口 %s 至 %s；L2 表达分布：%s。",
+                window.start(),
+                window.end(),
+                String.join("；", parts));
+        return evidence(
+                InvestigationToolType.EXPRESSION_DISTRIBUTION,
+                "expression:distribution",
+                "L2 表达分布",
+                content,
+                true);
+    }
+
+    /**
+     * L2→L1 钻取 Tool：在用户问题中识别某一 L2 表达类目后，返回该类目下 Top N 议题分布。
+     *
+     * <p>未识别表达类型时返回数据不足，避免把全工作区 L1 分布误当作某类表达的交叉结果。</p>
+     */
+    private InvestigationEvidence expressionTopicDrilldown(UUID workspacePublicId, String question) {
+        Optional<String> expressionKey = resolveExpressionKey(question);
+        if (expressionKey.isEmpty()) {
+            return insufficient(
+                    InvestigationToolType.EXPRESSION_TOPIC_DRILLDOWN,
+                    "expression:topics:unresolved",
+                    "L2→L1 交叉分布",
+                    "未识别具体 L2 表达类型（如建议/吐槽/好评），无法查询交叉议题分布。");
+        }
+        String key = expressionKey.get();
+        DashboardService.ExpressionTopicsResponse response =
+                dashboardService.getExpressionTopics(workspacePublicId, key, null, null);
+        if (response.topics().isEmpty()) {
+            return insufficient(
+                    InvestigationToolType.EXPRESSION_TOPIC_DRILLDOWN,
+                    "expression:topics:" + key,
+                    "L2→L1 交叉分布",
+                    expressionDisplayName(key) + " 在当前分析窗口内没有可关联的 L1 议题数据。");
+        }
+        List<String> topTopics = response.topics().stream()
+                .limit(TOPIC_LIMIT)
+                .map(topic -> topic.canonicalName() + " " + topic.feedbackCount() + " 条")
+                .toList();
+        DashboardService.WindowInfo window = response.analysisWindow();
+        String content = String.format(
+                "来源 annotation ⋈ issue_link；%s（%s）下 Top%d 议题；分析窗口 %s 至 %s：%s。",
+                expressionDisplayName(key),
+                key,
+                TOPIC_LIMIT,
+                window.start(),
+                window.end(),
+                String.join("；", topTopics));
+        return evidence(
+                InvestigationToolType.EXPRESSION_TOPIC_DRILLDOWN,
+                "expression:topics:" + key,
+                "L2→L1 交叉分布",
+                content,
+                true);
+    }
+
+    /**
+     * L2×L1 交叉样本 Tool：需同时识别 L2 表达类型与 L1 主题，最多返回五条脱敏文本。
+     *
+     * <p>与 Dashboard 交叉样本 API 同源，再次截断单条文本长度，不暴露事件内部主键。</p>
+     */
+    private InvestigationEvidence expressionTopicSamples(
+            UUID workspacePublicId, String question, List<IssueCatalog> catalogs) {
+        Optional<String> expressionKey = resolveExpressionKey(question);
+        Optional<IssueCatalog> issue = resolveIssue(question, catalogs);
+        if (expressionKey.isEmpty()) {
+            return insufficient(
+                    InvestigationToolType.EXPRESSION_TOPIC_SAMPLES,
+                    "expression:samples:unresolved",
+                    "L2×L1 脱敏样本",
+                    "未识别具体 L2 表达类型，无法安全抽取交叉样本。");
+        }
+        if (issue.isEmpty()) {
+            return insufficient(
+                    InvestigationToolType.EXPRESSION_TOPIC_SAMPLES,
+                    "expression:samples:topic_unresolved",
+                    "L2×L1 脱敏样本",
+                    "未识别具体 L1 主题，无法安全抽取 L2×L1 交叉样本。");
+        }
+        String key = expressionKey.get();
+        IssueCatalog catalog = issue.get();
+        List<DashboardService.FeedbackSample> samples = dashboardService.getExpressionTopicSamples(
+                workspacePublicId, key, catalog.getCanonicalKey(), null, null);
+        List<String> texts = samples.stream()
+                .map(DashboardService.FeedbackSample::text)
+                .filter(text -> text != null && !text.isBlank())
+                .map(this::capSampleText)
+                .limit(SAMPLE_LIMIT)
+                .toList();
+        if (texts.isEmpty()) {
+            return insufficient(
+                    InvestigationToolType.EXPRESSION_TOPIC_SAMPLES,
+                    "expression:samples:" + key + ":" + catalog.getCanonicalKey(),
+                    "L2×L1 脱敏样本",
+                    expressionDisplayName(key) + " × " + catalog.getCanonicalName() + " 没有可用的脱敏反馈样本。");
+        }
+        return evidence(
+                InvestigationToolType.EXPRESSION_TOPIC_SAMPLES,
+                "expression:samples:" + key + ":" + catalog.getCanonicalKey(),
+                "L2×L1 脱敏样本",
+                "来源 feedback_event；"
+                        + expressionDisplayName(key)
+                        + " × "
+                        + catalog.getCanonicalName()
+                        + " 样本："
+                        + String.join("；", texts),
+                true);
+    }
+
+    /**
+     * 从用户问题中解析 L2 表达键：优先匹配 expr_* 键，再匹配中文展示名与规则正向词，同分取 priority 更高者。
+     */
+    private Optional<String> resolveExpressionKey(String question) {
+        String normalized = question == null ? "" : question.toLowerCase(Locale.ROOT);
+        for (ExpressionRule rule : expressionRulesLoader.rules()) {
+            if (normalized.contains(rule.canonicalKey().toLowerCase(Locale.ROOT))) {
+                return Optional.of(rule.canonicalKey());
+            }
+        }
+        if (normalized.contains(ExpressionDefaults.EXPR_OTHER_KEY)) {
+            return Optional.of(ExpressionDefaults.EXPR_OTHER_KEY);
+        }
+        Optional<ExpressionRule> byName = expressionRulesLoader.rules().stream()
+                .filter(rule -> expressionNameMatches(normalized, rule.name()))
+                .max(Comparator.comparingInt(rule -> rule.name().length()));
+        if (byName.isPresent()) {
+            return Optional.of(byName.get().canonicalKey());
+        }
+        if (normalized.contains(ExpressionDefaults.EXPR_OTHER_NAME.toLowerCase(Locale.ROOT))) {
+            return Optional.of(ExpressionDefaults.EXPR_OTHER_KEY);
+        }
+        return expressionRulesLoader.rules().stream()
+                .filter(rule -> rule.anyPatterns().stream()
+                        .anyMatch(pattern -> normalized.contains(pattern.toLowerCase(Locale.ROOT))))
+                .max(Comparator.comparingInt(ExpressionRule::priority))
+                .map(ExpressionRule::canonicalKey);
+    }
+
+    /** 匹配 L2 中文展示名或其 "/" 分隔的短名片段，便于识别"吐槽""建议"等口语问法。 */
+    private boolean expressionNameMatches(String normalized, String name) {
+        if (normalized.contains(name.toLowerCase(Locale.ROOT))) {
+            return true;
+        }
+        for (String part : name.split("/")) {
+            String trimmed = part.trim().toLowerCase(Locale.ROOT);
+            if (!trimmed.isBlank() && normalized.contains(trimmed)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 将 expr_* 键映射为平台规则中的中文展示名，证据正文对用户可读。 */
+    private String expressionDisplayName(String expressionKey) {
+        return expressionRulesLoader.rules().stream()
+                .filter(rule -> rule.canonicalKey().equals(expressionKey))
+                .map(ExpressionRule::name)
+                .findFirst()
+                .orElse(ExpressionDefaults.EXPR_OTHER_NAME);
     }
 
     /** 告警 Tool 只读取工作区范围的告警快照；有主题时进一步收窄到该主题。 */

@@ -3,6 +3,7 @@ package com.insightflow.knowledge;
 import com.insightflow.entity.KnowledgeDocumentType;
 import com.insightflow.entity.Workspace;
 import com.insightflow.service.WorkspaceService;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -34,15 +35,43 @@ public class KnowledgeSearchTool {
     /** 证据不足时才允许补检索一次，阻止 ReAct 式无限循环。 */
     private final KnowledgeEvidenceGuardrail evidenceGuardrail;
 
+    /** 词法查询扩展只影响 FTS，不改变 embedding 输入。 */
+    private final KnowledgeQueryExpander queryExpander;
+
+    /** RRF 与 Cross-encoder 精排选择器；默认 RRF-only。 */
+    private final KnowledgeRerankerSelector rerankerSelector;
+
+    /** CROSS/VERSION 问题拆分子查询后再合并候选。 */
+    private final KnowledgeCrossQueryDecomposer crossQueryDecomposer;
+
+    /** P2：精排前标题/实体加权与双主体覆盖保护。 */
+    private final KnowledgeTitleEntityScoreBooster titleEntityScoreBooster;
+
+    /** P3：Top8 覆盖感知贪心选择。 */
+    private final KnowledgeCoverageAwareSelector coverageAwareSelector;
+
     /** 所有依赖均由 Spring 注入，便于单测替换模型和数据库边界。 */
-    public KnowledgeSearchTool(WorkspaceService workspaces, KnowledgeEmbeddingGateway embeddings,
-            KnowledgeVectorStore vectors, KnowledgeRetrievalPlanner planner,
-            KnowledgeEvidenceGuardrail evidenceGuardrail) {
+    public KnowledgeSearchTool(
+            WorkspaceService workspaces,
+            KnowledgeEmbeddingGateway embeddings,
+            KnowledgeVectorStore vectors,
+            KnowledgeRetrievalPlanner planner,
+            KnowledgeEvidenceGuardrail evidenceGuardrail,
+            KnowledgeQueryExpander queryExpander,
+            KnowledgeRerankerSelector rerankerSelector,
+            KnowledgeCrossQueryDecomposer crossQueryDecomposer,
+            KnowledgeTitleEntityScoreBooster titleEntityScoreBooster,
+            KnowledgeCoverageAwareSelector coverageAwareSelector) {
         this.workspaces = workspaces;
         this.embeddings = embeddings;
         this.vectors = vectors;
         this.planner = planner;
         this.evidenceGuardrail = evidenceGuardrail;
+        this.queryExpander = queryExpander;
+        this.rerankerSelector = rerankerSelector;
+        this.crossQueryDecomposer = crossQueryDecomposer;
+        this.titleEntityScoreBooster = titleEntityScoreBooster;
+        this.coverageAwareSelector = coverageAwareSelector;
     }
 
     /**
@@ -50,28 +79,142 @@ public class KnowledgeSearchTool {
      * 即使补检索无结果也立即返回，绝不由模型决定继续调用次数。
      */
     public KnowledgeRetrievalResult retrieve(UUID workspacePublicId, String question) {
-        Workspace workspace = workspaces.get(workspacePublicId);
-        List<Double> queryEmbedding = embeddings.embed(List.of(question)).get(0);
-        List<KnowledgeDocumentType> firstRoundTypes = planner.plan(question);
-        List<KnowledgeVectorStore.SearchCandidate> candidates = vectors.search(
-                workspace.getOrganizationId(), workspace.getId(), question, firstRoundTypes,
-                queryEmbedding, MAX_EVIDENCE_COUNT);
+        return retrieveWithDiagnostics(workspacePublicId, question).result();
+    }
 
-        int rounds = 1;
-        if (!firstRoundTypes.isEmpty() && !evidenceGuardrail.isSufficient(candidates)) {
-            candidates = vectors.search(workspace.getOrganizationId(), workspace.getId(), question,
-                    List.of(), queryEmbedding, MAX_EVIDENCE_COUNT);
-            rounds = 2;
+    /** 允许评测层注入已缓存的 query embedding，避免重复调用嵌入 API。 */
+    public KnowledgeRetrievalDiagnostics retrieveWithDiagnostics(
+            UUID workspacePublicId, String question, List<Double> queryEmbedding) {
+        return retrieveWithDiagnostics(workspacePublicId, question, queryEmbedding, null);
+    }
+
+    /**
+     * 带精排覆盖项的检索：评测 CLI 可显式开启 Cross-encoder 而不改全局配置。
+     */
+    public KnowledgeRetrievalDiagnostics retrieveWithDiagnostics(
+            UUID workspacePublicId,
+            String question,
+            List<Double> queryEmbedding,
+            KnowledgeRetrievalOptions retrievalOptions) {
+        Workspace workspace = workspaces.get(workspacePublicId);
+        KnowledgeRetrievalOptions effectiveOptions = retrievalOptions == null
+                ? KnowledgeRetrievalOptions.defaults()
+                : retrievalOptions;
+        List<String> subQueries = resolveSubQueries(question, effectiveOptions);
+        List<KnowledgeSearchResult> subResults = new ArrayList<>(subQueries.size());
+        List<Integer> candidatesPerSubQuery = new ArrayList<>(subQueries.size());
+        int rounds = 0;
+
+        for (int index = 0; index < subQueries.size(); index++) {
+            String subQuery = subQueries.get(index);
+            List<Double> subEmbedding = resolveSubQueryEmbedding(
+                    question, queryEmbedding, subQueries, index, subQuery);
+            SubQuerySearchOutcome subOutcome = searchSingleQuery(workspace, subQuery, subEmbedding);
+            subResults.add(subOutcome.result());
+            candidatesPerSubQuery.add(subOutcome.result().candidates().size());
+            rounds = Math.max(rounds, subOutcome.rounds());
         }
 
-        List<KnowledgeEvidence> evidence = candidates.stream()
-                .map(candidate -> new KnowledgeEvidence(
-                        "knowledge:" + candidate.documentId() + ":v" + candidate.versionNo() + ":" + candidate.chunkId(),
-                        candidate.title(), candidate.versionNo(),
-                        candidate.content().substring(0, Math.min(300, candidate.content().length())),
-                        "/api/v1/workspaces/" + workspacePublicId + "/knowledge/documents/"
-                                + candidate.documentId() + "/versions/" + candidate.versionId() + "/source"))
+        KnowledgeSearchResult effective = subResults.size() == 1
+                ? subResults.get(0)
+                : KnowledgeSubQueryCandidateMerger.merge(
+                        subResults, KnowledgeSearchOptions.rrfV2("").candidateLimit());
+
+        List<KnowledgeVectorStore.SearchCandidate> boostedCandidates = titleEntityScoreBooster.apply(
+                question, effective.candidates(), effectiveOptions);
+
+        int selectionPoolSize = boostedCandidates.size();
+        KnowledgeRerankOutcome rerankOutcome = rerankerSelector.rerank(
+                question, boostedCandidates, selectionPoolSize, effectiveOptions);
+        List<KnowledgeVectorStore.SearchCandidate> finalCandidates = coverageAwareSelector.select(
+                question, rerankOutcome.rankedCandidates(), MAX_EVIDENCE_COUNT, effectiveOptions);
+        rerankOutcome = rerankOutcome.withRankedCandidates(finalCandidates);
+        List<KnowledgeEvidence> evidence = finalCandidates.stream()
+                .map(candidate -> toEvidence(workspacePublicId, candidate))
                 .toList();
-        return new KnowledgeRetrievalResult(rounds, evidence);
+        KnowledgeRetrievalResult result = new KnowledgeRetrievalResult(rounds, evidence);
+        return new KnowledgeRetrievalDiagnostics(
+                result,
+                boostedCandidates,
+                effective.lexicalOnlyChunkIds(),
+                effective.vectorOnlyChunkIds(),
+                effective.bothSourceChunkIds(),
+                rerankOutcome,
+                subQueries,
+                candidatesPerSubQuery);
+    }
+
+    /**
+     * 带候选诊断的检索：RRF Top50 候选，精排后返回 Top8 证据给生成模型。
+     * 评测漏斗复用本方法，避免复制检索逻辑。
+     */
+    public KnowledgeRetrievalDiagnostics retrieveWithDiagnostics(UUID workspacePublicId, String question) {
+        List<Double> queryEmbedding = embeddings.embed(List.of(question)).get(0);
+        return retrieveWithDiagnostics(workspacePublicId, question, queryEmbedding, null);
+    }
+
+    /** 解析本请求的检索版本标签，供 AgentRun / RAG 评测元数据写入。 */
+    public String resolveRetrievalVersionLabel(KnowledgeRetrievalOptions retrievalOptions) {
+        return rerankerSelector.resolveRetrievalVersionLabel(retrievalOptions) + "+entity+coverage";
+    }
+
+    private List<String> resolveSubQueries(String question, KnowledgeRetrievalOptions retrievalOptions) {
+        if (retrievalOptions.subQueries() != null && !retrievalOptions.subQueries().isEmpty()) {
+            return retrievalOptions.subQueries();
+        }
+        List<String> decomposed = crossQueryDecomposer.decompose(question, retrievalOptions.questionTypeName());
+        return decomposed.isEmpty() ? List.of(question) : decomposed;
+    }
+
+    private List<Double> resolveSubQueryEmbedding(
+            String originalQuestion,
+            List<Double> queryEmbedding,
+            List<String> subQueries,
+            int index,
+            String subQuery) {
+        if (subQueries.size() == 1 && queryEmbedding != null && !queryEmbedding.isEmpty()) {
+            return queryEmbedding;
+        }
+        if (subQueries.size() > 1 && originalQuestion.equals(subQuery) && queryEmbedding != null && !queryEmbedding.isEmpty()) {
+            return queryEmbedding;
+        }
+        return embeddings.embed(List.of(subQuery)).get(0);
+    }
+
+    /** 单路子查询：Planner 收窄 + 可选全类型补检索，与分解前行为一致。 */
+    private SubQuerySearchOutcome searchSingleQuery(
+            Workspace workspace, String question, List<Double> queryEmbedding) {
+        String expandedQuery = queryExpander.expand(question);
+        KnowledgeSearchOptions options = KnowledgeSearchOptions.rrfV2(expandedQuery);
+
+        List<KnowledgeDocumentType> firstRoundTypes = planner.plan(question);
+        KnowledgeSearchResult firstRound = vectors.searchWithOptions(
+                workspace.getOrganizationId(), workspace.getId(), question, firstRoundTypes,
+                queryEmbedding, options);
+
+        if (!firstRoundTypes.isEmpty()) {
+            KnowledgeSearchResult broadRound = vectors.searchWithOptions(
+                    workspace.getOrganizationId(),
+                    workspace.getId(),
+                    question,
+                    List.of(),
+                    queryEmbedding,
+                    options);
+            return new SubQuerySearchOutcome(
+                    KnowledgeSearchResultMerger.merge(firstRound, broadRound, options.candidateLimit()), 2);
+        }
+        return new SubQuerySearchOutcome(firstRound, 1);
+    }
+
+    private record SubQuerySearchOutcome(KnowledgeSearchResult result, int rounds) {}
+
+    private KnowledgeEvidence toEvidence(UUID workspacePublicId, KnowledgeVectorStore.SearchCandidate candidate) {
+        return new KnowledgeEvidence(
+                "knowledge:" + candidate.documentId() + ":v" + candidate.versionNo() + ":" + candidate.chunkId(),
+                candidate.title(),
+                candidate.versionNo(),
+                candidate.content().substring(0, Math.min(300, candidate.content().length())),
+                "/api/v1/workspaces/" + workspacePublicId + "/knowledge/documents/"
+                        + candidate.documentId() + "/versions/" + candidate.versionId() + "/source");
     }
 }

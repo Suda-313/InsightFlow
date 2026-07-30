@@ -26,10 +26,11 @@ class KnowledgeDocumentTest {
     @Test
     void createsWorkspaceScopedDocumentWithTargetWorkspace() {
         KnowledgeDocument document = KnowledgeDocument.workspaceScoped(
-                3L, 9L, KnowledgeDocumentType.RELEASE_NOTE, "游戏 A 7 月公告");
+                3L, 9L, KnowledgeDocumentType.POSTMORTEM, "1.4 版本复盘");
 
         assertThat(document.getOrganizationId()).isEqualTo(3L);
         assertThat(document.getTargetWorkspaceId()).isEqualTo(9L);
         assertThat(document.isOrganizationCommon()).isFalse();
+        assertThat(document.getDocumentType()).isEqualTo(KnowledgeDocumentType.POSTMORTEM);
     }
 }

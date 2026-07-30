@@ -1,5 +1,6 @@
 package com.insightflow.evaluation.rag;
 
+import com.insightflow.knowledge.KnowledgeRetrievalDiagnostics;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
 
 /**
@@ -22,12 +23,25 @@ public record RagEvaluationCaseExecution(
         /** 最终回答阶段耗时，未进入该阶段时为零。*/
         long generationLatencyMs,
         /** 从开始到完成或收敛的总耗时，用于逐题日志。*/
-        long totalLatencyMs) {
+        long totalLatencyMs,
+        /** 可选检索诊断；端到端批次用于 per-case JSON，失败题为 null。 */
+        KnowledgeRetrievalDiagnostics retrievalDiagnostics) {
+
+    public RagEvaluationCaseExecution(
+            KnowledgeRetrievalResult retrieval,
+            String answer,
+            String status,
+            String failureStage,
+            long retrievalLatencyMs,
+            long generationLatencyMs,
+            long totalLatencyMs) {
+        this(retrieval, answer, status, failureStage, retrievalLatencyMs, generationLatencyMs, totalLatencyMs, null);
+    }
 
     /** 失败题使用空检索和空回答，让评分器稳定按未命中处理，不让异常内容进入结果。*/
     static RagEvaluationCaseExecution failed(String failureStage, long retrievalLatencyMs, long generationLatencyMs, long totalLatencyMs) {
         return new RagEvaluationCaseExecution(
                 new KnowledgeRetrievalResult(0, java.util.List.of()), "", "failed", failureStage,
-                retrievalLatencyMs, generationLatencyMs, totalLatencyMs);
+                retrievalLatencyMs, generationLatencyMs, totalLatencyMs, null);
     }
 }
