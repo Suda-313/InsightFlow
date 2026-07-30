@@ -454,3 +454,66 @@ erankFallbackRate=0。
 - **实现：** `KnowledgeCoverageAwareSelector` + 单测 3 项。
 - **验证：** val-80 复跑 `1f18c04c`：chunk R@8 **57.5%**（+10pp vs 分流前）、SINGLE **52.1%**（+12.5pp）、CROSS dual **93.75%**（持平）、primaryRecallAt8 **38.75%**（+10pp）。
 - **沉淀：** 覆盖选择必须按题型分流；当前 val-80 全量 chunk 优于 v2 基线且 CROSS dual 不退化，可继续 P4 攻 primary 组覆盖。
+
+### 2026-07-30：dev-240 全量 + val-80 v5 升级评测（P2+P3 叠加）
+
+- **背景或现象：** Phase 3 子切片验证通过后，需在 dev-240 全量确认泛化，并在只读 val-80 上验证；val-80 seed 仍为语料 v3，与当前 v5 不对齐。
+- **根因：** v5 重切（frontmatter/导语）使 5 道 val 题 gold `chunk_no` 越界；其余 99 处仅需 `version_no` 3→5 机械同步。
+- **方案与取舍：** dev-240 全量 retrieval-only；val-80 按 manifest preview 映射 5 处 chunk（如 val-006 KI-1405：chunk 18→9），`sync-dev-gold-corpus-version.py` 支持任意 seed 路径，重导入后跑 val-80；**不改** frozen-80。
+- **实现：** `scripts/delete-val-80-gold-dataset.sql`；val-80 seed 5 处 chunk 映射 + 99 处 version 同步。
+- **验证：** dev-240 `1f18c1c9`：240/240 成功；chunk R@8 **52.9%**（≥40% 门槛 ✓）、primary **40.4%**、CROSS dual **100%**、candidateChunk@50 **90.8%**、P95 **1102ms**。val-80 `1f18c1d0`：80/80 成功；chunk **47.5%**、primary **32.5%**、doc **97.5%**、CROSS dual **100%**（vs P2P3 `1f18c04c` 93.75% ↑）、CROSS chunk **62.5%**；对 v3 基线门禁报 chunk/coverage 回归（语料 checksum 不同，不可直接对比）。
+- **沉淀：** v5 语料下 dev/val chunk 均低于 v4 neighbor 全量（57.5%），但 CROSS dual 稳定 100%；val-80 升级必须同步 chunk 边界；发布前仍须 frozen-80 与 neighbor 收益权衡。
+
+### 2026-07-30：Phase 3 CROSS 子查询最低配额 Top8（+subquota）
+
+- **背景或现象：** Phase 2 后 cross-dev-slice chunk R@8 降至 66.7%；dev-154 的 signin-window / gushu-window 两组 gold 均在 candidate@50 内，但 P3 覆盖贪心把 signin 路子查询 chunk 挤出 Top8（`finalFirstRank=0`，`rrfFirstRank` 10/16）。
+- **根因：** 合并 RRF 后单文档 chunk 占满候选池前列，覆盖贪心优先 relevance + 实体覆盖，未保证每路子查询在 Top8 有代表。
+- **方案与取舍：** 新增 `KnowledgeSubQueryQuotaEnforcer`：≥2 路子查询且走覆盖选择时，从各路本地 Top-20 各预留 1 条，剩余槽位再交 `KnowledgeCoverageAwareSelector`；最终按 score 降序输出；版本标签 `+subquota`。
+- **实现：** `KnowledgeSubQueryQuotaEnforcer`；`KnowledgeSearchTool` 在精排后调用配额选择器；单测 2 项。
+- **验证：** cross-dev-slice `1f18c1ba`：chunk R@8 **75%**（P2 `1f18c1ac` 66.7% ↑8.3pp）、dual **100%**、primary **2/12**（持平）；**dev-154 chunk 命中**（P2 miss → hit）。dev-fast-40 `1f18c1bc`：chunk **57.5%**（P2 55% ↑2.5pp）、CROSS/SINGLE/doc 与 P2 持平或略优。未命中仍为 dev-147/149/151。
+- **沉淀：** 子查询配额与 P2 标识符加权可叠加；dev-154 类「双主体时间窗」题需配额 + 覆盖双轨；dev-147 仍属 gold/编号 chunk 错位，非 Top8 选择可单独解决。
+
+### 2026-07-30：Phase 2 精确标识符候选加权（+identifier）
+
+- **背景或现象：** cross-dev-slice 上 dev-147 等含 KI-xxxx 运营编号的问题，gold chunk 为版本元数据段（chunk_no=2，不含编号正文），向量排序难以召回；P1 后 dev-147 仍掉出 candidate@50。
+- **根因：** 问题中的 KI-1301/KI-1405 与 gold UUID 所在 chunk 内容错位——编号出现在 sibling chunk（chunk 3+）；仅向量/实体加权无法把无编号 gold chunk 推入 Top50；ILIKE 补召回能找到含编号的 sibling，但无法满足 gold chunk 精确命中。
+- **方案与取舍：** RRF 合并后对问题中抽取的事件编号做 ILIKE 补召回（含 ±1 相邻 chunk）；`KnowledgeTitleEntityScoreBooster` 对 title/section/content 精确匹配加权；**不改 gold**；检索版本 `knowledge:rrf:v3+entity+coverage+identifier`。
+- **实现：** `KnowledgeIdentifierExtractor`、`KnowledgeIdentifierCandidateSupplement`、`JdbcKnowledgeVectorStore.searchByExactIdentifier()`；`KnowledgeSearchTool` 接入 supplement；`KnowledgeQueryExpander` 复用 extractor。
+- **验证：** 单测 6 类通过。cross-dev-slice v2 `1f18c1ac`：chunk R@8 **66.7%**（P1 75% ↓8.3pp）、dual **100%**、primary **2/12**（+1）；dev-147 candidate@50 **仍 false**。dev-fast-40 `1f18c1af`：chunk **55%**（P1 60% ↓5pp）、CROSS chunk **70%**（+10pp）、SINGLE **71.4%**（+7pp）、doc **100%**；VERSION chunk **0%**（P1 25% ↓）。P2 修复 dev-146 chunk 命中，但 dev-151/154 等新回归。
+- **沉淀：** 标识符链路对「编号在 sibling、gold 在元数据 chunk」类题无效；primary +1 说明加权对部分 CROSS 有效；**保留代码**继续叠加 Phase 3 子查询配额；dev-147 需 gold 标注边界讨论而非改 seed。
+
+### 2026-07-30：Phase 1 neighbor embed 消融（MAX=0，语料 v5）
+
+- **背景或现象：** P4+v4 neighbor 80 字后 cross-dev-slice chunk R@8 由 P3 的 83.3% 降至 75%；怀疑 neighbor embed 扰动向量排序（dev-147 掉出 candidate@50、dev-154 被覆盖选择挤出）。
+- **根因：** 关闭 neighbor 并重发布至 v5 后，cross-dev-slice chunk R@8 **仍为 75%**（9/12），与 v4+neighbor 相同；未命中题为 **dev-146/147/149**（v4 为 146/147/154），说明 neighbor 仅造成**题间 trade-off**而非整体回归主因；P3→P4 chunk 落差更可能来自导语/frontmatter 切片变化。
+- **方案与取舍：** 保留 frontmatter 剥离与 `section_heading=文档导语`；`MAX_NEIGHBOR_CHARACTERS=0` 消融；dev-240 gold 机械同步 v5（`scripts/sync-dev-gold-corpus-version.py` + 重导入）；**未删除** `KnowledgeEmbedNeighborContext`（未达通过门槛）。
+- **实现：** `KnowledgeEmbedNeighborContext.MAX_NEIGHBOR_CHARACTERS=0`；新增 `scripts/sync-dev-gold-corpus-version.py`、`scripts/delete-dev-240-gold-dataset.sql`。
+- **验证：** re-publish **31/31** → v5；cross-dev-slice `1f18c189`：chunk R@8 **75%**（门槛 83.3% ✗）、dual **100%**（✓）、primary **1/12**（门槛 2/12 ✗）；dev-fast-40 `1f18c18b`：chunk **60%**（门槛 67.5% ✗）、SINGLE **64.3%**（✓ ≥57.1%）、doc **100%**。对比 v4+neighbor `1f18c141`/`1f18c150`：cross chunk 持平 75%，fast-40 chunk 70%→60% ↓。
+- **沉淀：** neighbor embed 对 fast-40 有 +10pp 收益、对 hard CROSS 子集无净 chunk 增益；**不继续测 40 字**；下一步 Phase 2 标识符加权 + Phase 3 子查询配额，而非回滚导语/frontmatter。
+
+### 2026-07-30：Phase 4A 同语料可比消融（identifier / subquota 开关）
+
+- **背景或现象：** P2/P3 分别在 v5 前后跑分，跨 checksum 不可比；val-80 对 v3 基线门禁 exit 2；需在同 v5 语料上分离 P2/P3 净收益。
+- **根因：** 缺实验开关导致只能全栈开/关；回归门禁未校验 baseline/candidate 的 dataset checksum，跨语料版本误比。
+- **方案与取舍：** `KnowledgeRetrievalOptions` 增加 `identifierSupplementEnabled`/`subQueryQuotaEnabled`（默认 true 保生产）；CLI `--identifier=on|off`、`--subquota=on|off`；门禁 checksum 不一致直接 `dataset_checksum_mismatch`；四组消融（P1 基线 / identifier only / subquota only / P2+P3）× 四切片 retrieval-only。
+- **实现：** `KnowledgeSearchTool` 按开关跳过 supplement/subquota；版本标签动态拼接；`RagGoldEvaluationRunRequest`/`RagGoldRetrievalExecutionContext`/CLI/PS1 透传；`scripts/run-phase4a-ablation.ps1` + `scripts/summarize-phase4a.py`。
+- **验证：** `./mvnw.cmd test -Dtest=RagGoldManualEvaluationRegressionGateTest,RagGoldManualEvaluationCliRunnerTest,KnowledgeSearchToolTest` 通过。16/16 组 exit 0（manifest `output/rag-gold-runs/phase4a/run-manifest.json`）。dev 切片 checksum `2bb7be9b…`、val-80 `b33f4438…` 组内一致。同 v5 净收益：**subquota** cross chunk 66.7%→75%（+8.3pp）、dev-fast-40 55%→57.5%、dev-240 50.8%→52.9%、val-80 43.8%→47.5%；**identifier 四切片与 P1 基线完全一致**（0pp）；P2+P3 等同 subquota only。
+- **沉淀：** Phase 3 子查询配额是 v5 上可验证的主增益；Phase 2 标识符在当前 gold 集无 chunk@8 净贡献，保留代码但需 Phase 4B+ 校准或专项题集；frozen-80 仍不跑。
+
+### 2026-07-30：Phase 4B identifier booster 与 supplement 联动 + 常量校准
+
+- **背景或现象：** Phase 4A 消融结果中 `p2-identifier`（id=on）与 `p1-baseline`（id=off）在 cross-dev-slice 的 chunk@8、MRR、NDCG@8 完全相同（均 0.6667 / 0.2528），`+identifier` 版本标签对应的行为无实质差异，消融无法分离 P2 全链路。
+- **根因：** `KnowledgeTitleEntityScoreBooster.buildSignals()` 无条件提取 `eventIds` 并汇入 `QuerySignals`，导致 `computeBoost()` 的 identifier 加权循环（`IDENTIFIER_BODY_BOOST=0.15`, `IDENTIFIER_TITLE_BOOST=0.10`）在 `identifierSupplementEnabled=false` 时仍触发，p1-baseline 实际已包含 identifier score，消融失效。
+- **方案与取舍：** 在 `buildSignals()` 内引入 `identifierBoostEnabled = options == null || options.identifierSupplementEnabled()` 门控：off 时 `eventIds` 初始化为空集，各子组 eventIds 也不汇入顶层 signals，`computeBoost()` identifier 循环不触发。`entityGroups` 内部仍保留各子组 `eventIds` 供 `ensureEntityCoverage/matchesGroup` 双主体覆盖判断（与 identifier boost 逻辑独立）。同步校准常量至保守值（body 0.15→0.08, title 0.10→0.05），避免 identifier 信号压过 entity/coverage 信号。version label `+identifier` 现有联动已正确，无需修改。
+- **实现：** `KnowledgeTitleEntityScoreBooster.buildSignals()`（门控 + 注释）；常量降权；新增 3 条单测：`buildSignalsReturnsEmptyEventIdsWhenSupplementDisabled`、`buildSignalsContainsEventIdsWhenSupplementEnabled`、`buildSignalsGroupEventIdsGatedWhenSupplementDisabledWithSubQueries`。
+- **验证：** `./mvnw.cmd test -Dtest=KnowledgeTitleEntityScoreBoosterTest,KnowledgeIdentifierCandidateSupplementTest,KnowledgeSearchToolTest` 全通过。Phase 4B cross-dev-slice 评测（`output/rag-gold-runs/phase4b-id-cal/`）：p1-baseline chunk@8=0.6667 / mrr=0.2528（与 4A 完全一致，确认门控不影响基线）；p2-id-cal chunk@8=0.6667 / mrr=0.2528（identifier on 无 chunk 回归）；两个 variant 版本标签差异（有/无 `+identifier`）现在对应真实不同的 booster 行为。
+- **沉淀：** cross-dev-slice 的 hard CROSS 题（dev-147/149 等）chunk@8 瓶颈在 Candidate@50 召回层，identifier booster/supplement 无法解决 gold chunk 不进候选池的问题；identifier 默认 on 保持（生产无副作用，且消融链路现在是干净的）；下一步可探索 Cross-encoder reranker 或调整向量检索超参。
+
+### 2026-07-30：P4 chunk 生成/索引优化（导语 + neighbor embed）
+
+- **背景或现象：** val-80 上 `primaryRecallAt8` 仍 38.75%；probe 诊断显示部分 gold 指向 blockquote 导语 chunk，而 Top8 已有更贴题 sibling chunk；窗口切分边界问答依赖相邻上下文。
+- **根因：** preamble 无 `section_heading` 时 trigram/精排难以区分「导语 vs 正文段」；embed 仅含单 chunk 正文，边界语义弱。
+- **方案与取舍：** 首个标题前段落标记「文档导语」写入 `section_heading`/lexical；剥离 YAML frontmatter；neighbor 80 字**仅**拼入 embed 文本，不持久化进 FTS，避免噪声放大。需 re-publish 后评测，**不改 gold**。
+- **实现：** `KnowledgeChunker`（frontmatter + `PREAMBLE_SECTION_HEADING`）、`KnowledgeEmbedNeighborContext`、`KnowledgePublishingService` 发布链路接入。
+- **验证：** `./mvnw.cmd "-Dtest=KnowledgeChunkerTest,KnowledgeChunkIndexTextTest" test` **9/9** 通过。re-publish **31/31** → `version_no=4`；dev-240 gold 同步 v4 后：**cross-dev-slice** `1f18c141` chunk R@8 **75%**（P3 `1f18c030` 83.3% ↓）、dual **91.7%**、primary **0/12**；**dev-fast-40** `1f18c150` chunk R@8 **70%**（P3 `1f18c032` 62.5% ↑）、SINGLE chunk **64.3%**（57.1% ↑）、CROSS chunk **80%**（持平）、doc R@8 **97.5%**（dev-003 文档未进 Top8）；**dev-240 全量** `1f18c155` chunk R@8 **57.5%**、CROSS chunk **60.4%**、dual **95.8%**、primaryRecallAt8 **39.6%**、candidateChunk@50 **92.5%**、P95 **1042ms**。
+- **沉淀：** P4 改变 chunk 边界与向量，必须与 `republish-knowledge-corpus.ps1` 联动并重导入 dev gold chunk 引用；**不因跑分反修 seed**。cross-dev-slice 回归主因是 **neighbor embed / 重切后向量排序变化**（dev-147 gold 掉出 candidate@50；dev-154 覆盖选择把 signin-window 从 final#4 挤出 Top8），非 chunk_no 漂移；dev-146 在 P3/P4 均未命中。fast-40 全量 chunk 净增，说明 P4 对 SINGLE/易题有收益、对 hard CROSS 子集有 trade-off。

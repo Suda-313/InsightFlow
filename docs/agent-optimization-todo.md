@@ -283,12 +283,52 @@ P0 基础安全与会话记忆
 - [x] **dev-fast-40 L2（`1f18c032`）：** chunk R@8 **62.5%**、doc R@8 **100%**、CROSS chunk **80%**、SINGLE chunk **57.1%**
 - [x] **P3 题型分流：** SINGLE 等仅 P2 加权后按分截断；CROSS/VERSION 或 ≥2 实体组才走覆盖贪心
 - [x] **val-80 复跑（`1f18c04c`，分流后）：** chunk R@8 **57.5%**（v2 42.5%）、SINGLE chunk **52.1%**（分流前 39.6%）、CROSS dual **93.75%**、primaryRecallAt8 **38.75%**
-- [ ] **下一步：** P4 chunk 索引；或 dev-240 L3 全量复跑；frozen-80 仍不查看
 
-interface KnowledgeReranker {
-    List<SearchCandidate> rerank(String question, List<SearchCandidate> candidates, int finalLimit);
-}
-```
+**Phase 1 — neighbor embed 消融（2026-07-30，未达通过门槛，保留代码）**
+
+- [x] **变体 A（MAX=0）：** re-publish → v5；dev-240 gold 同步（checksum `2bb7be9b…`）
+- [x] **cross-dev-slice `1f18c189`：** chunk R@8 **75%** ✗、dual **100%** ✓、primary **1/12** ✗
+- [x] **dev-fast-40 `1f18c18b`：** chunk **60%** ✗、SINGLE **64.3%** ✓、doc **100%**
+- [x] **结论：** neighbor 非 CROSS chunk 回归主因；关闭后 fast-40 回落；**不删** `KnowledgeEmbedNeighborContext`、**不测 40 字**
+- [x] **Phase 2：** 精确标识符候选加权（dev-147 等）
+- [x] **Phase 3：** CROSS 子查询最低配额 Top8（dev-154 等）
+
+**Phase 3 — CROSS 子查询最低配额 Top8（2026-07-30）**
+
+- [x] **实现：** `KnowledgeSubQueryQuotaEnforcer` — 多路子查询各路 Top20 各锁 1 条，剩余槽位交 P3 覆盖贪心；版本 `+subquota`
+- [x] **单测：** `KnowledgeSubQueryQuotaEnforcerTest` 2/2 + 既有 P3 测试通过
+- [x] **cross-dev-slice `1f18c1ba`：** chunk R@8 **75%**（P2 66.7% ↑）、dual **100%** ✓、primary **2/12**（持平）；**dev-154 chunk 命中** ✓
+- [x] **dev-fast-40 `1f18c1bc`：** chunk **57.5%**（P2 55% ↑）、CROSS **70%**、SINGLE **71.4%**、doc **100%**
+- [x] **结论：** 子查询配额修复 dev-154 类覆盖挤出；dev-147/149/151 仍 miss；P2+P3 叠加保留
+
+**Phase 2 — 精确标识符候选加权（2026-07-30，保留代码，chunk 有 trade-off）**
+
+- [x] **实现：** `KnowledgeIdentifierExtractor` + `KnowledgeIdentifierCandidateSupplement`（RRF 后 ILIKE 补召回 ±1 sibling）；`KnowledgeTitleEntityScoreBooster` 标识符加权；版本 `+identifier`
+- [x] **单测：** `KnowledgeIdentifierExtractorTest`、`KnowledgeIdentifierCandidateSupplementTest` 等 **6 类**通过
+- [x] **cross-dev-slice v2 `1f18c1ac`：** chunk R@8 **66.7%**（P1 `1f18c189` 75% ↓）、dual **100%** ✓、primary **2/12**（+1，dev-150+174）；dev-147 **candidate@50 ✗**（gold chunk_no=2 无 KI 编号）
+- [x] **dev-fast-40 `1f18c1af`：** chunk **55%**（P1 60% ↓）、CROSS chunk **70%**（+10pp）、SINGLE **71.4%**（+7pp）、doc **100%**；VERSION chunk **0%**（P1 25% ↓）
+- [x] **结论：** 标识符补召回对 dev-146 有效、对 dev-147 无效（gold 与编号 chunk 错位）；**保留** Phase 2 代码；下一步 Phase 3 子查询配额
+
+**P4 — chunk 生成/索引优化（2026-07-30，re-publish + L3 已验证，当前语料 v5 无 neighbor）**
+
+- [x] **导语独立召回：** 首个 `#` 标题前的无标题段标记 `section_heading=文档导语`（`KnowledgeChunker.PREAMBLE_SECTION_HEADING`），进入 lexical/精排
+- [x] **YAML frontmatter 剥离：** 发布切片前移除 `---` 元数据块，避免挤占正文窗口
+- [x] **neighbor embed 上下文：** `KnowledgeEmbedNeighborContext` 在 embed 文本追加相邻 chunk 各 80 字（不改 `content` 展示字段）
+- [x] **单测：** `KnowledgeChunkerTest` 7/7、`KnowledgeChunkIndexTextTest` 2/2 通过
+- [x] **re-publish 语料：** `scripts/republish-knowledge-corpus.ps1` **31/31** → `version_no=4`；manifest 405 chunks
+- [x] **dev-240 gold 同步 v4：** seed `version_no` 3→4 + 重导入；checksum `2d1faeda…`
+- [x] **L3 cross-dev-slice（`1f18c141`）：** chunk R@8 **75%**（P3 `1f18c030` 83.3% ↓）、dual **91.7%**（↓）、primaryRecallAt8 **0/12**（↓）；doc R@8 **100%** 持平
+- [x] **L3 dev-fast-40（`1f18c150`）：** chunk R@8 **70%**（P3 `1f18c032` 62.5% ↑）、SINGLE **64.3%**、CROSS chunk **80%**、doc R@8 **97.5%**（dev-003 文档 miss）
+- [x] **L3 dev-240 全量（`1f18c155`）：** chunk R@8 **57.5%**、CROSS chunk **60.4%**、dual **95.8%**、primaryRecallAt8 **39.6%**、candidateChunk@50 **92.5%**
+- [x] **回归分析（cross-dev-slice）：** dev-146 P3/P4 均未命中；dev-147 gold 掉出 candidate@50（向量排序）；dev-154 覆盖选择挤出 signin-window（非 chunk_no 漂移）
+- [x] **dev-240 全量 `1f18c1c9`：** chunk R@8 **52.9%**、primary **40.4%**、doc **96.7%**、CROSS dual **100%**、candidateChunk@50 **90.8%**、240/240 成功
+- [x] **val-80 升级 v5：** seed 5 处 chunk 边界映射 + `sync-dev-gold-corpus-version.py`；checksum `b33f4438…`；重导入 80/80
+- [x] **val-80 全量 `1f18c1d0`：** chunk **47.5%**、primary **32.5%**、CROSS dual **100%**（P2P3 `1f18c04c` 93.75% ↑）、CROSS chunk **62.5%**；门禁 vs v3 基线 **chunk/coverage 回归**（语料 v5 不可直接比）
+- [x] **Phase 4A — 同语料可比消融（2026-07-30）：** `identifier`/`subquota` CLI 开关 + 门禁 `dataset_checksum_mismatch`；16 组 retrieval-only（4 变体 × 4 切片），输出 `output/rag-gold-runs/phase4a/`
+- [x] **Phase 4B — identifier booster 校准（2026-07-30）：** `buildSignals()` 中 `eventIds` 提取与 `identifierSupplementEnabled` 联动；常量 BODY 0.15→0.08, TITLE 0.10→0.05；新增 3 条单测；cross-dev-slice p1/p2 消融现在代码层真正分离（无 chunk 回归）
+- [ ] **下一步：** dev-147 gold 边界讨论（gold chunk 未进 candidate@50 是 Candidate 层问题）；frozen-80 发布前再跑；探索 Cross-encoder reranker 是否能从 candidate@50 把 hard CROSS 题拉进 Top8
+
+**R2 精排边界（备忘）：**
 
 - `RrfOnlyKnowledgeReranker`：当前 RRF 排序，作为默认与失败兜底；
 - `CrossEncoderKnowledgeReranker`：批量精排 RRF Top30，超时/失败回退 RRF；
