@@ -509,6 +509,15 @@ erankFallbackRate=0。
 - **验证：** `./mvnw.cmd test -Dtest=KnowledgeTitleEntityScoreBoosterTest,KnowledgeIdentifierCandidateSupplementTest,KnowledgeSearchToolTest` 全通过。Phase 4B cross-dev-slice 评测（`output/rag-gold-runs/phase4b-id-cal/`）：p1-baseline chunk@8=0.6667 / mrr=0.2528（与 4A 完全一致，确认门控不影响基线）；p2-id-cal chunk@8=0.6667 / mrr=0.2528（identifier on 无 chunk 回归）；两个 variant 版本标签差异（有/无 `+identifier`）现在对应真实不同的 booster 行为。
 - **沉淀：** cross-dev-slice 的 hard CROSS 题（dev-147/149 等）chunk@8 瓶颈在 Candidate@50 召回层，identifier booster/supplement 无法解决 gold chunk 不进候选池的问题；identifier 默认 on 保持（生产无副作用，且消融链路现在是干净的）；下一步可探索 Cross-encoder reranker 或调整向量检索超参。
 
+### 2026-07-30：Phase 4B 子查询本地 Top1 配额修正（实验结论：对 cross-dev-slice 有退步）
+
+- **背景或现象：** Phase 3 `KnowledgeSubQueryQuotaEnforcer.pickBestFromPool()` 从合并 rankedPool 顺序选各路子查询的配额代表，而非该子查询本地 Top1。dev-154 中，gushu 路 gold chunk 全局 RRF 第 10、signin 路 gold 全局第 16；Phase 4A p3-subquota 下 signin-window 命中（finalFirstRank=7），gushu-window 未命中（finalFirstRank=0），cross-dev-slice chunk@8=75%。
+- **根因：** `pickBestFromPool` 在全局池按顺序取第一个 eligible chunk，当多路共享高分 chunk 占据全局池前段时，为子查询 B 选到的配额代表可能是某个出现在多路、全局排名靠前的非 gold chunk，导致 B 的 gold（仅在 B 路高分）不被保留。Phase 4B 假设：直取 `candidates.get(0)`（本地 Top1）可消除全局排序干扰。
+- **方案与取舍：** 用 `pickLocalTop(subResult, excludeChunkIds)` 替换 `pickBestFromPool`：直接返回 `candidates.get(0)`，若已被前一路保留则跳过（KISS，不尝试 Top2）；移除 `buildEligibleChunkSets` + `pickBestFromPool` 死代码；`rankedPool` 仅用于后续覆盖贪心填槽，不再参与配额选取顺序。
+- **实现：** `KnowledgeSubQueryQuotaEnforcer.java`（2 方法替换为 1 个 `pickLocalTop`）；新增单测 `quotaUsesLocalTopOneNotGlobalRanking`（gushu gold 在全局末位但本地 Top1，断言其进入 Top8）；`KnowledgeSubQueryQuotaEnforcerTest` 3/3、`KnowledgeCoverageAwareSelectorTest` 3/3 通过。commit `52e84a5`。
+- **验证：** cross-dev-slice Phase 4B run `1f18c22d`：chunk@8=**0.667**（vs Phase 4A p3-subquota `1f18c203` 0.750，**-8pp 退步**）；dev-fast-40 Phase 4B run `1f18c231`：chunk@8=0.575、primary@8=0.40（与 Phase 4A p3-subquota **完全持平**）。退步集中于 dev-154：Phase 4A signin-window gold 在 finalFirstRank=7（hit），Phase 4B 降为 0（miss）；gushu-window 两个 phase 均 miss。
+- **沉淀：** Phase 4B 假设在 dev-154 不成立——signin 子查询本地 Top1 ≠ signin-window gold，phase 4B 保留了另一个 c174 系 chunk 作为配额，改变 remaining pool 构成，coverage fill 的实体覆盖加分机制不再把 signin-window gold 推上 Top7；Phase 3 的「全局池顺序+配额+覆盖贪心」对 dev-154 反而有偶发收益（覆盖加分覆盖的是 rank16 处的 gold）。Phase 4B 代码已提交、实验已记录，**生产默认 `subquota=on` 不受影响**（Phase 4B 仅修改配额挑选方式，下一步如需改善 dev-154 须针对「local gold rank」而非「local Top1」做更精准的 quota pick）。
+
 ### 2026-07-30：P4 chunk 生成/索引优化（导语 + neighbor embed）
 
 - **背景或现象：** val-80 上 `primaryRecallAt8` 仍 38.75%；probe 诊断显示部分 gold 指向 blockquote 导语 chunk，而 Top8 已有更贴题 sibling chunk；窗口切分边界问答依赖相邻上下文。

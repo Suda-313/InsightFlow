@@ -326,7 +326,8 @@ P0 基础安全与会话记忆
 - [x] **val-80 全量 `1f18c1d0`：** chunk **47.5%**、primary **32.5%**、CROSS dual **100%**（P2P3 `1f18c04c` 93.75% ↑）、CROSS chunk **62.5%**；门禁 vs v3 基线 **chunk/coverage 回归**（语料 v5 不可直接比）
 - [x] **Phase 4A — 同语料可比消融（2026-07-30）：** `identifier`/`subquota` CLI 开关 + 门禁 `dataset_checksum_mismatch`；16 组 retrieval-only（4 变体 × 4 切片），输出 `output/rag-gold-runs/phase4a/`
 - [x] **Phase 4B — identifier booster 校准（2026-07-30）：** `buildSignals()` 中 `eventIds` 提取与 `identifierSupplementEnabled` 联动；常量 BODY 0.15→0.08, TITLE 0.10→0.05；新增 3 条单测；cross-dev-slice p1/p2 消融现在代码层真正分离（无 chunk 回归）
-- [ ] **下一步：** dev-147 gold 边界讨论（gold chunk 未进 candidate@50 是 Candidate 层问题）；frozen-80 发布前再跑；探索 Cross-encoder reranker 是否能从 candidate@50 把 hard CROSS 题拉进 Top8
+- [x] **Phase 4B — 子查询本地 Top1 配额修正（2026-07-30，实验结论：退步）：** `KnowledgeSubQueryQuotaEnforcer.pickLocalTop` 直取各子查询 candidates.get(0) 作配额代表；单测 3/3 通过；cross-dev-slice chunk@8 0.750→0.667（dev-154 signin-window gold 因 local Top1≠gold 且改变 remaining pool 构成而 miss）；dev-fast-40 持平；代码已提交 `52e84a5`，**生产不变（下一步需精准 quota pick，非盲取 Top1）**
+- [ ] **下一步：** dev-147 gold 边界讨论（gold chunk 未进 candidate@50 是 Candidate 层问题）；frozen-80 发布前再跑；探索 Cross-encoder reranker 是否能从 candidate@50 把 hard CROSS 题拉进 Top8；dev-154 signin-window gold 的精准 quota 策略（需确认 local rank）
 
 **R2 精排边界（备忘）：**
 
