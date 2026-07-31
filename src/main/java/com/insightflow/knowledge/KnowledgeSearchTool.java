@@ -5,7 +5,9 @@ import com.insightflow.entity.Workspace;
 import com.insightflow.service.WorkspaceService;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -50,7 +52,17 @@ public class KnowledgeSearchTool {
     /** P3：Top8 覆盖感知贪心选择。 */
     private final KnowledgeCoverageAwareSelector coverageAwareSelector;
 
+    /** Phase 2：标识符缺失时补召回进 Candidate 池。 */
+    private final KnowledgeIdentifierCandidateSupplement identifierCandidateSupplement;
+
+    /** Phase 3：多路子查询 Top8 最低配额，再交覆盖贪心。 */
+    private final KnowledgeSubQueryQuotaEnforcer subQueryQuotaEnforcer;
+
+    /** Small-to-big：命中 chunk 展示前扩展同 section 上下文，不改 Recall 口径。 */
+    private final KnowledgeEvidenceContextExpander evidenceContextExpander;
+
     /** 所有依赖均由 Spring 注入，便于单测替换模型和数据库边界。 */
+    @Autowired
     public KnowledgeSearchTool(
             WorkspaceService workspaces,
             KnowledgeEmbeddingGateway embeddings,
@@ -61,7 +73,10 @@ public class KnowledgeSearchTool {
             KnowledgeRerankerSelector rerankerSelector,
             KnowledgeCrossQueryDecomposer crossQueryDecomposer,
             KnowledgeTitleEntityScoreBooster titleEntityScoreBooster,
-            KnowledgeCoverageAwareSelector coverageAwareSelector) {
+            KnowledgeCoverageAwareSelector coverageAwareSelector,
+            KnowledgeIdentifierCandidateSupplement identifierCandidateSupplement,
+            KnowledgeSubQueryQuotaEnforcer subQueryQuotaEnforcer,
+            KnowledgeEvidenceContextExpander evidenceContextExpander) {
         this.workspaces = workspaces;
         this.embeddings = embeddings;
         this.vectors = vectors;
@@ -72,6 +87,39 @@ public class KnowledgeSearchTool {
         this.crossQueryDecomposer = crossQueryDecomposer;
         this.titleEntityScoreBooster = titleEntityScoreBooster;
         this.coverageAwareSelector = coverageAwareSelector;
+        this.identifierCandidateSupplement = identifierCandidateSupplement;
+        this.subQueryQuotaEnforcer = subQueryQuotaEnforcer;
+        this.evidenceContextExpander = evidenceContextExpander;
+    }
+
+    /** 单测兼容构造器：默认用向量仓储构造 expander。 */
+    KnowledgeSearchTool(
+            WorkspaceService workspaces,
+            KnowledgeEmbeddingGateway embeddings,
+            KnowledgeVectorStore vectors,
+            KnowledgeRetrievalPlanner planner,
+            KnowledgeEvidenceGuardrail evidenceGuardrail,
+            KnowledgeQueryExpander queryExpander,
+            KnowledgeRerankerSelector rerankerSelector,
+            KnowledgeCrossQueryDecomposer crossQueryDecomposer,
+            KnowledgeTitleEntityScoreBooster titleEntityScoreBooster,
+            KnowledgeCoverageAwareSelector coverageAwareSelector,
+            KnowledgeIdentifierCandidateSupplement identifierCandidateSupplement,
+            KnowledgeSubQueryQuotaEnforcer subQueryQuotaEnforcer) {
+        this(
+                workspaces,
+                embeddings,
+                vectors,
+                planner,
+                evidenceGuardrail,
+                queryExpander,
+                rerankerSelector,
+                crossQueryDecomposer,
+                titleEntityScoreBooster,
+                coverageAwareSelector,
+                identifierCandidateSupplement,
+                subQueryQuotaEnforcer,
+                new KnowledgeEvidenceContextExpander(vectors));
     }
 
     /**
@@ -110,8 +158,12 @@ public class KnowledgeSearchTool {
             List<Double> subEmbedding = resolveSubQueryEmbedding(
                     question, queryEmbedding, subQueries, index, subQuery);
             SubQuerySearchOutcome subOutcome = searchSingleQuery(workspace, subQuery, subEmbedding);
-            subResults.add(subOutcome.result());
-            candidatesPerSubQuery.add(subOutcome.result().candidates().size());
+            KnowledgeSearchResult subResult = subOutcome.result();
+            if (effectiveOptions.identifierSupplementEnabled()) {
+                subResult = identifierCandidateSupplement.supplement(workspace, subQuery, subResult);
+            }
+            subResults.add(subResult);
+            candidatesPerSubQuery.add(subResult.candidates().size());
             rounds = Math.max(rounds, subOutcome.rounds());
         }
 
@@ -120,19 +172,45 @@ public class KnowledgeSearchTool {
                 : KnowledgeSubQueryCandidateMerger.merge(
                         subResults, KnowledgeSearchOptions.rrfV2("").candidateLimit());
 
+        if (effectiveOptions.identifierSupplementEnabled() && subResults.size() > 1) {
+            effective = identifierCandidateSupplement.supplement(workspace, question, effective);
+        }
+
         List<KnowledgeVectorStore.SearchCandidate> boostedCandidates = titleEntityScoreBooster.apply(
                 question, effective.candidates(), effectiveOptions);
 
         int selectionPoolSize = boostedCandidates.size();
         KnowledgeRerankOutcome rerankOutcome = rerankerSelector.rerank(
                 question, boostedCandidates, selectionPoolSize, effectiveOptions);
-        List<KnowledgeVectorStore.SearchCandidate> finalCandidates = coverageAwareSelector.select(
-                question, rerankOutcome.rankedCandidates(), MAX_EVIDENCE_COUNT, effectiveOptions);
+        List<KnowledgeVectorStore.SearchCandidate> finalCandidates = effectiveOptions.subQueryQuotaEnabled()
+                ? subQueryQuotaEnforcer.selectTopEvidence(
+                        question,
+                        rerankOutcome.rankedCandidates(),
+                        MAX_EVIDENCE_COUNT,
+                        effectiveOptions,
+                        subResults,
+                        coverageAwareSelector)
+                : coverageAwareSelector.select(
+                        question,
+                        rerankOutcome.rankedCandidates(),
+                        MAX_EVIDENCE_COUNT,
+                        effectiveOptions);
         rerankOutcome = rerankOutcome.withRankedCandidates(finalCandidates);
-        List<KnowledgeEvidence> evidence = finalCandidates.stream()
-                .map(candidate -> toEvidence(workspacePublicId, candidate))
+        boolean rerankScoresActive = rerankOutcome != null
+                && "cross-encoder".equals(rerankOutcome.rerankerName())
+                && !rerankOutcome.fallbackUsed();
+        boolean forceAbstain = evidenceGuardrail.shouldForceAbstain(question, effectiveOptions.questionTypeName());
+        KnowledgeEvidenceGateDecision gateDecision = effectiveOptions.evidenceGateEnabled()
+                ? evidenceGuardrail.decide(finalCandidates, rerankScoresActive, forceAbstain)
+                : KnowledgeEvidenceGateDecision.injectAll(finalCandidates);
+        List<KnowledgeVectorStore.SearchCandidate> injected = gateDecision.injected();
+        Map<UUID, String> expandedSnippets = evidenceContextExpander.expandBatch(
+                workspace.getOrganizationId(), workspace.getId(), injected);
+        List<KnowledgeEvidence> evidence = injected.stream()
+                .map(candidate -> toEvidence(workspacePublicId, candidate, expandedSnippets))
                 .toList();
-        KnowledgeRetrievalResult result = new KnowledgeRetrievalResult(rounds, evidence);
+        KnowledgeRetrievalResult result = new KnowledgeRetrievalResult(
+                rounds, evidence, gateDecision.outcome(), gateDecision.inputCount(), gateDecision.topScore());
         return new KnowledgeRetrievalDiagnostics(
                 result,
                 boostedCandidates,
@@ -155,7 +233,22 @@ public class KnowledgeSearchTool {
 
     /** 解析本请求的检索版本标签，供 AgentRun / RAG 评测元数据写入。 */
     public String resolveRetrievalVersionLabel(KnowledgeRetrievalOptions retrievalOptions) {
-        return rerankerSelector.resolveRetrievalVersionLabel(retrievalOptions) + "+entity+coverage";
+        KnowledgeRetrievalOptions effective = retrievalOptions == null
+                ? KnowledgeRetrievalOptions.defaults()
+                : retrievalOptions;
+        StringBuilder label = new StringBuilder(rerankerSelector.resolveRetrievalVersionLabel(effective));
+        label.append("+entity+coverage");
+        if (effective.identifierSupplementEnabled()) {
+            label.append("+identifier");
+        }
+        if (effective.subQueryQuotaEnabled()) {
+            label.append("+subquota+precise+upgrade+anchor");
+        }
+        if (effective.evidenceGateEnabled()) {
+            label.append("+gate");
+        }
+        label.append("+small2big");
+        return label.toString();
     }
 
     private List<String> resolveSubQueries(String question, KnowledgeRetrievalOptions retrievalOptions) {
@@ -208,12 +301,18 @@ public class KnowledgeSearchTool {
 
     private record SubQuerySearchOutcome(KnowledgeSearchResult result, int rounds) {}
 
-    private KnowledgeEvidence toEvidence(UUID workspacePublicId, KnowledgeVectorStore.SearchCandidate candidate) {
+    private KnowledgeEvidence toEvidence(
+            UUID workspacePublicId,
+            KnowledgeVectorStore.SearchCandidate candidate,
+            Map<UUID, String> expandedSnippets) {
+        String snippet = expandedSnippets.getOrDefault(
+                candidate.chunkId(),
+                KnowledgeEvidenceContextExpander.expandForHit(candidate, List.of()));
         return new KnowledgeEvidence(
                 "knowledge:" + candidate.documentId() + ":v" + candidate.versionNo() + ":" + candidate.chunkId(),
                 candidate.title(),
                 candidate.versionNo(),
-                candidate.content().substring(0, Math.min(300, candidate.content().length())),
+                snippet,
                 "/api/v1/workspaces/" + workspacePublicId + "/knowledge/documents/"
                         + candidate.documentId() + "/versions/" + candidate.versionId() + "/source");
     }

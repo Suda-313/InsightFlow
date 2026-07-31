@@ -7,6 +7,10 @@ import com.insightflow.agent.investigation.InvestigationPlan;
 import com.insightflow.agent.investigation.InvestigationPlanner;
 import com.insightflow.agent.investigation.InvestigationResult;
 import com.insightflow.agent.investigation.InvestigationToolService;
+import com.insightflow.agent.investigation.ChatSessionFocus;
+import com.insightflow.agent.investigation.ContextualQueryRewriter;
+import com.insightflow.agent.investigation.ConversationFocusExtractor;
+import com.insightflow.agent.investigation.RewriteOutcome;
 import com.insightflow.entity.ChatMessage;
 import com.insightflow.knowledge.KnowledgeEvidence;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
@@ -59,8 +63,17 @@ public class ChatService {
     /** JSON 仅用于将受控计划和证据快照写入审计字段，绝不序列化模型推理过程。 */
     private final ObjectMapper objectMapper;
 
+    /** 规则改写器：多轮指代时补全 planner 与检索 query，不调用模型。 */
+    private final ContextualQueryRewriter contextualQueryRewriter;
+
+    /** 从调查证据与用户消息抽取会话焦点，供下一轮改写使用。 */
+    private final ConversationFocusExtractor focusExtractor;
+
     /** 线上聊天与离线评测共用版本化 Prompt 护栏，防止两条链路行为分叉。 */
     private final ChatPromptTemplate promptTemplate;
+
+    /** 历史压缩：助手只留结论段，降低注入 token 又不改变 Prompt 段落结构。 */
+    private final ConversationHistoryCompactor historyCompactor;
 
     /** 实际模型名称是审计和性能对比的维度，本地未配置时显式标为 unknown。 */
     @Value("${spring.ai.openai.chat.options.model:unknown}")
@@ -77,7 +90,10 @@ public class ChatService {
             InvestigationToolService investigationToolService,
             KnowledgeSearchTool knowledgeSearchTool,
             ObjectMapper objectMapper,
-            ChatPromptTemplate promptTemplate) {
+            ChatPromptTemplate promptTemplate,
+            ConversationHistoryCompactor historyCompactor,
+            ContextualQueryRewriter contextualQueryRewriter,
+            ConversationFocusExtractor focusExtractor) {
         this.literalChatModelCaller = literalChatModelCaller;
         this.conversationService = conversationService;
         this.agentRunService = agentRunService;
@@ -86,6 +102,9 @@ public class ChatService {
         this.knowledgeSearchTool = knowledgeSearchTool;
         this.objectMapper = objectMapper;
         this.promptTemplate = promptTemplate;
+        this.historyCompactor = historyCompactor;
+        this.contextualQueryRewriter = contextualQueryRewriter;
+        this.focusExtractor = focusExtractor;
     }
 
     /**
@@ -96,8 +115,12 @@ public class ChatService {
      */
     public ChatReply chat(UUID workspacePublicId, UUID sessionPublicId, String message) {
         List<ChatMessage> history = conversationService.recentMessagesForModel(workspacePublicId, sessionPublicId);
+        String rollingSummary = conversationService.readRollingSummary(workspacePublicId, sessionPublicId);
+        ChatSessionFocus sessionFocus = conversationService.readFocus(workspacePublicId, sessionPublicId);
+        RewriteOutcome rewriteOutcome = contextualQueryRewriter.rewrite(message, sessionFocus);
+        String queryForPipeline = rewriteOutcome.rewritten();
         conversationService.appendUserMessage(workspacePublicId, sessionPublicId, message);
-        InvestigationPlan plan = investigationPlanner.plan(message);
+        InvestigationPlan plan = investigationPlanner.plan(queryForPipeline);
         var run = agentRunService.start(
                 workspacePublicId,
                 new AgentRunService.StartRequest(
@@ -115,12 +138,12 @@ public class ChatService {
         try {
             log.info("Agent[Investigation] trace_id={}, status=started, intent={}, tools={}",
                     run.getPublicId(), plan.intent(), plan.tools());
-            investigation = investigationToolService.investigate(workspacePublicId, message, plan);
-            knowledge = knowledgeSearchTool.retrieve(workspacePublicId, message);
+            investigation = investigationToolService.investigate(workspacePublicId, queryForPipeline, plan);
+            knowledge = knowledgeSearchTool.retrieve(workspacePublicId, queryForPipeline);
             log.info("Agent[Investigation] trace_id={}, status=succeeded, evidence_count={}",
                     run.getPublicId(), investigation.evidence().size());
             response = literalChatModelCaller.call(
-                    buildSystemPrompt(investigation, knowledge, history),
+                    buildSystemPrompt(investigation, knowledge, history, rollingSummary),
                     message);
             String content = response.getResult().getOutput().getContent();
             finalContent = content == null || content.isBlank() ? "抱歉，暂时无法回答。" : content;
@@ -132,10 +155,12 @@ public class ChatService {
         }
 
         long latencyMs = System.currentTimeMillis() - startedAtMs;
+        ChatSessionFocus extractedFocus = focusExtractor.extract(investigation, message);
+        conversationService.updateFocusIfNonEmpty(workspacePublicId, sessionPublicId, extractedFocus);
         agentRunService.succeed(
                 workspacePublicId,
                 run.getPublicId(),
-                toCompletion(response, finalContent, investigation, knowledge, latencyMs));
+                toCompletion(response, finalContent, investigation, knowledge, latencyMs, rewriteOutcome, sessionFocus));
         logSuccessfulCall(run.getPublicId(), latencyMs, response);
         conversationService.appendAssistantMessage(workspacePublicId, sessionPublicId, finalContent);
         List<InvestigationEvidence> evidence = new java.util.ArrayList<>(investigation.evidence());
@@ -144,14 +169,36 @@ public class ChatService {
     }
 
     /** 模型系统提示词只由受控证据和截断历史组成，二者均明确标记边界。 */
-    private String buildSystemPrompt(InvestigationResult investigation, KnowledgeRetrievalResult knowledge, List<ChatMessage> history) {
-        return promptTemplate.render(investigation.renderForPrompt(), knowledge.renderForPrompt(), formatHistory(history));
+    private String buildSystemPrompt(
+            InvestigationResult investigation,
+            KnowledgeRetrievalResult knowledge,
+            List<ChatMessage> history,
+            String rollingSummary) {
+        return promptTemplate.render(
+                investigation.renderForPrompt(), knowledge.renderForPrompt(), formatHistory(history, rollingSummary));
     }
 
-    /** 将受控调查快照序列化到审计；序列化失败必须终止本次运行，不能静默丢失证据。 */
-    private String serializeEvidence(InvestigationResult investigation, KnowledgeRetrievalResult knowledge) {
+    /** 历史条数由 ConversationService 限制；压缩与滚动摘要由 {@link ConversationHistoryCompactor} 统一维护。 */
+    private String formatHistory(List<ChatMessage> history, String rollingSummary) {
+        return historyCompactor.format(history, rollingSummary);
+    }
+
+    /** 将受控调查快照与改写 Trace 序列化到审计；序列化失败必须终止本次运行。 */
+    private String serializeEvidence(
+            InvestigationResult investigation,
+            KnowledgeRetrievalResult knowledge,
+            RewriteOutcome rewriteOutcome,
+            ChatSessionFocus focusUsed) {
         try {
-            return objectMapper.writeValueAsString(java.util.Map.of("investigation", investigation, "knowledge", knowledge));
+            java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put("investigation", investigation);
+            payload.put("knowledge", knowledge);
+            payload.put("rewrite", java.util.Map.of(
+                    "triggered", rewriteOutcome.triggered(),
+                    "reason", rewriteOutcome.reason(),
+                    "focusTopicKey", focusUsed.topicKey() == null ? "" : focusUsed.topicKey(),
+                    "rewrittenLength", rewriteOutcome.rewritten().length()));
+            return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("无法写入调查证据审计快照", exception);
         }
@@ -159,13 +206,24 @@ public class ChatService {
 
     /** 从供应商响应提取可选 Usage；缺失时保留 null，避免用字符数伪造成本。 */
     private AgentRunService.Completion toCompletion(
-            ChatResponse response, String finalContent, InvestigationResult investigation, KnowledgeRetrievalResult knowledge, long latencyMs) {
+            ChatResponse response,
+            String finalContent,
+            InvestigationResult investigation,
+            KnowledgeRetrievalResult knowledge,
+            long latencyMs,
+            RewriteOutcome rewriteOutcome,
+            ChatSessionFocus focusUsed) {
         Usage usage = response.getMetadata() == null ? null : response.getMetadata().getUsage();
         Long promptTokens = usage == null ? null : usage.getPromptTokens();
         Long completionTokens = usage == null ? null : usage.getGenerationTokens();
         Long totalTokens = usage == null ? null : usage.getTotalTokens();
         return new AgentRunService.Completion(
-                finalContent, serializeEvidence(investigation, knowledge), promptTokens, completionTokens, totalTokens, latencyMs);
+                finalContent,
+                serializeEvidence(investigation, knowledge, rewriteOutcome, focusUsed),
+                promptTokens,
+                completionTokens,
+                totalTokens,
+                latencyMs);
     }
 
     private InvestigationEvidence asInvestigationEvidence(KnowledgeEvidence evidence) {
@@ -187,20 +245,6 @@ public class ChatService {
                 usage.getPromptTokens(),
                 usage.getGenerationTokens(),
                 usage.getTotalTokens());
-    }
-
-    /** 历史最多十二条、每条最多一千字符，既支持连续对话又避免单条异常输入耗尽上下文。 */
-    private String formatHistory(List<ChatMessage> history) {
-        if (history.isEmpty()) {
-            return "\n## 最近对话\n暂无历史对话。\n";
-        }
-        StringBuilder formatted = new StringBuilder("\n## 最近对话\n");
-        history.forEach(message -> {
-            String content = message.getContent();
-            String capped = content.length() > 1000 ? content.substring(0, 1000) + "…" : content;
-            formatted.append(message.getRole()).append(": ").append(capped).append("\n");
-        });
-        return formatted.toString();
     }
 
     /** API 只返回可展示的证据索引和最终文本，既支持用户复核，也不暴露原始推理链。 */

@@ -50,7 +50,12 @@ class RagGoldSeedReadServiceContractTest {
         evidenceRepository = mock(RagGoldCaseEvidenceRepository.class);
         assertionRepository = mock(RagGoldCaseAssertionRepository.class);
         readService = new RagGoldDatasetReadService(
-                workspaceService, datasetRepository, caseRepository, evidenceRepository, assertionRepository);
+                workspaceService,
+                datasetRepository,
+                caseRepository,
+                evidenceRepository,
+                assertionRepository,
+                new ObjectMapper());
         var workspace = mock(com.insightflow.entity.Workspace.class);
         when(workspace.getId()).thenReturn(7L);
         when(workspaceService.get(WORKSPACE)).thenReturn(workspace);

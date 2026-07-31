@@ -40,6 +40,10 @@ public record RagGoldManualExtendedMetrics(
         double citationSupportRate,
         /** should_refuse 合规率；无拒答题时为 null。 */
         Double shouldRefuseComplianceRate,
+        /** 误弃权率：should_refuse=false 的题中被门控判为 ABSTAIN 的比例；无样本时为 null。 */
+        Double falseAbstentionRate,
+        /** 正确弃权率：should_refuse=true 的题中被门控判为 ABSTAIN 的比例；无样本时为 null。 */
+        Double correctAbstentionRate,
         /** 检索阶段 P50/P95 毫秒。 */
         Long retrievalP50Ms,
         Long retrievalP95Ms,

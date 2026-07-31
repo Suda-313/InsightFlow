@@ -38,6 +38,14 @@ class ConversationServiceTest {
     @Mock
     private ChatMessageRepository messageRepository;
 
+    private final SessionRollingSummaryBuilder rollingSummaryBuilder =
+            new SessionRollingSummaryBuilder(new ConversationHistoryCompactor());
+
+    private ConversationService conversationService() {
+        return new ConversationService(
+                workspaceService, sessionRepository, messageRepository, rollingSummaryBuilder);
+    }
+
     @Mock
     private Workspace workspace;
 
@@ -51,8 +59,7 @@ class ConversationServiceTest {
         when(workspace.getId()).thenReturn(7L);
         when(sessionRepository.save(any(ChatSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ChatSession created = new ConversationService(workspaceService, sessionRepository, messageRepository)
-                .createSession(workspacePublicId);
+        ChatSession created = conversationService().createSession(workspacePublicId);
 
         ArgumentCaptor<ChatSession> sessionCaptor = ArgumentCaptor.forClass(ChatSession.class);
         verify(sessionRepository).save(sessionCaptor.capture());
@@ -72,8 +79,7 @@ class ConversationServiceTest {
         when(sessionRepository.findByWorkspaceIdAndArchivedAtIsNullOrderByUpdatedAtDesc(7L))
                 .thenReturn(List.of(active));
 
-        List<ChatSession> sessions = new ConversationService(workspaceService, sessionRepository, messageRepository)
-                .listActiveSessions(workspacePublicId);
+        List<ChatSession> sessions = conversationService().listActiveSessions(workspacePublicId);
 
         assertThat(sessions).containsExactly(active);
         verify(sessionRepository).findByWorkspaceIdAndArchivedAtIsNullOrderByUpdatedAtDesc(7L);
@@ -90,7 +96,7 @@ class ConversationServiceTest {
         when(workspace.getId()).thenReturn(7L);
         when(sessionRepository.findByPublicIdAndWorkspaceId(sessionPublicId, 7L)).thenReturn(Optional.empty());
 
-        ConversationService service = new ConversationService(workspaceService, sessionRepository, messageRepository);
+        ConversationService service = conversationService();
 
         assertThatThrownBy(() -> service.listMessages(workspacePublicId, sessionPublicId))
                 .isInstanceOf(ChatSessionNotFoundException.class);

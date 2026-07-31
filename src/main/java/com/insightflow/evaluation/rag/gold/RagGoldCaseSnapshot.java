@@ -16,5 +16,33 @@ public record RagGoldCaseSnapshot(
         String annotationBasis,
         String reviewer,
         List<RagGoldEvidenceSnapshot> evidences,
-        List<RagGoldAssertionSnapshot> assertions) {
+        List<RagGoldAssertionSnapshot> assertions,
+        /** 多轮评测的前序对话；null 或空表示单轮自足题。 */
+        List<RagGoldContextTurnSnapshot> contextTurns) {
+
+    /** 兼容旧快照构造：无 contextTurns 时视为单轮题。 */
+    public RagGoldCaseSnapshot(
+            UUID casePublicId,
+            String caseKey,
+            String questionText,
+            RagGoldQuestionType questionType,
+            RagGoldDifficulty difficulty,
+            boolean shouldRefuse,
+            String annotationBasis,
+            String reviewer,
+            List<RagGoldEvidenceSnapshot> evidences,
+            List<RagGoldAssertionSnapshot> assertions) {
+        this(
+                casePublicId,
+                caseKey,
+                questionText,
+                questionType,
+                difficulty,
+                shouldRefuse,
+                annotationBasis,
+                reviewer,
+                evidences,
+                assertions,
+                null);
+    }
 }

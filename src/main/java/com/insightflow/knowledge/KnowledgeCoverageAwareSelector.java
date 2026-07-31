@@ -1,6 +1,7 @@
 package com.insightflow.knowledge;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -24,6 +25,9 @@ public class KnowledgeCoverageAwareSelector {
 
     /** CROSS 题：候选命中尚未覆盖的实体组时的加成。 */
     static final double UNCOVERED_ENTITY_BONUS = 0.10;
+
+    /** Phase 4C：enforceSoftEntityCoverage 在合并池前 N 条内搜索组代表，避免 gold 落在 greedy 后深位而无法 swap。 */
+    static final int ENTITY_COVERAGE_SEARCH_DEPTH = 30;
 
     /** 同文档第 3 条起额外惩罚，避免单文档占满 Top8。 */
     static final double EXTRA_SAME_DOCUMENT_PENALTY = 0.06;
@@ -54,6 +58,8 @@ public class KnowledgeCoverageAwareSelector {
 
         boolean coverageMode = true;
         List<KnowledgeVectorStore.SearchCandidate> pool = new ArrayList<>(candidates);
+        // Phase 4C：保留合并 boosted 池快照，供 enforceSoftEntityCoverage 在 Top30 内找组代表。
+        List<KnowledgeVectorStore.SearchCandidate> fullPoolSnapshot = List.copyOf(candidates);
         List<KnowledgeVectorStore.SearchCandidate> selected = new ArrayList<>(finalLimit);
         Set<UUID> selectedDocuments = new HashSet<>();
         Set<Integer> coveredEntityGroups = new HashSet<>();
@@ -67,7 +73,9 @@ public class KnowledgeCoverageAwareSelector {
         }
 
         if (signals.entityGroups().size() >= 2) {
-            selected = enforceSoftEntityCoverage(selected, pool, signals, finalLimit);
+            selected = enforceSoftEntityCoverage(
+                    selected, pool, fullPoolSnapshot, signals, finalLimit);
+            selected = upgradeGroupRepresentatives(selected, fullPoolSnapshot, signals);
         }
         return List.copyOf(selected);
     }
@@ -171,31 +179,215 @@ public class KnowledgeCoverageAwareSelector {
         }
     }
 
+    /**
+     * Phase 4C：缺失实体组时从 fullPool 前 {@link #ENTITY_COVERAGE_SEARCH_DEPTH} 条（含仍在 selected
+     * 之外的 chunk）找最佳组匹配并 swap，避免 gold 在 RRF rank 8–20 时被 greedy 留在池外无法晋升。
+     */
     private List<KnowledgeVectorStore.SearchCandidate> enforceSoftEntityCoverage(
             List<KnowledgeVectorStore.SearchCandidate> selected,
             List<KnowledgeVectorStore.SearchCandidate> remainingPool,
+            List<KnowledgeVectorStore.SearchCandidate> fullPoolSnapshot,
             KnowledgeTitleEntityScoreBooster.QuerySignals signals,
             int finalLimit) {
-        if (selected.size() < finalLimit || remainingPool.isEmpty()) {
+        if (selected.size() < finalLimit) {
             return selected;
         }
         List<KnowledgeVectorStore.SearchCandidate> result = new ArrayList<>(selected);
+        Set<UUID> selectedChunkIds = new HashSet<>();
+        for (KnowledgeVectorStore.SearchCandidate candidate : result) {
+            selectedChunkIds.add(candidate.chunkId());
+        }
+        int searchDepth = Math.min(ENTITY_COVERAGE_SEARCH_DEPTH, fullPoolSnapshot.size());
+        List<KnowledgeVectorStore.SearchCandidate> searchPool = fullPoolSnapshot.subList(0, searchDepth);
+
         for (int groupIndex = 0; groupIndex < signals.entityGroups().size(); groupIndex++) {
-            if (groupHasRepresentative(result, signals.entityGroups().get(groupIndex))) {
+            KnowledgeTitleEntityScoreBooster.EntityGroup group = signals.entityGroups().get(groupIndex);
+            if (groupHasRepresentative(result, group)) {
                 continue;
             }
-            int promoteIndex = findBestGroupMatchIndex(remainingPool, signals.entityGroups().get(groupIndex));
-            if (promoteIndex < 0) {
+            KnowledgeVectorStore.SearchCandidate promoted = findBestGroupMatchOutsideSelected(
+                    searchPool, group, selectedChunkIds);
+            if (promoted == null) {
+                int promoteIndex = findBestGroupMatchIndex(remainingPool, group);
+                if (promoteIndex >= 0) {
+                    promoted = remainingPool.get(promoteIndex);
+                }
+            }
+            if (promoted == null) {
                 continue;
             }
-            KnowledgeVectorStore.SearchCandidate promoted = remainingPool.remove(promoteIndex);
             int demoteIndex = findLowestScoreIndex(result);
             if (demoteIndex < 0) {
                 return result;
             }
+            selectedChunkIds.remove(result.get(demoteIndex).chunkId());
             result.set(demoteIndex, promoted);
+            selectedChunkIds.add(promoted.chunkId());
         }
         return result;
+    }
+
+    private static KnowledgeVectorStore.SearchCandidate findBestGroupMatchOutsideSelected(
+            List<KnowledgeVectorStore.SearchCandidate> searchPool,
+            KnowledgeTitleEntityScoreBooster.EntityGroup group,
+            Set<UUID> selectedChunkIds) {
+        KnowledgeVectorStore.SearchCandidate best = null;
+        int bestQuality = Integer.MIN_VALUE;
+        for (int index = 0; index < searchPool.size(); index++) {
+            KnowledgeVectorStore.SearchCandidate candidate = searchPool.get(index);
+            if (selectedChunkIds.contains(candidate.chunkId())) {
+                continue;
+            }
+            int quality = KnowledgeTitleEntityScoreBooster.groupMatchQuality(candidate, group, index);
+            if (quality > bestQuality) {
+                bestQuality = quality;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Phase 4D：每组 entity 在 Top30 内的最高 boosted 代表若未进 Top8，则替换当前最低分槽位。
+     *
+     * <p>dev-149 faq-match 在 RRF rank 8 但 greedy 选满同文档 chunk 时，enforceSoftEntityCoverage
+     * 可能因「已有弱 FAQ 代表」而跳过；本 pass 强制纳入该组池中最高分 chunk。</p>
+     */
+    private List<KnowledgeVectorStore.SearchCandidate> upgradeGroupRepresentatives(
+            List<KnowledgeVectorStore.SearchCandidate> selected,
+            List<KnowledgeVectorStore.SearchCandidate> fullPoolSnapshot,
+            KnowledgeTitleEntityScoreBooster.QuerySignals signals) {
+        if (selected.isEmpty() || signals.entityGroups().isEmpty()) {
+            return selected;
+        }
+        List<KnowledgeVectorStore.SearchCandidate> result = new ArrayList<>(selected);
+        Set<UUID> selectedIds = new HashSet<>();
+        for (KnowledgeVectorStore.SearchCandidate candidate : result) {
+            selectedIds.add(candidate.chunkId());
+        }
+        int depth = Math.min(ENTITY_COVERAGE_SEARCH_DEPTH, fullPoolSnapshot.size());
+
+        List<KnowledgeTitleEntityScoreBooster.EntityGroup> orderedGroups = new ArrayList<>(signals.entityGroups());
+        orderedGroups.sort(Comparator.comparingDouble(group -> bestGroupMatchScore(fullPoolSnapshot, depth, group)));
+
+        for (KnowledgeTitleEntityScoreBooster.EntityGroup group : orderedGroups) {
+            KnowledgeVectorStore.SearchCandidate best = findBestGroupMatchInRange(
+                    fullPoolSnapshot, 0, depth, group);
+            if (best == null) {
+                continue;
+            }
+            if (selectedIds.contains(best.chunkId())) {
+                continue;
+            }
+            int bestPoolIndex = fullPoolSnapshot.indexOf(best);
+            int bestQuality = KnowledgeTitleEntityScoreBooster.groupMatchQuality(best, group, bestPoolIndex);
+            int currentRepIndex = findBestGroupRepresentativeIndex(result, group, fullPoolSnapshot);
+            int demoteIndex = currentRepIndex >= 0
+                    ? currentRepIndex
+                    : findSwappableIndex(result, signals);
+            if (demoteIndex < 0) {
+                continue;
+            }
+            if (currentRepIndex >= 0) {
+                int currentQuality = KnowledgeTitleEntityScoreBooster.groupMatchQuality(
+                        result.get(currentRepIndex), group, fullPoolSnapshot.indexOf(result.get(currentRepIndex)));
+                if (currentQuality >= bestQuality) {
+                    continue;
+                }
+            }
+            selectedIds.remove(result.get(demoteIndex).chunkId());
+            result.set(demoteIndex, best);
+            selectedIds.add(best.chunkId());
+        }
+        return result;
+    }
+
+    private static int findBestGroupRepresentativeIndex(
+            List<KnowledgeVectorStore.SearchCandidate> selected,
+            KnowledgeTitleEntityScoreBooster.EntityGroup group,
+            List<KnowledgeVectorStore.SearchCandidate> fullPoolSnapshot) {
+        int bestIndex = -1;
+        int bestQuality = Integer.MIN_VALUE;
+        for (int index = 0; index < selected.size(); index++) {
+            KnowledgeVectorStore.SearchCandidate candidate = selected.get(index);
+            int poolIndex = fullPoolSnapshot.indexOf(candidate);
+            int quality = KnowledgeTitleEntityScoreBooster.groupMatchQuality(
+                    candidate, group, poolIndex >= 0 ? poolIndex : index);
+            if (quality > bestQuality) {
+                bestQuality = quality;
+                bestIndex = index;
+            }
+        }
+        return bestIndex;
+    }
+
+    private static double bestGroupMatchScore(
+            List<KnowledgeVectorStore.SearchCandidate> pool,
+            int depth,
+            KnowledgeTitleEntityScoreBooster.EntityGroup group) {
+        KnowledgeVectorStore.SearchCandidate best = findBestGroupMatchInRange(pool, 0, depth, group);
+        if (best == null) {
+            return Double.MAX_VALUE;
+        }
+        int poolIndex = pool.indexOf(best);
+        return -KnowledgeTitleEntityScoreBooster.groupMatchQuality(best, group, poolIndex);
+    }
+
+    private static KnowledgeVectorStore.SearchCandidate findBestGroupMatchInRange(
+            List<KnowledgeVectorStore.SearchCandidate> pool,
+            int fromInclusive,
+            int toExclusive,
+            KnowledgeTitleEntityScoreBooster.EntityGroup group) {
+        KnowledgeVectorStore.SearchCandidate best = null;
+        int bestQuality = Integer.MIN_VALUE;
+        int upper = Math.min(toExclusive, pool.size());
+        for (int index = fromInclusive; index < upper; index++) {
+            KnowledgeVectorStore.SearchCandidate candidate = pool.get(index);
+            int quality = KnowledgeTitleEntityScoreBooster.groupMatchQuality(candidate, group, index);
+            if (quality > bestQuality) {
+                bestQuality = quality;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    /** 优先替换对任意 entity 组均为非唯一代表的 chunk 中 boosted 分最低者。 */
+    private static int findSwappableIndex(
+            List<KnowledgeVectorStore.SearchCandidate> selected,
+            KnowledgeTitleEntityScoreBooster.QuerySignals signals) {
+        int bestIndex = -1;
+        double lowestScore = Double.MAX_VALUE;
+        for (int index = 0; index < selected.size(); index++) {
+            if (isCriticalRepresentative(selected, index, signals)) {
+                continue;
+            }
+            double score = selected.get(index).score();
+            if (score < lowestScore) {
+                lowestScore = score;
+                bestIndex = index;
+            }
+        }
+        return bestIndex >= 0 ? bestIndex : findLowestScoreIndex(selected);
+    }
+
+    private static boolean isCriticalRepresentative(
+            List<KnowledgeVectorStore.SearchCandidate> selected,
+            int index,
+            KnowledgeTitleEntityScoreBooster.QuerySignals signals) {
+        KnowledgeVectorStore.SearchCandidate candidate = selected.get(index);
+        for (KnowledgeTitleEntityScoreBooster.EntityGroup group : signals.entityGroups()) {
+            if (!KnowledgeTitleEntityScoreBooster.matchesGroup(candidate, group)) {
+                continue;
+            }
+            long matchesInSelected = selected.stream()
+                    .filter(item -> KnowledgeTitleEntityScoreBooster.matchesGroup(item, group))
+                    .count();
+            if (matchesInSelected <= 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean groupHasRepresentative(
@@ -213,14 +405,12 @@ public class KnowledgeCoverageAwareSelector {
             List<KnowledgeVectorStore.SearchCandidate> pool,
             KnowledgeTitleEntityScoreBooster.EntityGroup group) {
         int bestIndex = -1;
-        double bestScore = Double.NEGATIVE_INFINITY;
+        int bestQuality = Integer.MIN_VALUE;
         for (int index = 0; index < pool.size(); index++) {
             KnowledgeVectorStore.SearchCandidate candidate = pool.get(index);
-            if (!KnowledgeTitleEntityScoreBooster.matchesGroup(candidate, group)) {
-                continue;
-            }
-            if (candidate.score() > bestScore) {
-                bestScore = candidate.score();
+            int quality = KnowledgeTitleEntityScoreBooster.groupMatchQuality(candidate, group, index);
+            if (quality > bestQuality) {
+                bestQuality = quality;
                 bestIndex = index;
             }
         }

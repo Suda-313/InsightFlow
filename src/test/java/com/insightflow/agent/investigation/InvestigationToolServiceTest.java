@@ -79,7 +79,7 @@ class InvestigationToolServiceTest {
                 InvestigationToolType.ISSUE_TREND,
                 InvestigationToolType.ALERT_HISTORY,
                 InvestigationToolType.SAMPLE_FEEDBACK);
-        assertThat(result.renderForPrompt()).contains("玩法Bug").contains("更新后闪退")
+        assertThat(result.renderForPrompt()).contains("## 调查摘要").contains("玩法Bug").contains("更新后闪退")
                 .doesNotContain("跨工作区").doesNotContain("issue_id");
         verify(metricRepository).findByWorkspaceIdAndBucketStartGreaterThanEqual(eq(7L), any());
         verify(alertRepository).findByWorkspaceIdAndIssueIdOrderByCreatedAtDesc(7L, 10L);

@@ -1,0 +1,98 @@
+﻿[
+    {
+        "Variant":  "p1-baseline",
+        "Slice":  "cross-dev-slice",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p1-baseline\\cross-dev-slice"
+    },
+    {
+        "Variant":  "p1-baseline",
+        "Slice":  "dev-fast-40",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p1-baseline\\dev-fast-40"
+    },
+    {
+        "Variant":  "p1-baseline",
+        "Slice":  "dev-240",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p1-baseline\\dev-240"
+    },
+    {
+        "Variant":  "p1-baseline",
+        "Slice":  "val-80",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p1-baseline\\val-80"
+    },
+    {
+        "Variant":  "p2-identifier",
+        "Slice":  "cross-dev-slice",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p2-identifier\\cross-dev-slice"
+    },
+    {
+        "Variant":  "p2-identifier",
+        "Slice":  "dev-fast-40",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p2-identifier\\dev-fast-40"
+    },
+    {
+        "Variant":  "p2-identifier",
+        "Slice":  "dev-240",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p2-identifier\\dev-240"
+    },
+    {
+        "Variant":  "p2-identifier",
+        "Slice":  "val-80",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p2-identifier\\val-80"
+    },
+    {
+        "Variant":  "p3-subquota",
+        "Slice":  "cross-dev-slice",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p3-subquota\\cross-dev-slice"
+    },
+    {
+        "Variant":  "p3-subquota",
+        "Slice":  "dev-fast-40",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p3-subquota\\dev-fast-40"
+    },
+    {
+        "Variant":  "p3-subquota",
+        "Slice":  "dev-240",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p3-subquota\\dev-240"
+    },
+    {
+        "Variant":  "p3-subquota",
+        "Slice":  "val-80",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p3-subquota\\val-80"
+    },
+    {
+        "Variant":  "p2p3-full",
+        "Slice":  "cross-dev-slice",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p2p3-full\\cross-dev-slice"
+    },
+    {
+        "Variant":  "p2p3-full",
+        "Slice":  "dev-fast-40",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p2p3-full\\dev-fast-40"
+    },
+    {
+        "Variant":  "p2p3-full",
+        "Slice":  "dev-240",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p2p3-full\\dev-240"
+    },
+    {
+        "Variant":  "p2p3-full",
+        "Slice":  "val-80",
+        "ExitCode":  0,
+        "OutDir":  "output\\rag-gold-runs\\phase4a\\p2p3-full\\val-80"
+    }
+]

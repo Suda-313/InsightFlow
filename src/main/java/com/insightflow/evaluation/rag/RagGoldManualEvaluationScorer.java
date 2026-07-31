@@ -227,9 +227,29 @@ public class RagGoldManualEvaluationScorer {
                 ? null
                 : ratio(refusalCompliantCases, (int) refusalCases);
 
+        long nonRefusalCases = caseScores.stream().filter(score -> !score.shouldRefuse()).count();
+        long falseAbstentions = caseScores.stream()
+                .filter(score -> !score.shouldRefuse())
+                .filter(this::gateAbstained)
+                .count();
+        Double falseAbstentionRate = nonRefusalCases == 0
+                ? null
+                : ratio(falseAbstentions, (int) nonRefusalCases);
+
+        long correctAbstentions = caseScores.stream()
+                .filter(RagGoldManualCaseScore::shouldRefuse)
+                .filter(this::gateAbstained)
+                .count();
+        Double correctAbstentionRate = refusalCases == 0
+                ? null
+                : ratio(correctAbstentions, (int) refusalCases);
+
         List<Long> retrievalLatencies = latencySamples(executionMetas, RagGoldManualCaseExecutionMeta::retrievalLatencyMs);
         List<Long> generationLatencies = latencySamples(executionMetas, RagGoldManualCaseExecutionMeta::generationLatencyMs);
         int latencySampleCount = retrievalLatencies.size();
+        String promptTokens = sumTokenField(executionMetas, RagGoldManualCaseExecutionMeta::promptTokens);
+        String completionTokens = sumTokenField(executionMetas, RagGoldManualCaseExecutionMeta::completionTokens);
+        String totalTokens = sumTokenField(executionMetas, RagGoldManualCaseExecutionMeta::totalTokens);
 
         Map<String, RagGoldQuestionTypeMetrics> byQuestionType = aggregateByQuestionType(caseScores);
 
@@ -290,14 +310,16 @@ public class RagGoldManualEvaluationScorer {
                 forbiddenHitRate,
                 citationSupport,
                 refusalCompliance,
+                falseAbstentionRate,
+                correctAbstentionRate,
                 percentile(retrievalLatencies, 50),
                 percentile(retrievalLatencies, 95),
                 percentile(generationLatencies, 50),
                 percentile(generationLatencies, 95),
                 latencySampleCount,
-                "unavailable",
-                "unavailable",
-                "unavailable",
+                promptTokens,
+                completionTokens,
+                totalTokens,
                 byQuestionType,
                 succeeded,
                 failed,
@@ -416,6 +438,16 @@ public class RagGoldManualEvaluationScorer {
         return result;
     }
 
+    /** 门控 ABSTAIN 判定：优先读检索诊断中的确定性 gateOutcome。 */
+    private boolean gateAbstained(RagGoldManualCaseScore score) {
+        RagGoldRetrievalCaseDiagnostics diagnostics = score.retrievalDiagnostics();
+        if (diagnostics == null) {
+            return false;
+        }
+        return com.insightflow.knowledge.KnowledgeEvidenceGateDecision.OUTCOME_ABSTAIN
+                .equals(diagnostics.gateOutcome());
+    }
+
     private boolean isRerankGain(RagGoldManualCaseScore score) {
         RagGoldRetrievalCaseDiagnostics diagnostics = score.retrievalDiagnostics();
         return isSuccessfulCrossEncoder(diagnostics)
@@ -511,6 +543,21 @@ public class RagGoldManualEvaluationScorer {
                 .filter(java.util.Objects::nonNull)
                 .sorted()
                 .toList();
+    }
+
+    /** 对 succeeded 题累加 token；全无样本时返回 unavailable。 */
+    private String sumTokenField(
+            List<RagGoldManualCaseExecutionMeta> executionMetas,
+            java.util.function.Function<RagGoldManualCaseExecutionMeta, Long> extractor) {
+        List<Long> values = executionMetas.stream()
+                .filter(meta -> "succeeded".equals(meta.status()))
+                .map(extractor)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (values.isEmpty()) {
+            return "unavailable";
+        }
+        return String.valueOf(values.stream().mapToLong(Long::longValue).sum());
     }
 
     /** 与 {@link RagGoldAssertionMatcher#normalize} 相同；对外保留供测试对齐。 */

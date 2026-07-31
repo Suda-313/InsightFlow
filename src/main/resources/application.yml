@@ -17,6 +17,15 @@ spring:
           model: qwen3.7-max
           temperature: 0.3
           max-tokens: 2000
+    mcp:
+      server:
+        enabled: ${MCP_ENABLED:false}
+        protocol: STREAMABLE
+        name: insightflow-readonly
+        version: 0.1.0
+        type: SYNC
+        annotation-scanner:
+          enabled: true
   application:
     name: insightflow
   servlet:
@@ -131,6 +140,9 @@ insightflow:
     jwt-secret: ${INSIGHTFLOW_JWT_SECRET:}
     jwt-expiration-minutes: ${INSIGHTFLOW_JWT_EXPIRATION_MINUTES:60}
     bootstrap-token: ${INSIGHTFLOW_BOOTSTRAP_TOKEN:}
+  mcp:
+    # 只读调查/知识 Tool 的 MCP 暴露；默认关闭，本地演示时 MCP_ENABLED=true
+    enabled: ${MCP_ENABLED:false}
 
 logging:
   level:

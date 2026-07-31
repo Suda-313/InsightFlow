@@ -1,0 +1,2178 @@
+{
+  "dataset_key": "ops-rag-v1",
+  "source_corpus_version": "corpus:chaoziran-2026-07-published",
+  "workspace_public_id": "1f1898d9-8b54-6fe3-88fa-9b6f9cb0d668",
+  "dataset_version": "multiturn-40",
+  "split": "DEVELOPMENT",
+  "cases": [
+    {
+      "case_key": "dev-m01",
+      "question_text": "里面具体是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-001",
+      "reviewer": "yangyufei",
+      "sort_order": 0,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.4 全量更新的上线窗口是几点到几点？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 1
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "2026-07-10 10:00 至 12:00",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "正式服全量",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4 是灰度发布",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "维护到次日凌晨",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m02",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-002",
+      "reviewer": "yangyufei",
+      "sort_order": 1,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "玩家问结算页显示了奖励但背包迟迟不到的相关说明是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 4,
+          "requirement_key": "settlement-delay-10min"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-道具与撤离机制详解",
+          "version_no": 5,
+          "chunk_no": 10,
+          "requirement_key": "settlement-delay-10min"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "不超过 10 分钟",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "异步延迟",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "实时到账",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "必须 1 分钟内到账",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m03",
+      "question_text": "里面具体是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-003",
+      "reviewer": "yangyufei",
+      "sort_order": 2,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "举报提交成功后，能不能跟玩家说已经封号了？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 5
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "工单已受理",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "不代表处罚已经产生",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "举报成功等于已封号",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "必须提供完整日志文件",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m04",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-004",
+      "reviewer": "yangyufei",
+      "sort_order": 3,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "社区有人把卡顿全怪 1.4的相关说明是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 7
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "等待资源校验完成",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "持续超过 5 分钟再按稳定性问题处理",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "一律判定为版本缺陷",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "建议立即回滚",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m05",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-005",
+      "reviewer": "yangyufei",
+      "sort_order": 4,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.3 那次更新的版本号和上线窗口能帮我核对一下吗？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.3-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.3.0",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "2026-06-12 10:00 至 12:00",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.3 是 1.4 热修",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "仅测试服",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m06",
+      "question_text": "里面具体是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-006",
+      "reviewer": "yangyufei",
+      "sort_order": 5,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.3 对外挂治理做了什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.3-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 5
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "命中判定后本局内禁言",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "处罚结果不会实时展示给举报人",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "实时展示封禁结果",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "仅警告不处理",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m07",
+      "question_text": "里面具体是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-007",
+      "reviewer": "yangyufei",
+      "sort_order": 6,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.3.1 热修主要修了什么地图机关问题？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.3.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1301",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "机关房间",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "KI-1405",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "古蜀遗迹",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m08",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-008",
+      "reviewer": "yangyufei",
+      "sort_order": 7,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.4.1 对古蜀遗迹机关问题的对外结论是什么？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1405 已修复",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "清除本地缓存",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "问题未关闭",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "必须卸载重装为首选",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m09",
+      "question_text": "里面具体是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-009",
+      "reviewer": "yangyufei",
+      "sort_order": 8,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.4.1 还修了匹配失败后房间卡「匹配中」的问题吗？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1406",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "匹配超时后强制重置房间",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "未修复 KI-1406",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "KI-1406 是结算问题",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m10",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-010",
+      "reviewer": "yangyufei",
+      "sort_order": 9,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.4.2 复核后 KI-1405 的最终状态怎么表述？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "部分缓解",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "未关闭",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "已完全修复",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "与 1.4.1 一致称已修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m11",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-011",
+      "reviewer": "yangyufei",
+      "sort_order": 10,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "7/19 晚高峰奖励迟迟不到的相关说明是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 5,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "扩容结算 worker",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "95% 订单 10 分钟内到账",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "取消异步结算",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "保证 1 分钟内到账",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m12",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-012",
+      "reviewer": "yangyufei",
+      "sort_order": 11,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.4 系列文档里 KI-1403 的设计预期延迟是多少？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4系列已知问题补充",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "10 分钟",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "异步",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "实时到账",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "30 分钟仍属正常",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m13",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-013",
+      "reviewer": "yangyufei",
+      "sort_order": 12,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "7/21 对外简版里的相关说明是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月稳定性说明",
+          "version_no": 5,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "10 分钟内属正常",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "99.1% 在 10 分钟内",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "任何延迟都是 P1",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "必须即时到账",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m14",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-014",
+      "reviewer": "yangyufei",
+      "sort_order": 13,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "7 月稳定性复盘里 7/19 结算积压事件的严重级别？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "P1",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "队列积压",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "P3 轻微",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "仅活动导致",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m15",
+      "question_text": "里面具体是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-015",
+      "reviewer": "yangyufei",
+      "sort_order": 14,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "7 月那次维护窗口大概什么时候？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 3,
+          "requirement_key": "maintenance-dev015"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 7,
+          "requirement_key": "maintenance-dev015"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "维护窗口",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/10",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4 bug 导致",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无公告维护",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m16",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-016",
+      "reviewer": "yangyufei",
+      "sort_order": 15,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "结算延迟复盘里 P99 到账时长峰值大概是多少？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-结算延迟舆情复盘-POSTMORTEM",
+          "version_no": 5,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "34 分钟",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "P99",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "10 分钟内",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无队列积压",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m17",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-017",
+      "reviewer": "yangyufei",
+      "sort_order": 16,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "古蜀联动双倍碎片活动持续到哪天？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "2026-07-25",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7 月 25 日",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "7 月 18 日结束",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "永久活动",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m18",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-018",
+      "reviewer": "yangyufei",
+      "sort_order": 17,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "古蜀活动单账号每日双倍生效上限是多少局？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 3
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "30 局",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "每日上限",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无上限",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "100 局",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m19",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-019",
+      "reviewer": "yangyufei",
+      "sort_order": 18,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "古蜀活动复盘里 7/19 结算 P1 与活动本身是什么关系？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动流量放大曝光",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动配置不一定是根因",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "活动配置直接导致结算故障",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "活动已暂停",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m20",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-020",
+      "reviewer": "yangyufei",
+      "sort_order": 19,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "玩家反馈响应 SOP 里的相关说明是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-玩家反馈响应-SOP",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "24 小时",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "首次回复",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1 小时",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无需回复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m21",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-021",
+      "reviewer": "yangyufei",
+      "sort_order": 20,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "舆情采样 SOP 里的相关说明是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-舆情采样与分析口径-SOP",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "不足以单独推断",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "需要结合时间窗口和样本",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "可以单独推断",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "评论量上升等于 bug 实锤",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m22",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-022",
+      "reviewer": "yangyufei",
+      "sort_order": 21,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "FAQ 里匹配连续失败两次的相关说明是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组玩家常见问题FAQ",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "退出房间并重新组队",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "连续两次失败",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "继续在同一房间重试",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "卸载游戏",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m23",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-023",
+      "reviewer": "yangyufei",
+      "sort_order": 22,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "已知问题指引里 KI-1405 在 1.4.2 之后的首选引？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-已知问题与处置指引",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "重新同步",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.2",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.1 已修复无需操作",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "必须等待下次大版本",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m24",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-024",
+      "reviewer": "yangyufei",
+      "sort_order": 23,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "术语表里「撤离点」的业务含义是什么？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-怪物机制与术语表",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "安全离开",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "收集目标物资后",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "任意地点",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "仅单人模式",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m25",
+      "question_text": "里面提到的关键信息是什么？",
+      "question_type": "SINGLE_DOCUMENT_FACT",
+      "difficulty": "EASY",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-025",
+      "reviewer": "yangyufei",
+      "sort_order": 24,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "道具详解里烟雾类道具对巡逻型怪物的主要作用？？"
+        },
+        {
+          "role": "assistant",
+          "content": "相关文档中有记录，我可以根据已发布知识说明。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-道具与撤离机制详解",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "遮蔽视野",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "脱离追击",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "直接秒杀",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "永久隐身",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m26",
+      "question_text": "里面具体是什么？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-145",
+      "reviewer": "yangyufei",
+      "sort_order": 25,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "值班追问：1.4 公告说奖励 10 分钟内到账，7 月稳定性复盘里 7？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先整理相关文档要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 4,
+          "requirement_key": "design-delay-10min"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "stability-719"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "10 分钟为设计预期",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/19 出现 P1 队列积压",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "7/19 仍属 10 分钟内正常",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "复盘否认积压",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m27",
+      "question_text": "里面具体是什么？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-146",
+      "reviewer": "yangyufei",
+      "sort_order": 26,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "复盘会上需要确认：古蜀活动公告说双倍碎片，复盘里对 7/19 结算问题？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先整理相关文档要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 3,
+          "requirement_key": "gusu-announce"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
+          "version_no": 5,
+          "chunk_no": 3,
+          "requirement_key": "gusu-postmortem"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "活动不修改机关逻辑",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/19 结算 P1 与流量放大",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "活动直接导致结算故障",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "双倍规则取消",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m28",
+      "question_text": "那1.4.1 的 KI-1405 是同一个根因吗呢？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-147",
+      "reviewer": "yangyufei",
+      "sort_order": 27,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "客服转来一个问题：1.3 的 KI-1301的情况是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先说明其中一份文档的要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.3.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "ki-1301"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "ki-1405"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "根因不同",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1301 与 KI-1405 不同编号",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "同一问题",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.1 称 KI-1301 未修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m29",
+      "question_text": "里面具体是什么？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-148",
+      "reviewer": "yangyufei",
+      "sort_order": 28,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "调查员笔记：版本窗口 SOP 说 7/10 上午登录失败优先查什么？维？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先整理相关文档要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "attribution-sop"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "maintenance-event"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "维护预期现象",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/10 维护窗口",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.0 严重 bug",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无维护记录",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m30",
+      "question_text": "里面具体是什么？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-149",
+      "reviewer": "yangyufei",
+      "sort_order": 29,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "社区舆情对照：FAQ 说匹配失败怎么办，1.4.1 热修又修了哪个匹配？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先整理相关文档要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组玩家常见问题FAQ",
+          "version_no": 5,
+          "chunk_no": 3,
+          "requirement_key": "faq-match"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 3,
+          "requirement_key": "hotfix-141-match"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "退出重组队",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "KI-1406 房间状态",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "继续匹配",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "KI-1406 未修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m31",
+      "question_text": "里面具体是什么？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-150",
+      "reviewer": "yangyufei",
+      "sort_order": 30,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "二线升级：玩法机制参考里说核心循环是什么？1.4 公告有没有改这个循环？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先整理相关文档要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组玩法机制与舆情判读参考",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "gameplay-reference"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "release-14"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "搜索、战斗、撤离",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4 聚焦协作与结算体验",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "改为纯 PVP",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "取消撤离机制",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m32",
+      "question_text": "里面具体是什么？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-151",
+      "reviewer": "yangyufei",
+      "sort_order": 31,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "质量门禁抽查：数据限制说明能否对外报 DAU？7 月稳定性复盘里的 P？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先整理相关文档要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-运营数据可用性与限制说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "data-boundary"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-运营数据可用性与限制说明",
+          "version_no": 5,
+          "chunk_no": 4,
+          "requirement_key": "data-boundary"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
+          "version_no": 5,
+          "chunk_no": 3,
+          "requirement_key": "postmortem-p99"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
+          "version_no": 5,
+          "chunk_no": 7,
+          "requirement_key": "postmortem-p99"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "DAU 属 L2 默认不可对外",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "复盘 P99 可引用并标注来源",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "DAU 可随意估计",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "P99 必须拒答",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m33",
+      "question_text": "那1.3 治理段对「举报量上升」的解释一致吗呢？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-152",
+      "reviewer": "yangyufei",
+      "sort_order": 32,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "培训场景：外挂复盘的情况是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先说明其中一份文档的要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "cheat-postmortem"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.3-版本更新说明",
+          "version_no": 5,
+          "chunk_no": 5,
+          "requirement_key": "release-13-governance"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "举报量上升不等于外挂上升",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "治理后举报量可能短期上升",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "举报量等于外挂量",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.3 未做治理",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m34",
+      "question_text": "那1.4.2 热修，KI-1405 状态以哪个为准呢？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-153",
+      "reviewer": "yangyufei",
+      "sort_order": 33,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "值班追问：v1.3-v1.4 对照档案的情况是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先说明其中一份文档的要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
+          "version_no": 5,
+          "chunk_no": 3
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "以生效日期更晚文档为准",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.2 部分缓解",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "以 1.4.1 为准",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "已完全修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m35",
+      "question_text": "那古蜀活动的时间窗有没有重叠呢？",
+      "question_type": "CROSS_DOCUMENT",
+      "difficulty": "MEDIUM",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-154",
+      "reviewer": "yangyufei",
+      "sort_order": 34,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "复盘会上需要确认：暑期签到的情况是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "我先说明其中一份文档的要点。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-暑期签到活动-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "signin-window"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-暑期签到活动-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 12,
+          "requirement_key": "signin-window"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-暑期签到活动-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 13,
+          "requirement_key": "signin-window"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "gushu-window"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
+          "version_no": 5,
+          "chunk_no": 3,
+          "requirement_key": "gushu-window"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "时间窗不同",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "签到与对局结算分开",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "同一活动",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "共用结算 worker 导致故障",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m36",
+      "question_text": "这两个版本的说法有什么冲突？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-193",
+      "reviewer": "yangyufei",
+      "sort_order": 35,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "玩家 7/22 说古蜀机关已修好，能引用 1.4.1 说「已修复」吗？"
+        },
+        {
+          "role": "assistant",
+          "content": "不同版本文档中都有相关描述。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-141"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-142"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "须核对版本与日期",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.2 修订为部分缓解",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "可直接引用 1.4.1 已修复",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "无需看 1.4.2",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m37",
+      "question_text": "这两个版本的说法有什么冲突？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-194",
+      "reviewer": "yangyufei",
+      "sort_order": 36,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "KI-1405 在 1.4.1 和 1.4.2 的对外状态差异是什么？"
+        },
+        {
+          "role": "assistant",
+          "content": "不同版本文档中都有相关描述。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-141"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-142"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.1 称已修复",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.2 称部分缓解未关闭",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "两文档一致",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.2 称完全修复",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m38",
+      "question_text": "这两个版本的说法有什么冲突？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-195",
+      "reviewer": "yangyufei",
+      "sort_order": 37,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "7/24 后调查员能否仅引用 1.4.1 作为 KI-1405 最终结论？"
+        },
+        {
+          "role": "assistant",
+          "content": "不同版本文档中都有相关描述。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-141"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-142"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "不能",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "以生效更晚文档为准",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "可以",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.1 永久有效",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m39",
+      "question_text": "这两个版本的说法有什么冲突？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-196",
+      "reviewer": "yangyufei",
+      "sort_order": 38,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "1.4.2 的「重新同步」按钮在 1.4.1 文档里有没有？"
+        },
+        {
+          "role": "assistant",
+          "content": "不同版本文档中都有相关描述。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-141"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-142"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.2 新增",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.1 无此引导",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.1 已有",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "两版相同",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "case_key": "dev-m40",
+      "question_text": "这两个版本的说法有什么冲突？",
+      "question_type": "VERSION_CONFLICT",
+      "difficulty": "HARD",
+      "should_refuse": false,
+      "annotation_basis": "multiturn-derived-from:dev-197",
+      "reviewer": "yangyufei",
+      "sort_order": 39,
+      "context_turns": [
+        {
+          "role": "user",
+          "content": "高延迟四人局隔离策略出现在哪版热修说明？"
+        },
+        {
+          "role": "assistant",
+          "content": "不同版本文档中都有相关描述。"
+        }
+      ],
+      "evidences": [
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.1-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-141"
+        },
+        {
+          "granularity": "CHUNK",
+          "document_ref": "超自然行动组-1.4.2-热修复说明",
+          "version_no": 5,
+          "chunk_no": 2,
+          "requirement_key": "version-142"
+        }
+      ],
+      "assertions": [
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "1.4.2",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "REQUIRED_FACT",
+          "assertion_text": "7/24 起",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.4.1",
+          "weight": 1.0
+        },
+        {
+          "assertion_type": "FORBIDDEN_CLAIM",
+          "assertion_text": "1.3.1",
+          "weight": 1.0
+        }
+      ]
+    }
+  ]
+}

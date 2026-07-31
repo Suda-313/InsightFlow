@@ -10,6 +10,6 @@ import com.insightflow.knowledge.KnowledgeRetrievalResult;
  */
 public interface RagEvaluationAnswerGateway {
 
-    /** 基于给定题目和本题检索证据生成最终回答，不保存模型原始推理过程。 */
-    String answer(String question, KnowledgeRetrievalResult retrieval);
+    /** 基于给定题目和本题检索证据生成最终回答，并透传供应商 Usage（若有）。 */
+    RagEvaluationGenerationResult answer(String question, KnowledgeRetrievalResult retrieval);
 }

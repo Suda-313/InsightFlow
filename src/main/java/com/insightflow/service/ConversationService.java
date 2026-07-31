@@ -1,5 +1,6 @@
 package com.insightflow.service;
 
+import com.insightflow.agent.investigation.ChatSessionFocus;
 import com.insightflow.common.exception.ChatSessionNotFoundException;
 import com.insightflow.entity.ChatMessage;
 import com.insightflow.entity.ChatSession;
@@ -32,14 +33,19 @@ public class ConversationService {
     /** 消息仓储仅保存最终用户文本和最终助手答案。 */
     private final ChatMessageRepository messageRepository;
 
+    /** 将超出 12 条窗口的更早消息压缩为确定性滚动摘要。 */
+    private final SessionRollingSummaryBuilder rollingSummaryBuilder;
+
     /** 依赖通过构造器注入，保证隔离规则可以在单元测试中独立验证。 */
     public ConversationService(
             WorkspaceService workspaceService,
             ChatSessionRepository sessionRepository,
-            ChatMessageRepository messageRepository) {
+            ChatMessageRepository messageRepository,
+            SessionRollingSummaryBuilder rollingSummaryBuilder) {
         this.workspaceService = workspaceService;
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
+        this.rollingSummaryBuilder = rollingSummaryBuilder;
     }
 
     /** 在指定工作区创建新的活动会话。 */
@@ -88,8 +94,29 @@ public class ConversationService {
         ChatSession session = requireSession(workspacePublicId, sessionPublicId);
         ChatMessage message = ChatMessage.assistant(session.getWorkspaceId(), session.getId(), content);
         session.touch();
+        messageRepository.save(message);
+        refreshRollingSummary(session);
         sessionRepository.save(session);
-        return messageRepository.save(message);
+        return message;
+    }
+
+    /** 返回持久化的滚动摘要，供 Prompt 注入；无摘要时 null。 */
+    public String readRollingSummary(UUID workspacePublicId, UUID sessionPublicId) {
+        return requireSession(workspacePublicId, sessionPublicId).getRollingSummary();
+    }
+
+    /**
+     * 消息数超过 12 条时，将窗口外消息压缩写入 {@code rolling_summary}；否则清除摘要。
+     */
+    private void refreshRollingSummary(ChatSession session) {
+        long total = messageRepository.countByWorkspaceIdAndSessionId(session.getWorkspaceId(), session.getId());
+        if (total <= SessionRollingSummaryBuilder.RECENT_MESSAGE_WINDOW) {
+            session.updateRollingSummary(null);
+            return;
+        }
+        List<ChatMessage> all = messageRepository.findByWorkspaceIdAndSessionIdOrderByCreatedAtAsc(
+                session.getWorkspaceId(), session.getId());
+        session.updateRollingSummary(rollingSummaryBuilder.buildFromAllMessages(all));
     }
 
     /** 返回最近 12 条正序消息，供 ChatService 注入短期上下文而不无限增长 token。 */
@@ -99,6 +126,21 @@ public class ConversationService {
                 .findTop12ByWorkspaceIdAndSessionIdOrderByCreatedAtDesc(session.getWorkspaceId(), session.getId()));
         Collections.reverse(latestFirst);
         return latestFirst;
+    }
+
+    /** 读取会话级调查焦点，供多轮 query 改写使用。 */
+    public ChatSessionFocus readFocus(UUID workspacePublicId, UUID sessionPublicId) {
+        return requireSession(workspacePublicId, sessionPublicId).currentFocus();
+    }
+
+    /**
+     * 持久化本轮抽取到的焦点；空焦点会被 {@link ChatSession#updateFocus} 忽略而不覆盖旧值。
+     */
+    @Transactional
+    public void updateFocusIfNonEmpty(UUID workspacePublicId, UUID sessionPublicId, ChatSessionFocus focus) {
+        ChatSession session = requireSession(workspacePublicId, sessionPublicId);
+        session.updateFocus(focus);
+        sessionRepository.save(session);
     }
 
     /** 在读取消息或写入消息前完成工作区解析和会话归属校验。 */

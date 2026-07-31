@@ -8,16 +8,26 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Markdown/TXT 的确定性切片器（Phase R1：标题感知）。
+ * Markdown/TXT 的确定性切片器（Phase R1 标题感知 + P4 导语/frontmatter）。
  *
- * <p>先按 {@code #～###} 切成 section，仅在单个 section 超长时按字符窗口硬切，且窗口切分不跨越
- * section 边界。同一版本重建时 {@code chunk_no} 稳定，便于 RAG 金标与引用审计。</p>
+ * <p>先剥离 YAML frontmatter，再按 {@code #～###} 切成 section；首个标题前的无标题段记为
+ * {@link #PREAMBLE_SECTION_HEADING}，便于词法/精排独立召回 blockquote 导语。仅在单个 section
+ * 超长时按字符窗口硬切，且不跨 section 边界。改切片规则后须 re-publish 语料。</p>
  */
 @Component
 public class KnowledgeChunker {
 
     /** 仅识别一级到三级标题；更深层级视为正文，避免过度切碎 SOP/手册结构。 */
     private static final Pattern SECTION_HEADER = Pattern.compile("^(#{1,3})\\s+(.+)$");
+
+    /** 文档开头 YAML frontmatter；剥离后不参与切片，避免元数据挤占正文窗口。 */
+    private static final Pattern YAML_FRONTMATTER = Pattern.compile("^---\\s*\\n.*?\\n---\\s*(?:\\n|$)", Pattern.DOTALL);
+
+    /**
+     * 首个 Markdown 标题前的无标题段使用固定章节名，供 {@code section_heading}/lexical 索引；
+     * 纯无标题全文不套用此标签。
+     */
+    static final String PREAMBLE_SECTION_HEADING = "文档导语";
 
     /** 窗口硬切时的字符重叠量（R1.5）；只作用于同一 section 内的连续窗口，不跨 section。 */
     private static final int WINDOW_OVERLAP_CHARACTERS = 100;
@@ -50,14 +60,27 @@ public class KnowledgeChunker {
         if (content == null || content.isBlank()) {
             throw new IllegalArgumentException("知识正文不能为空");
         }
-        String normalized = content.replace("\r\n", "\n").replace('\r', '\n').trim();
+        String normalized = stripFrontmatter(content.replace("\r\n", "\n").replace('\r', '\n').trim());
+        List<Section> sections = splitSections(normalized);
+        boolean hasTitledSection = sections.stream().anyMatch(section -> section.heading() != null);
         List<ChunkDraft> chunks = new ArrayList<>();
-        for (Section section : splitSections(normalized)) {
+        boolean beforeFirstTitle = true;
+        for (Section section : sections) {
             if (section.body().isBlank()) {
+                if (section.heading() != null) {
+                    beforeFirstTitle = false;
+                }
                 continue;
             }
+            String sectionHeading = section.heading();
+            if (sectionHeading == null && beforeFirstTitle && hasTitledSection) {
+                sectionHeading = PREAMBLE_SECTION_HEADING;
+            }
+            if (sectionHeading != null) {
+                beforeFirstTitle = false;
+            }
             for (String part : splitSectionBody(section.body())) {
-                append(chunks, part, section.heading());
+                append(chunks, part, sectionHeading);
             }
         }
         if (chunks.isEmpty()) {
@@ -69,7 +92,8 @@ public class KnowledgeChunker {
     /**
      * 按 Markdown 标题切 section；标题行本身不进入 body，而是写入 {@link Section#heading}。
      *
-     * <p>首段无标题的正文作为 preamble section（heading 为 null），仍参与切片但不跨后续标题。</p>
+     * <p>首段无标题的正文作为 preamble section；若文档含 Markdown 标题，发布时会标记为
+     * {@link #PREAMBLE_SECTION_HEADING}。</p>
      */
     private List<Section> splitSections(String content) {
         List<Section> sections = new ArrayList<>();
@@ -124,6 +148,15 @@ public class KnowledgeChunker {
         return parts;
     }
 
+    /** 剥离 leading YAML frontmatter；非 frontmatter 文档原样返回。 */
+    private String stripFrontmatter(String content) {
+        Matcher matcher = YAML_FRONTMATTER.matcher(content);
+        if (!matcher.find()) {
+            return content;
+        }
+        return content.substring(matcher.end()).trim();
+    }
+
     /** 统一计算 chunk_no 和近似 token 统计；正文为空时不会到达此方法。 */
     private void append(List<ChunkDraft> chunks, String content, String sectionHeading) {
         chunks.add(new ChunkDraft(
@@ -140,7 +173,7 @@ public class KnowledgeChunker {
     /**
      * 切片持久化前的不可变草稿，不包含内部 ID、对象键或任何模型推理信息。
      *
-     * @param sectionHeading 所属 Markdown 章节标题（不含 {@code #}）；preamble 为 null
+     * @param sectionHeading 所属 Markdown 章节标题（不含 {@code #}）；首个标题前导语为 {@link #PREAMBLE_SECTION_HEADING}
      */
     public record ChunkDraft(int chunkNo, String content, int tokenCount, String sectionHeading) {
     }

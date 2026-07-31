@@ -63,6 +63,47 @@ public class KnowledgeCrossQueryDecomposer {
 
     /** 暴露分句结果供评测层与 requirement 组对齐。 */
     public List<String> splitBody(String body) {
+        return splitBodyInternal(body, true);
+    }
+
+    /**
+     * 金标/requirement 组对齐专用：按连接词/逗号分句；仅当各路已含不同事件编号时跳过 sharedAspect 拼接。
+     *
+     * <p>dev-147 若拼接 sharedTail，第一路会混入 KI-1405；dev-154 等仍需 sharedAspect 才能保留「时间窗」等共享问句。</p>
+     */
+    public List<String> splitBodyForRequirementGroups(String body, int groupCount) {
+        if (body == null || body.isBlank() || groupCount < 2) {
+            return splitBody(body);
+        }
+        String normalized = body.trim();
+        List<String> commaParts = splitOnDelimiter(normalized, "[，,]", 4);
+        if (commaParts.size() == groupCount) {
+            return List.copyOf(commaParts);
+        }
+        List<String> connectorPartsRaw = splitOnConnector(normalized, false);
+        if (connectorPartsRaw.size() == groupCount && hasDistinctEventIdsPerPart(connectorPartsRaw)) {
+            return List.copyOf(connectorPartsRaw);
+        }
+        return splitBodyInternal(normalized, true);
+    }
+
+    private static boolean hasDistinctEventIdsPerPart(List<String> parts) {
+        Set<String> seen = new LinkedHashSet<>();
+        for (String part : parts) {
+            Set<String> ids = KnowledgeIdentifierExtractor.extractEventIds(part);
+            if (ids.isEmpty()) {
+                return false;
+            }
+            for (String id : ids) {
+                if (!seen.add(id)) {
+                    return false;
+                }
+            }
+        }
+        return seen.size() >= 2;
+    }
+
+    private List<String> splitBodyInternal(String body, boolean enrichSharedAspect) {
         if (body == null || body.isBlank()) {
             return List.of();
         }
@@ -73,7 +114,7 @@ public class KnowledgeCrossQueryDecomposer {
             return List.copyOf(commaParts);
         }
 
-        List<String> connectorParts = splitOnConnector(normalized);
+        List<String> connectorParts = splitOnConnector(normalized, enrichSharedAspect);
         if (connectorParts.size() >= 2) {
             return List.copyOf(connectorParts);
         }
@@ -153,6 +194,10 @@ public class KnowledgeCrossQueryDecomposer {
     }
 
     private List<String> splitOnConnector(String body) {
+        return splitOnConnector(body, true);
+    }
+
+    private List<String> splitOnConnector(String body, boolean enrichSharedAspect) {
         String[] rawParts = CONNECTOR_SPLIT.split(body);
         List<String> parts = new ArrayList<>();
         for (String raw : rawParts) {
@@ -161,7 +206,7 @@ public class KnowledgeCrossQueryDecomposer {
                 parts.add(trimmed);
             }
         }
-        if (parts.size() < 2) {
+        if (parts.size() < 2 || !enrichSharedAspect) {
             return parts;
         }
         String sharedTail = extractSharedAspect(body);

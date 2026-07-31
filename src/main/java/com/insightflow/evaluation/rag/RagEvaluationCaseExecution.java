@@ -25,7 +25,11 @@ public record RagEvaluationCaseExecution(
         /** 从开始到完成或收敛的总耗时，用于逐题日志。*/
         long totalLatencyMs,
         /** 可选检索诊断；端到端批次用于 per-case JSON，失败题为 null。 */
-        KnowledgeRetrievalDiagnostics retrievalDiagnostics) {
+        KnowledgeRetrievalDiagnostics retrievalDiagnostics,
+        /** 模型 Usage；retrieval-only 或供应商未返回时为 null。 */
+        Long promptTokens,
+        Long completionTokens,
+        Long totalTokens) {
 
     public RagEvaluationCaseExecution(
             KnowledgeRetrievalResult retrieval,
@@ -35,13 +39,36 @@ public record RagEvaluationCaseExecution(
             long retrievalLatencyMs,
             long generationLatencyMs,
             long totalLatencyMs) {
-        this(retrieval, answer, status, failureStage, retrievalLatencyMs, generationLatencyMs, totalLatencyMs, null);
+        this(retrieval, answer, status, failureStage, retrievalLatencyMs, generationLatencyMs, totalLatencyMs, null, null, null, null);
+    }
+
+    public RagEvaluationCaseExecution(
+            KnowledgeRetrievalResult retrieval,
+            String answer,
+            String status,
+            String failureStage,
+            long retrievalLatencyMs,
+            long generationLatencyMs,
+            long totalLatencyMs,
+            KnowledgeRetrievalDiagnostics retrievalDiagnostics) {
+        this(
+                retrieval,
+                answer,
+                status,
+                failureStage,
+                retrievalLatencyMs,
+                generationLatencyMs,
+                totalLatencyMs,
+                retrievalDiagnostics,
+                null,
+                null,
+                null);
     }
 
     /** 失败题使用空检索和空回答，让评分器稳定按未命中处理，不让异常内容进入结果。*/
     static RagEvaluationCaseExecution failed(String failureStage, long retrievalLatencyMs, long generationLatencyMs, long totalLatencyMs) {
         return new RagEvaluationCaseExecution(
                 new KnowledgeRetrievalResult(0, java.util.List.of()), "", "failed", failureStage,
-                retrievalLatencyMs, generationLatencyMs, totalLatencyMs, null);
+                retrievalLatencyMs, generationLatencyMs, totalLatencyMs, null, null, null, null);
     }
 }

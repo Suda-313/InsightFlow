@@ -233,9 +233,27 @@ public class KnowledgeTitleEntityScoreBooster {
         return bestIndex;
     }
 
+    /**
+     * 判断候选 chunk 是否代表某路子查询的 entity 组。
+     *
+     * <p>Phase 4D：子查询中的文档短名写入 {@link EntityGroup#titleAnchors()}，先约束
+     * {@code candidate.title}，避免 dev-149 热修 chunk 因「匹配」等泛 token 占位 FAQ 组。</p>
+     */
     static boolean matchesGroup(KnowledgeVectorStore.SearchCandidate candidate, EntityGroup group) {
         String normalizedTitle = normalizeTitle(candidate.title());
         String searchable = searchableText(candidate);
+        if (!group.titleAnchors().isEmpty()) {
+            boolean titleAnchorHit = false;
+            for (String anchor : group.titleAnchors()) {
+                if (normalizedTitle.contains(anchor)) {
+                    titleAnchorHit = true;
+                    break;
+                }
+            }
+            if (!titleAnchorHit) {
+                return false;
+            }
+        }
         for (String identifier : group.eventIds()) {
             if (KnowledgeIdentifierExtractor.containsExact(candidate.title(), identifier)
                     || KnowledgeIdentifierExtractor.containsExact(candidate.sectionHeading(), identifier)
@@ -246,19 +264,59 @@ public class KnowledgeTitleEntityScoreBooster {
         if (normalizedTitle.isBlank() && searchable.isBlank()) {
             return false;
         }
+        int minTokenLength = group.titleAnchors().isEmpty() ? 2 : 3;
         for (String token : group.tokens()) {
-            if (token.length() >= 2
+            if (token.length() >= minTokenLength
                     && (normalizedTitle.contains(token) || searchable.contains(token))) {
                 return true;
             }
         }
-        for (String version : group.versions()) {
-            if (normalizedTitle.contains(version.toLowerCase(Locale.ROOT))
-                    || searchable.contains(version.toLowerCase(Locale.ROOT))) {
-                return true;
+        if (group.titleAnchors().isEmpty()) {
+            for (String version : group.versions()) {
+                if (normalizedTitle.contains(version.toLowerCase(Locale.ROOT))
+                        || searchable.contains(version.toLowerCase(Locale.ROOT))) {
+                    return true;
+                }
             }
         }
-        return false;
+        return !group.titleAnchors().isEmpty();
+    }
+
+    /**
+     * 组内最佳代表排序分：token 重合数优先，同分取 RRF 更靠前（poolIndex 更小）。
+     *
+     * <p>供 {@link KnowledgeCoverageAwareSelector} 在 swap/upgrade 时区分同文档多 chunk。</p>
+     */
+    static int groupMatchQuality(
+            KnowledgeVectorStore.SearchCandidate candidate,
+            EntityGroup group,
+            int poolIndex) {
+        if (!matchesGroup(candidate, group)) {
+            return Integer.MIN_VALUE;
+        }
+        return tokenOverlapCount(candidate, group) * 1_000 - poolIndex;
+    }
+
+    private static int tokenOverlapCount(KnowledgeVectorStore.SearchCandidate candidate, EntityGroup group) {
+        String normalizedTitle = normalizeTitle(candidate.title());
+        String searchable = searchableText(candidate);
+        int overlap = 0;
+        for (String token : group.tokens()) {
+            if (token.length() < 3) {
+                continue;
+            }
+            if (normalizedTitle.contains(token) || searchable.contains(token)) {
+                overlap++;
+            }
+        }
+        for (String identifier : group.eventIds()) {
+            if (KnowledgeIdentifierExtractor.containsExact(candidate.title(), identifier)
+                    || KnowledgeIdentifierExtractor.containsExact(candidate.sectionHeading(), identifier)
+                    || KnowledgeIdentifierExtractor.containsExact(candidate.content(), identifier)) {
+                overlap += 2;
+            }
+        }
+        return overlap;
     }
 
     QuerySignals buildSignals(String question, KnowledgeRetrievalOptions options) {
@@ -315,7 +373,49 @@ public class KnowledgeTitleEntityScoreBooster {
         Set<String> tokens = extractTokens(text);
         Set<String> groupVersions = extractVersions(text);
         Set<String> groupEventIds = KnowledgeIdentifierExtractor.extractEventIds(text);
-        return new EntityGroup(List.copyOf(tokens), List.copyOf(groupVersions), List.copyOf(groupEventIds));
+        List<String> titleAnchors = extractTitleAnchors(text);
+        return new EntityGroup(
+                List.copyOf(tokens), List.copyOf(groupVersions), List.copyOf(groupEventIds), titleAnchors);
+    }
+
+    /** 从子查询文本提取文档标题锚点，供 matchesGroup 过滤跨文档误命中。 */
+    static List<String> extractTitleAnchors(String text) {
+        if (text == null || text.isBlank()) {
+            return List.of();
+        }
+        String normalized = normalizeTitle(text);
+        LinkedHashSet<String> anchors = new LinkedHashSet<>();
+        addTitleAnchorIfPresent(anchors, normalized, "玩家常见问题faq");
+        addTitleAnchorIfPresent(anchors, normalized, "常见问题faq");
+        if (normalized.contains("faq") && anchors.stream().noneMatch(item -> item.contains("faq"))) {
+            anchors.add("faq");
+        }
+        addTitleAnchorIfPresent(anchors, normalized, "热修复说明");
+        addTitleAnchorIfPresent(anchors, normalized, "热修");
+        addTitleAnchorIfPresent(anchors, normalized, "稳定性复盘");
+        addTitleAnchorIfPresent(anchors, normalized, "postmortem");
+        addTitleAnchorIfPresent(anchors, normalized, "数据限制说明");
+        addTitleAnchorIfPresent(anchors, normalized, "可用性与限制");
+        addTitleAnchorIfPresent(anchors, normalized, "运营数据");
+        addTitleAnchorIfPresent(anchors, normalized, "版本更新说明");
+        addTitleAnchorIfPresent(anchors, normalized, "玩法机制参考");
+        addTitleAnchorIfPresent(anchors, normalized, "玩法机制");
+        addTitleAnchorIfPresent(anchors, normalized, "运营档案");
+        addTitleAnchorIfPresent(anchors, normalized, "运营事件档案");
+        addTitleAnchorIfPresent(anchors, normalized, "对照档案");
+        addTitleAnchorIfPresent(anchors, normalized, "归因 sop");
+        addTitleAnchorIfPresent(anchors, normalized, "sop");
+        addTitleAnchorIfPresent(anchors, normalized, "外挂举报");
+        addTitleAnchorIfPresent(anchors, normalized, "暑期签到");
+        addTitleAnchorIfPresent(anchors, normalized, "古蜀遗迹");
+        addTitleAnchorIfPresent(anchors, normalized, "维护窗口");
+        return List.copyOf(anchors);
+    }
+
+    private static void addTitleAnchorIfPresent(Set<String> anchors, String normalized, String anchor) {
+        if (normalized.contains(anchor)) {
+            anchors.add(anchor);
+        }
     }
 
     static Set<String> extractVersions(String text) {
@@ -425,7 +525,10 @@ public class KnowledgeTitleEntityScoreBooster {
             List<String> eventIds) {
     }
 
-    record EntityGroup(List<String> tokens, List<String> versions, List<String> eventIds) {
+    record EntityGroup(List<String> tokens, List<String> versions, List<String> eventIds, List<String> titleAnchors) {
+        EntityGroup {
+            titleAnchors = titleAnchors == null ? List.of() : List.copyOf(titleAnchors);
+        }
     }
 
     private record ScoredCandidate(KnowledgeVectorStore.SearchCandidate candidate, double boost) {

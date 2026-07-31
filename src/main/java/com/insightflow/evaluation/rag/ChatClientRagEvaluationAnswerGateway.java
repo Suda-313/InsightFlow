@@ -4,6 +4,8 @@ import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
 import com.insightflow.prompt.ChatPromptTemplate;
 import com.insightflow.prompt.LiteralChatModelCaller;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
@@ -32,11 +34,22 @@ public class ChatClientRagEvaluationAnswerGateway implements RagEvaluationAnswer
 
     /** 为每道题构建无历史、无舆情数据的最小上下文，禁止评测模型借用无关事实。 */
     @Override
-    public String answer(String question, KnowledgeRetrievalResult retrieval) {
+    public RagEvaluationGenerationResult answer(String question, KnowledgeRetrievalResult retrieval) {
         String systemPrompt = promptTemplate.render(
                 "\n## 调查计划\n本轮是企业知识库评测，仅可使用下方企业知识证据。\n",
                 retrieval.renderForPrompt(),
                 "\n## 最近对话\n无\n");
-        return literalChatModelCaller.callContent(systemPrompt, question);
+        ChatResponse response = literalChatModelCaller.call(systemPrompt, question);
+        String content = "";
+        if (response.getResult() != null && response.getResult().getOutput() != null) {
+            String raw = response.getResult().getOutput().getContent();
+            content = raw == null ? "" : raw;
+        }
+        Usage usage = response.getMetadata() == null ? null : response.getMetadata().getUsage();
+        if (usage == null) {
+            return new RagEvaluationGenerationResult(content, null, null, null);
+        }
+        return new RagEvaluationGenerationResult(
+                content, usage.getPromptTokens(), usage.getGenerationTokens(), usage.getTotalTokens());
     }
 }

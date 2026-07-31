@@ -8,6 +8,7 @@ import com.insightflow.repository.KnowledgeDocumentRepository;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,7 +47,8 @@ public class RagGoldCrossQueryDecomposer {
         }
 
         KnowledgeCrossQueryDecomposer.ParsedQuestion parsed = crossQueryDecomposer.parseQuestion(question);
-        List<String> bodyClauses = crossQueryDecomposer.splitBody(parsed.body());
+        List<String> bodyClauses = crossQueryDecomposer.splitBodyForRequirementGroups(
+                parsed.body(), groups.size());
         List<String> subQueries = new ArrayList<>(groups.size());
         int groupIndex = 0;
         for (List<RagGoldEvidenceSnapshot> group : groups.values()) {
@@ -91,9 +93,35 @@ public class RagGoldCrossQueryDecomposer {
         if (docLabel.isBlank()) {
             return false;
         }
-        String compactLabel = docLabel.replaceAll("\\s+", "");
-        String compactClause = clause.replaceAll("\\s+", "");
-        return compactClause.contains(compactLabel.substring(0, Math.min(4, compactLabel.length())));
+        String compactClause = clause.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        String distinctive = extractDistinctiveDocMarker(docLabel);
+        return !distinctive.isBlank() && compactClause.contains(distinctive);
+    }
+
+    /**
+     * 去掉版本号前缀后保留的文档类型标记；仅版本号重合（如 1.4.1）不足以跳过 docLabel 前缀。
+     *
+     * <p>dev-147 第二路「1.4.1 的 KI-1405」须补全「1.4.1-热修复说明」才能召回 KI-1405 chunk。</p>
+     */
+    static String extractDistinctiveDocMarker(String docLabel) {
+        if (docLabel == null || docLabel.isBlank()) {
+            return "";
+        }
+        String normalized = shortenTitle(docLabel).toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+        String withoutVersion = normalized.replaceFirst("^(?:\\d+\\.)+\\d+[-_]*", "");
+        if (withoutVersion.length() >= 2) {
+            return withoutVersion;
+        }
+        if (normalized.contains("faq")) {
+            return "faq";
+        }
+        if (normalized.contains("postmortem")) {
+            return "postmortem";
+        }
+        if (normalized.contains("sop")) {
+            return "sop";
+        }
+        return "";
     }
 
     private String resolveDocumentLabel(UUID documentPublicId) {

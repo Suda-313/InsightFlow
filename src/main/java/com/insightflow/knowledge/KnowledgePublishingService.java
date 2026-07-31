@@ -48,9 +48,13 @@ public class KnowledgePublishingService {
             throw new IllegalStateException("只有待审核知识版本可以发布");
         }
         List<KnowledgeChunker.ChunkDraft> drafts = chunker.chunk(read(version));
-        // 向量用带文档/版本/章节前缀的文本；content 字段仍存正文，供检索展示与 FTS（R1.2）。
-        List<String> embedTexts = drafts.stream()
-                .map(draft -> KnowledgeEmbedContextPrefix.forEmbedding(document, version, draft))
+        // 向量用带文档/版本/章节前缀 + 相邻 chunk 短上下文的文本；content 仍存正文供展示与引用（P4）。
+        List<String> embedTexts = java.util.stream.IntStream.range(0, drafts.size())
+                .mapToObj(index -> {
+                    KnowledgeChunker.ChunkDraft draft = drafts.get(index);
+                    String prefixed = KnowledgeEmbedContextPrefix.forEmbedding(document, version, draft);
+                    return KnowledgeEmbedNeighborContext.augment(drafts, index, prefixed);
+                })
                 .toList();
         List<List<Double>> vectorsResult = embeddings.embed(embedTexts);
         if (vectorsResult.size() != drafts.size()) throw new IllegalStateException("嵌入结果与知识切片数量不一致");

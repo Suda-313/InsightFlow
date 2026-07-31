@@ -112,6 +112,12 @@
             <groupId>group.springframework.ai</groupId>
             <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
         </dependency>
+        <!-- MCP 只读 Tool 暴露；默认 insightflow.mcp.enabled=false 不启动 Server -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

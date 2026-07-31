@@ -2,6 +2,7 @@ package com.insightflow.evaluation.rag;
 
 import com.insightflow.entity.RagGoldQuestionType;
 import com.insightflow.evaluation.rag.gold.RagGoldEvidenceSnapshot;
+import com.insightflow.knowledge.KnowledgeEvidenceGateDecision;
 import com.insightflow.knowledge.KnowledgeRerankOutcome;
 import com.insightflow.knowledge.KnowledgeRetrievalDiagnostics;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
@@ -76,6 +77,14 @@ public final class RagGoldRetrievalDiagnosticsComputer {
                 ? List.of()
                 : diagnostics.candidatesPerSubQuery();
 
+        KnowledgeRetrievalResult retrievalResult = diagnostics.result();
+        String gateOutcome = retrievalResult == null
+                ? KnowledgeEvidenceGateDecision.OUTCOME_INJECT
+                : retrievalResult.gateOutcome();
+        double gateTopScore = retrievalResult == null ? 0.0d : retrievalResult.gateTopScore();
+        int gateInputCount = retrievalResult == null ? 0 : retrievalResult.gateInputCount();
+        int gateInjectedCount = retrievalResult == null ? 0 : retrievalResult.evidence().size();
+
         return new RagGoldRetrievalCaseDiagnostics(
                 goldChunkRrfRank,
                 candidateHitAt10,
@@ -93,7 +102,11 @@ public final class RagGoldRetrievalDiagnosticsComputer {
                 finalCrossDocumentDualHit,
                 requirementGroups,
                 subQueries,
-                candidatesPerSubQuery);
+                candidatesPerSubQuery,
+                gateOutcome,
+                gateTopScore,
+                gateInputCount,
+                gateInjectedCount);
     }
 
     private static List<RagGoldRequirementGroupDiagnostics> buildRequirementGroupDiagnostics(
@@ -121,7 +134,11 @@ public final class RagGoldRetrievalDiagnosticsComputer {
                 0, false, false, false, 0, 0,
                 RRF_ONLY_VERSION, null, false, 0,
                 List.of(), List.of(), false, false,
-                List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(),
+                KnowledgeEvidenceGateDecision.OUTCOME_INJECT,
+                0.0d,
+                0,
+                0);
     }
 
     private static List<String> toRuntimeIds(List<KnowledgeVectorStore.SearchCandidate> candidates) {

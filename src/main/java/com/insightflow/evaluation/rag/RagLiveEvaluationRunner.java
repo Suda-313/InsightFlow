@@ -88,17 +88,24 @@ public class RagLiveEvaluationRunner {
     }
 
     /**
-     * 输出可审计的逐题终态；当前回答网关尚未返回 Usage 时明确标记 unavailable，禁止用字符数估算 Token。
+     * 输出可审计的逐题终态；Usage 来自 {@link RagEvaluationCaseExecution}，未返回时标记 unavailable。
      */
     private void logCaseCompletion(String caseId, RagEvaluationCaseExecution execution) {
         log.info(
-                "RAG_EVAL case_id={}, status={}, failure_stage={}, retrieval_latency_ms={}, generation_latency_ms={}, total_latency_ms={}, prompt_tokens=unavailable, completion_tokens=unavailable, total_tokens=unavailable",
+                "RAG_EVAL case_id={}, status={}, failure_stage={}, retrieval_latency_ms={}, generation_latency_ms={}, total_latency_ms={}, prompt_tokens={}, completion_tokens={}, total_tokens={}",
                 caseId,
                 execution.status(),
                 execution.failureStage(),
                 execution.retrievalLatencyMs(),
                 execution.generationLatencyMs(),
-                execution.totalLatencyMs());
+                execution.totalLatencyMs(),
+                formatTokenCount(execution.promptTokens()),
+                formatTokenCount(execution.completionTokens()),
+                formatTokenCount(execution.totalTokens()));
+    }
+
+    private String formatTokenCount(Long tokens) {
+        return tokens == null ? "unavailable" : String.valueOf(tokens);
     }
 
     /** 将真实检索证据和回答引用压缩为确定性观察，不保留模型答案正文。*/

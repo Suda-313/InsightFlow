@@ -53,6 +53,14 @@ param(
     [string]$Reranker = "off",
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet("on", "off")]
+    [string]$Identifier = "on",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("on", "off")]
+    [string]$Subquota = "on",
+
+    [Parameter(Mandatory = $false)]
     [ValidateRange(1, 50)]
     [int]$RerankCandidateLimit = 30,
 
@@ -124,6 +132,8 @@ if ($Mode -eq "retrieval-only") {
 }
 
 $argsList += "--reranker=$Reranker"
+$argsList += "--identifier=$Identifier"
+$argsList += "--subquota=$Subquota"
 
 $joinedArgs = $argsList -join " "
 if ($Reranker -eq "on") {
@@ -136,6 +146,8 @@ Write-Host "Dataset: $(if ($DatasetPublicId) { $DatasetPublicId } else { "$Datas
 Write-Host "Split: $Split"
 Write-Host "Mode: $Mode"
 Write-Host "Reranker: $Reranker"
+Write-Host "Identifier: $Identifier"
+Write-Host "Subquota: $Subquota"
 if ($Reranker -eq "on") {
     Write-Host "Reranker selection: input=$RerankCandidateLimit rrf-weight=$RerankerRrfWeight diversity=$RerankerDiversityPenalty"
 }

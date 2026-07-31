@@ -32,7 +32,7 @@ class RagGoldCorpusManifestResolverTest {
     @Test
     void resolvesKnownChunk() {
         RagGoldSeedFile.EvidenceSeed evidence = new RagGoldSeedFile.EvidenceSeed(
-                "CHUNK", "超自然行动组-1.4-版本更新说明", 3, 4);
+                "CHUNK", "超自然行动组-1.4-版本更新说明", 5, 4);
         RagGoldCorpusManifestResolver.ResolvedEvidence resolved = resolver.resolve("test-case", evidence);
         assertThat(resolved.documentPublicId()).isNotNull();
         assertThat(resolved.versionPublicId()).isNotNull();
@@ -52,7 +52,7 @@ class RagGoldCorpusManifestResolverTest {
     @Test
     void failsFastOnMissingChunk() {
         RagGoldSeedFile.EvidenceSeed evidence = new RagGoldSeedFile.EvidenceSeed(
-                "CHUNK", "超自然行动组-1.4-版本更新说明", 3, 999);
+                "CHUNK", "超自然行动组-1.4-版本更新说明", 5, 999);
         assertThatThrownBy(() -> resolver.resolve("val-010", evidence))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("val-010")

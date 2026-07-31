@@ -3,22 +3,23 @@ package com.insightflow.knowledge;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
- * Phase 3/4B：多路子查询 CROSS 题在 Top8 中为每路检索保留最低配额，再交 P3 覆盖贪心填满剩余位。
+ * Phase 3/4C：多路子查询 CROSS 题在 Top8 中为每路检索保留最低配额，再交 P3 覆盖贪心填满剩余位。
  *
- * <p>Phase 3 发现：dev-154 等题中，合并 RRF 后单文档 chunk 占满候选池，覆盖贪心会把某路子查询
- * （如 signin-window）的高分 chunk 挤出 Top8；先从各路子查询本地 Top-N 各锁 1 条。</p>
- *
- * <p>Phase 4B 修正：配额代表必须来自各子查询**本地排名 Top1**（{@code subResult.candidates().get(0)}），
- * 而非全局合并池中「首个属于该子查询 eligible 集合的 chunk」。旧逻辑在某路 gold chunk 仅在本路
- * 高分、全局 RRF 排名靠后（如 gushu-window 全局第 10 但前 9 条均来自其他子查询）时，会选到同一
- * eligible 集合中某个全局排名更靠前的非 gold chunk 充当配额，导致 gold 未被保留。
- * 直接取本地 Top1 消除了全局排序对配额代表选取的干扰。</p>
+ * <p>Phase 4C 相对 Phase 3 的改进：</p>
+ * <ul>
+ *   <li>配额处理顺序按「该路 eligible 在合并池中的最高 boosted 分」升序（最弱子查询优先），
+ *       避免强势子查询先占共享 chunk 导致弱势路只能落到低分代表；</li>
+ *   <li>每路配额在 lookback 窗口内取<strong> boosted 分最高</strong>的 eligible chunk
+ *       （显式 max 扫描，并与子查询索引对齐的 entityGroup 做 tie-break），
+ *       而非 Phase 4B 的盲取本地 index=0。</li>
+ * </ul>
  */
 @Component
 public class KnowledgeSubQueryQuotaEnforcer {
@@ -31,6 +32,9 @@ public class KnowledgeSubQueryQuotaEnforcer {
      * dev-154 signin-window gold 在合并 RRF 约第 16 位，窗口需 ≥16。
      */
     static final int SUB_QUERY_LOOKBACK = 20;
+
+    /** 子查询索引与 entityGroup 对齐时的 tie-break 增量（不改变全局排序主序）。 */
+    static final double ENTITY_GROUP_QUOTA_TIE_BREAK = 0.001;
 
     private final KnowledgeTitleEntityScoreBooster titleEntityScoreBooster;
 
@@ -61,22 +65,25 @@ public class KnowledgeSubQueryQuotaEnforcer {
             return coverageSelector.select(question, rankedPool, finalLimit, options);
         }
 
+        List<Set<UUID>> eligibleBySubQuery = buildEligibleChunkSets(subResults);
+        List<Integer> subQueryOrder = orderSubQueriesWeakestFirst(rankedPool, eligibleBySubQuery);
         List<KnowledgeVectorStore.SearchCandidate> reserved = new ArrayList<>();
         Set<UUID> reservedChunkIds = new HashSet<>();
 
-        // Phase 4B：为每路子查询从其本地 Top1 取配额代表，而非扫描全局 rankedPool。
-        // 全局池在 gold 只出现于本路、RRF 排名靠后时会选到更靠前的非 gold eligible chunk；
-        // 直接取 candidates.get(0)（子查询本地最高分）排除全局顺序的干扰。
-        for (int index = 0; index < subResults.size(); index++) {
-            // 守卫：剩余未处理子查询占用的潜在槽位加上已预留数不得超限，
-            // 避免前几路把所有槽位填满导致后面子查询无法获得配额。
-            if (reserved.size() + (subResults.size() - index - 1) >= finalLimit) {
+        for (int processed = 0; processed < subQueryOrder.size(); processed++) {
+            int subQueryIndex = subQueryOrder.get(processed);
+            if (reserved.size() + (subQueryOrder.size() - processed - 1) >= finalLimit) {
                 break;
             }
             if (reserved.size() >= finalLimit) {
                 break;
             }
-            KnowledgeVectorStore.SearchCandidate pick = pickLocalTop(subResults.get(index), reservedChunkIds);
+            KnowledgeTitleEntityScoreBooster.EntityGroup alignedGroup = alignedEntityGroup(signals, subQueryIndex);
+            KnowledgeVectorStore.SearchCandidate pick = pickHighestScoreEligible(
+                    rankedPool,
+                    eligibleBySubQuery.get(subQueryIndex),
+                    reservedChunkIds,
+                    alignedGroup);
             if (pick != null) {
                 reserved.add(pick);
                 reservedChunkIds.add(pick.chunkId());
@@ -101,24 +108,79 @@ public class KnowledgeSubQueryQuotaEnforcer {
     }
 
     /**
-     * Phase 4B：直接取该子查询本地排名 Top1 作为配额代表。
-     *
-     * <p>只看 {@code candidates.get(0)}（子查询本地最高分 chunk），而非扫描全局合并池寻找首个
-     * eligible 条目。若 Top1 已被前一路子查询保留（KISS），则跳过本路配额，不尝试 Top2；
-     * 剩余槽位统一由后续覆盖贪心填充。</p>
-     *
-     * <p>注意：此处不再使用 {@code SUB_QUERY_LOOKBACK} 窗口限制，因为只取第 0 条不存在拉入
-     * 尾部噪声的风险；窗口参数保留供未来多槽配额场景复用。</p>
+     * Phase 4C：按各路 eligible 在合并 boosted 池中的最高分升序排列，最弱子查询先占配额槽。
      */
-    private static KnowledgeVectorStore.SearchCandidate pickLocalTop(
-            KnowledgeSearchResult subResult,
-            Set<UUID> excludeChunkIds) {
-        if (subResult.candidates().isEmpty()) {
-            return null;
+    static List<Integer> orderSubQueriesWeakestFirst(
+            List<KnowledgeVectorStore.SearchCandidate> rankedPool,
+            List<Set<UUID>> eligibleBySubQuery) {
+        List<Integer> order = new ArrayList<>(eligibleBySubQuery.size());
+        for (int index = 0; index < eligibleBySubQuery.size(); index++) {
+            order.add(index);
         }
-        // 取本地排名第 1 条；若已被其他子查询保留则放弃，不降级到 Top2（KISS）。
-        KnowledgeVectorStore.SearchCandidate top1 = subResult.candidates().get(0);
-        return excludeChunkIds.contains(top1.chunkId()) ? null : top1;
+        order.sort(Comparator.comparingDouble(
+                index -> maxEligibleBoostedScore(rankedPool, eligibleBySubQuery.get(index))));
+        return order;
+    }
+
+    private static double maxEligibleBoostedScore(
+            List<KnowledgeVectorStore.SearchCandidate> rankedPool, Set<UUID> eligibleChunkIds) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (KnowledgeVectorStore.SearchCandidate candidate : rankedPool) {
+            if (eligibleChunkIds.contains(candidate.chunkId())) {
+                max = Math.max(max, candidate.score());
+            }
+        }
+        return max == Double.NEGATIVE_INFINITY ? Double.MAX_VALUE : max;
+    }
+
+    private static KnowledgeTitleEntityScoreBooster.EntityGroup alignedEntityGroup(
+            KnowledgeTitleEntityScoreBooster.QuerySignals signals, int subQueryIndex) {
+        if (signals.entityGroups().size() > subQueryIndex) {
+            return signals.entityGroups().get(subQueryIndex);
+        }
+        return null;
+    }
+
+    /**
+     * 在合并 boosted 池中，从 eligible 集合里取得分最高的一条；同分优先匹配本子查询 entityGroup。
+     */
+    static KnowledgeVectorStore.SearchCandidate pickHighestScoreEligible(
+            List<KnowledgeVectorStore.SearchCandidate> rankedPool,
+            Set<UUID> eligibleChunkIds,
+            Set<UUID> excludeChunkIds,
+            KnowledgeTitleEntityScoreBooster.EntityGroup alignedGroup) {
+        KnowledgeVectorStore.SearchCandidate best = null;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        for (KnowledgeVectorStore.SearchCandidate candidate : rankedPool) {
+            UUID chunkId = candidate.chunkId();
+            if (!eligibleChunkIds.contains(chunkId) || excludeChunkIds.contains(chunkId)) {
+                continue;
+            }
+            double score = candidate.score();
+            if (alignedGroup != null
+                    && KnowledgeTitleEntityScoreBooster.matchesGroup(candidate, alignedGroup)) {
+                score += ENTITY_GROUP_QUOTA_TIE_BREAK;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static List<Set<UUID>> buildEligibleChunkSets(List<KnowledgeSearchResult> subResults) {
+        List<Set<UUID>> sets = new ArrayList<>(subResults.size());
+        for (KnowledgeSearchResult result : subResults) {
+            Set<UUID> chunkIds = new LinkedHashSet<>();
+            List<KnowledgeVectorStore.SearchCandidate> candidates = result.candidates();
+            int limit = Math.min(SUB_QUERY_LOOKBACK, candidates.size());
+            for (int index = 0; index < limit; index++) {
+                chunkIds.add(candidates.get(index).chunkId());
+            }
+            sets.add(chunkIds);
+        }
+        return sets;
     }
 
     private static List<KnowledgeVectorStore.SearchCandidate> sortByScore(

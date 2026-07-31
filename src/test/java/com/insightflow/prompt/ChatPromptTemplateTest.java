@@ -21,7 +21,7 @@ class ChatPromptTemplateTest {
         String rendered = template.render("## 当前数据概览\n- 玩法 Bug: 85 条\n",
                 "## 最近对话\nUSER: 上次结论？\n");
 
-        assertThat(template.version()).isEqualTo("chat:v4");
+        assertThat(template.version()).isEqualTo("chat:v5");
         assertThat(rendered).contains("玩法 Bug: 85 条")
                 .contains("USER: 上次结论？")
                 .contains("## 结论")

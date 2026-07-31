@@ -2,8 +2,12 @@ package com.insightflow.knowledge;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 import com.insightflow.entity.KnowledgeDocumentType;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -61,6 +65,72 @@ public class JdbcKnowledgeVectorStore implements KnowledgeVectorStore {
             return searchEnriched(organizationId, workspaceId, query, types, queryEmbedding, options);
         }
         return searchLegacyContentTsv(organizationId, workspaceId, types, queryEmbedding, options);
+    }
+
+    @Override
+    public KnowledgeSearchResult searchByExactIdentifier(
+            Long organizationId,
+            Long workspaceId,
+            String identifier,
+            int limit,
+            double assignedScore) {
+        if (identifier == null || identifier.isBlank() || limit <= 0) {
+            return new KnowledgeSearchResult(List.of(), Set.of(), Set.of(), Set.of());
+        }
+        String pattern = "%" + identifier.trim().toUpperCase(Locale.ROOT) + "%";
+        String typeFilter = "";
+        String effectiveFilter = effectiveWindowFilter();
+        String visibleFilter = visibleFilter(typeFilter, effectiveFilter);
+        // 命中 chunk 及其同版本相邻 chunk（±1），覆盖 gold 指向导语/边界 chunk 而编号在 sibling 的场景。
+        String sql = "WITH visible AS ("
+                + "SELECT c.id chunk_row_id, c.public_id chunk_id, c.content, c.lexical_text, c.section_heading, "
+                + "c.chunk_no, d.document_type, d.public_id document_id, v.id version_row_id, v.public_id version_id, "
+                + "v.version_no, d.title, "
+                + "CASE WHEN v.effective_from IS NULL AND v.effective_to IS NULL THEN 'always' "
+                + "ELSE coalesce(to_char(v.effective_from AT TIME ZONE 'UTC', 'YYYY-MM-DD'), 'open') "
+                + "|| '..' || coalesce(to_char(v.effective_to AT TIME ZONE 'UTC', 'YYYY-MM-DD'), 'open') END "
+                + "effective_window "
+                + "FROM knowledge_chunk c JOIN knowledge_document_version v ON v.id = c.version_id "
+                + "JOIN knowledge_document d ON d.id = v.document_id " + visibleFilter
+                + "), hits AS ("
+                + "SELECT * FROM visible WHERE UPPER(content) LIKE :pattern OR UPPER(lexical_text) LIKE :pattern "
+                + "OR UPPER(title) LIKE :pattern"
+                + "), expanded AS ("
+                + "SELECT chunk_id, content, section_heading, document_type, document_id, version_id, version_no, "
+                + "title, effective_window, :primaryScore AS score FROM hits "
+                + "UNION ALL "
+                + "SELECT v.chunk_id, v.content, v.section_heading, v.document_type, v.document_id, v.version_id, "
+                + "v.version_no, v.title, v.effective_window, :neighborScore AS score FROM visible v "
+                + "JOIN hits h ON v.version_row_id = h.version_row_id "
+                + "AND v.chunk_no IN (h.chunk_no - 1, h.chunk_no + 1)"
+                + ") "
+                + "SELECT DISTINCT ON (chunk_id) chunk_id, content, section_heading, document_type, document_id, "
+                + "version_id, version_no, title, effective_window, score "
+                + "FROM expanded ORDER BY chunk_id, score DESC LIMIT :limit";
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("organizationId", organizationId)
+                .addValue("workspaceId", workspaceId)
+                .addValue("pattern", pattern)
+                .addValue("limit", limit)
+                .addValue("primaryScore", assignedScore)
+                .addValue("neighborScore", assignedScore * 0.85);
+        Set<UUID> lexicalOnly = new HashSet<>();
+        List<SearchCandidate> candidates = namedJdbcTemplate.query(sql, parameters, (resultSet, rowNumber) -> {
+            UUID chunkId = resultSet.getObject("chunk_id", UUID.class);
+            lexicalOnly.add(chunkId);
+            return new SearchCandidate(
+                    resultSet.getObject("document_id", UUID.class),
+                    resultSet.getObject("version_id", UUID.class),
+                    resultSet.getInt("version_no"),
+                    chunkId,
+                    resultSet.getString("title"),
+                    resultSet.getString("content"),
+                    assignedScore,
+                    resultSet.getString("document_type"),
+                    resultSet.getString("section_heading"),
+                    resultSet.getString("effective_window"));
+        });
+        return new KnowledgeSearchResult(candidates, lexicalOnly, Set.of(), Set.of());
     }
 
     /** v1：仅 content_tsv，lexical/semantic 各 Top32。 */
@@ -215,6 +285,56 @@ public class JdbcKnowledgeVectorStore implements KnowledgeVectorStore {
                     resultSet.getString("effective_window"));
         });
         return new KnowledgeSearchResult(candidates, lexicalOnly, vectorOnly, both);
+    }
+
+    /**
+     * Small-to-big 展示层：一次加载多条命中 chunk 的同 section 成员，避免 Top8 逐条查库。
+     */
+    @Override
+    public Map<UUID, List<KnowledgeSectionChunkSlice>> loadSectionChunksBatch(
+            Long organizationId, Long workspaceId, List<SearchCandidate> anchorHits) {
+        if (anchorHits == null || anchorHits.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> chunkIds = anchorHits.stream().map(SearchCandidate::chunkId).distinct().toList();
+        String effectiveFilter = effectiveWindowFilter();
+        String sql = "WITH anchors AS ("
+                + "SELECT c.public_id anchor_chunk_id, c.version_id version_row_id, "
+                + "coalesce(nullif(trim(c.section_heading), ''), '') section_key "
+                + "FROM knowledge_chunk c JOIN knowledge_document_version v ON v.id = c.version_id "
+                + "JOIN knowledge_document d ON d.id = v.document_id "
+                + visibleFilter("", effectiveFilter)
+                + " AND c.public_id IN (:chunkIds)"
+                + ") "
+                + "SELECT a.anchor_chunk_id, c.chunk_no, c.content, c.section_heading "
+                + "FROM anchors a JOIN knowledge_chunk c ON c.version_id = a.version_row_id "
+                + "AND coalesce(nullif(trim(c.section_heading), ''), '') = a.section_key "
+                + "ORDER BY a.anchor_chunk_id, c.chunk_no";
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("organizationId", organizationId)
+                .addValue("workspaceId", workspaceId)
+                .addValue("chunkIds", chunkIds);
+        Map<UUID, List<KnowledgeSectionChunkSlice>> grouped = new HashMap<>();
+        namedJdbcTemplate.query(sql, parameters, resultSet -> {
+            UUID anchorChunkId = resultSet.getObject("anchor_chunk_id", UUID.class);
+            grouped.computeIfAbsent(anchorChunkId, ignored -> new ArrayList<>())
+                    .add(new KnowledgeSectionChunkSlice(
+                            resultSet.getInt("chunk_no"),
+                            resultSet.getString("content"),
+                            resultSet.getString("section_heading")));
+        });
+        return grouped;
+    }
+
+    @Override
+    public List<KnowledgeSectionChunkSlice> loadSectionChunks(
+            Long organizationId, Long workspaceId, UUID versionId, UUID anchorChunkId) {
+        Map<UUID, List<KnowledgeSectionChunkSlice>> batch = loadSectionChunksBatch(
+                organizationId,
+                workspaceId,
+                List.of(new SearchCandidate(
+                        UUID.randomUUID(), versionId, 0, anchorChunkId, "", "", 0.0d)));
+        return batch.getOrDefault(anchorChunkId, List.of());
     }
 
     private String visibleFilter(String typeFilter, String effectiveFilter) {

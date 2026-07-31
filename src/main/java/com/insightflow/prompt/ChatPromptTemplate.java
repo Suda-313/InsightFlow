@@ -11,8 +11,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class ChatPromptTemplate {
 
-    /** P3 增加企业知识文档注入防护，属于可观测行为变化，必须从 v3 升级。 */
-    private static final String VERSION = "chat:v4";
+    /** W3 历史压缩改变注入分布，必须从 v4 升级以便 AgentRun / 评测批次区分前后。 */
+    private static final String VERSION = "chat:v5";
 
     /**
      * 固定护栏定义模型职责、输出格式和不可信内容处理规则。

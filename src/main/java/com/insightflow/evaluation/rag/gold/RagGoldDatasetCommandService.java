@@ -87,7 +87,8 @@ public class RagGoldDatasetCommandService {
                 draft.shouldRefuse(),
                 draft.annotationBasis(),
                 draft.reviewer(),
-                draft.sortOrder());
+                draft.sortOrder(),
+                draft.contextTurnsJson());
         RagGoldCase savedCase = caseRepository.save(goldCase);
         int evidenceOrder = 0;
         for (RagGoldEvidenceDraft evidenceDraft : draft.evidences()) {
@@ -167,7 +168,34 @@ public class RagGoldDatasetCommandService {
             String reviewer,
             int sortOrder,
             List<RagGoldEvidenceDraft> evidences,
-            List<RagGoldAssertionDraft> assertions) {
+            List<RagGoldAssertionDraft> assertions,
+            String contextTurnsJson) {
+
+        /** 兼容无多轮上下文的草稿构造。 */
+        public RagGoldCaseDraft(
+                String caseKey,
+                String questionText,
+                RagGoldQuestionType questionType,
+                RagGoldDifficulty difficulty,
+                boolean shouldRefuse,
+                String annotationBasis,
+                String reviewer,
+                int sortOrder,
+                List<RagGoldEvidenceDraft> evidences,
+                List<RagGoldAssertionDraft> assertions) {
+            this(
+                    caseKey,
+                    questionText,
+                    questionType,
+                    difficulty,
+                    shouldRefuse,
+                    annotationBasis,
+                    reviewer,
+                    sortOrder,
+                    evidences,
+                    assertions,
+                    null);
+        }
     }
 
     /** 单条可接受证据草稿。 */

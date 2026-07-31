@@ -8,25 +8,59 @@ package com.insightflow.knowledge;
 public record KnowledgeRetrievalOptions(
         boolean rerankerEnabled,
         java.util.List<String> subQueries,
-        String questionTypeName) {
+        String questionTypeName,
+        boolean identifierSupplementEnabled,
+        boolean subQueryQuotaEnabled,
+        /** 后验证据门控；false 时行为与门控引入前逐字节一致。 */
+        boolean evidenceGateEnabled) {
 
-    /** 遵循 {@link KnowledgeRerankerProperties#enabled()} 部署默认值。 */
+    /** 遵循 {@link KnowledgeRerankerProperties#enabled()} 部署默认值；门控默认开启。 */
     public static KnowledgeRetrievalOptions defaults() {
-        return new KnowledgeRetrievalOptions(false, null, null);
+        return new KnowledgeRetrievalOptions(false, null, null, true, true, true);
     }
 
     /** 显式开启或关闭精排，覆盖 application 配置。 */
     public static KnowledgeRetrievalOptions withReranker(boolean enabled) {
-        return new KnowledgeRetrievalOptions(enabled, null, null);
+        return new KnowledgeRetrievalOptions(enabled, null, null, true, true, true);
     }
 
     /** 金标评测：传入预计算子查询与题型，避免生产启发式与 gold 不对齐。 */
     public static KnowledgeRetrievalOptions withDecomposition(
             boolean rerankerEnabled, java.util.List<String> subQueries, String questionTypeName) {
+        return withDecomposition(rerankerEnabled, subQueries, questionTypeName, true, true, true);
+    }
+
+    /** Phase 4A 消融：在分解参数之上显式开关 identifier / subquota / gate 实验项。 */
+    public static KnowledgeRetrievalOptions withDecomposition(
+            boolean rerankerEnabled,
+            java.util.List<String> subQueries,
+            String questionTypeName,
+            boolean identifierSupplementEnabled,
+            boolean subQueryQuotaEnabled) {
+        return withDecomposition(
+                rerankerEnabled,
+                subQueries,
+                questionTypeName,
+                identifierSupplementEnabled,
+                subQueryQuotaEnabled,
+                true);
+    }
+
+    /** 完整消融入口：可单独关闭后验证据门控以对比 Phase 4 基线。 */
+    public static KnowledgeRetrievalOptions withDecomposition(
+            boolean rerankerEnabled,
+            java.util.List<String> subQueries,
+            String questionTypeName,
+            boolean identifierSupplementEnabled,
+            boolean subQueryQuotaEnabled,
+            boolean evidenceGateEnabled) {
         return new KnowledgeRetrievalOptions(
                 rerankerEnabled,
                 subQueries == null ? null : java.util.List.copyOf(subQueries),
-                questionTypeName);
+                questionTypeName,
+                identifierSupplementEnabled,
+                subQueryQuotaEnabled,
+                evidenceGateEnabled);
     }
 
     public KnowledgeRetrievalOptions {

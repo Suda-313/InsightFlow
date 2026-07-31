@@ -110,7 +110,10 @@ final class RagGoldManualEvaluationCarryForwardSupport {
                 carried.failureStage(),
                 carried.retrievalLatencyMs(),
                 carried.generationLatencyMs(),
-                carried.totalLatencyMs());
+                carried.totalLatencyMs(),
+                null,
+                null,
+                null);
     }
 
     static RagEvaluationMetrics legacyMetricsFromCaseResults(List<RagGoldManualEvaluationCaseResult> caseResults) {

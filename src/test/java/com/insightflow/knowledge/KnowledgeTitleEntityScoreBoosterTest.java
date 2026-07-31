@@ -70,6 +70,43 @@ class KnowledgeTitleEntityScoreBoosterTest {
     }
 
     @Test
+    void extractTitleAnchorsFromFaqSubQuery() {
+        List<String> anchors = KnowledgeTitleEntityScoreBooster.extractTitleAnchors(
+                "社区舆情对照：玩家常见问题FAQ FAQ 说匹配失败怎么办");
+        assertThat(anchors).anyMatch(item -> item.contains("faq"));
+    }
+
+    @Test
+    void matchesGroupRejectsHotfixChunkForFaqAnchorGroup() {
+        KnowledgeTitleEntityScoreBooster.EntityGroup faqGroup = new KnowledgeTitleEntityScoreBooster.EntityGroup(
+                List.of("匹配失败", "faq"),
+                List.of(),
+                List.of(),
+                KnowledgeTitleEntityScoreBooster.extractTitleAnchors("玩家常见问题FAQ 匹配失败怎么办"));
+        KnowledgeVectorStore.SearchCandidate hotfix = candidate(
+                UUID.randomUUID(), "超自然行动组-1.4.1-热修复说明", "修复匹配超时问题");
+        assertThat(KnowledgeTitleEntityScoreBooster.matchesGroup(hotfix, faqGroup)).isFalse();
+        KnowledgeVectorStore.SearchCandidate faq = candidate(
+                UUID.randomUUID(), "超自然行动组玩家常见问题FAQ", "匹配失败请退出重组队");
+        assertThat(KnowledgeTitleEntityScoreBooster.matchesGroup(faq, faqGroup)).isTrue();
+    }
+
+    private static KnowledgeVectorStore.SearchCandidate candidate(
+            UUID documentId, String title, String content) {
+        return new KnowledgeVectorStore.SearchCandidate(
+                documentId,
+                UUID.randomUUID(),
+                5,
+                UUID.randomUUID(),
+                title,
+                content,
+                0.1,
+                "FAQ",
+                "section",
+                null);
+    }
+
+    @Test
     void extractsVersionTokenForTitleBoost() {
         assertThat(KnowledgeTitleEntityScoreBooster.extractVersions("1.4.2 热修 KI-1405")).contains("1.4.2");
         assertThat(KnowledgeTitleEntityScoreBooster.normalizeTitle("超自然行动组-1.4.2-热修复说明"))

@@ -27,7 +27,42 @@ public record RagGoldSeedFile(
             String reviewer,
             @JsonProperty("sort_order") int sortOrder,
             List<EvidenceSeed> evidences,
-            List<AssertionSeed> assertions) {
+            List<AssertionSeed> assertions,
+            /**
+             * 本题的前序对话轮次，按时间正序；null 或空表示单轮自足问题。
+             * question_text 始终是最后一轮用户提问，evidence 标注针对该轮的正确答案。
+             */
+            @JsonProperty("context_turns") List<ContextTurn> contextTurns) {
+
+        /** 兼容旧 seed：未写 context_turns 时视为单轮题。 */
+        public CaseSeed(
+                String caseKey,
+                String questionText,
+                String questionType,
+                String difficulty,
+                boolean shouldRefuse,
+                String annotationBasis,
+                String reviewer,
+                int sortOrder,
+                List<EvidenceSeed> evidences,
+                List<AssertionSeed> assertions) {
+            this(
+                    caseKey,
+                    questionText,
+                    questionType,
+                    difficulty,
+                    shouldRefuse,
+                    annotationBasis,
+                    reviewer,
+                    sortOrder,
+                    evidences,
+                    assertions,
+                    null);
+        }
+    }
+
+    /** 一条前序对话消息；role 只允许 user / assistant，与 chat_message 表语义一致。 */
+    public record ContextTurn(String role, String content) {
     }
 
     public record EvidenceSeed(

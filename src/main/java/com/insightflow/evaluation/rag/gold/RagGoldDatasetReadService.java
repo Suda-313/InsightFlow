@@ -1,5 +1,7 @@
 package com.insightflow.evaluation.rag.gold;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.entity.RagGoldCase;
 import com.insightflow.entity.RagGoldCaseAssertion;
 import com.insightflow.entity.RagGoldCaseEvidence;
@@ -28,23 +30,29 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RagGoldDatasetReadService {
 
+    private static final TypeReference<List<RagGoldContextTurnSnapshot>> CONTEXT_TURN_LIST_TYPE =
+            new TypeReference<>() {};
+
     private final WorkspaceService workspaceService;
     private final RagGoldDatasetRepository datasetRepository;
     private final RagGoldCaseRepository caseRepository;
     private final RagGoldCaseEvidenceRepository evidenceRepository;
     private final RagGoldCaseAssertionRepository assertionRepository;
+    private final ObjectMapper objectMapper;
 
     public RagGoldDatasetReadService(
             WorkspaceService workspaceService,
             RagGoldDatasetRepository datasetRepository,
             RagGoldCaseRepository caseRepository,
             RagGoldCaseEvidenceRepository evidenceRepository,
-            RagGoldCaseAssertionRepository assertionRepository) {
+            RagGoldCaseAssertionRepository assertionRepository,
+            ObjectMapper objectMapper) {
         this.workspaceService = workspaceService;
         this.datasetRepository = datasetRepository;
         this.caseRepository = caseRepository;
         this.evidenceRepository = evidenceRepository;
         this.assertionRepository = assertionRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -161,7 +169,19 @@ public class RagGoldDatasetReadService {
                 goldCase.getAnnotationBasis(),
                 goldCase.getReviewer(),
                 evidenceSnapshots,
-                assertionSnapshots);
+                assertionSnapshots,
+                parseContextTurns(goldCase.getContextTurnsJson()));
+    }
+
+    private List<RagGoldContextTurnSnapshot> parseContextTurns(String contextTurnsJson) {
+        if (contextTurnsJson == null || contextTurnsJson.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(contextTurnsJson, CONTEXT_TURN_LIST_TYPE);
+        } catch (Exception exception) {
+            throw new IllegalStateException("无法解析 context_turns JSON", exception);
+        }
     }
 
     private RagGoldDatasetSummary toSummary(RagGoldDataset dataset) {

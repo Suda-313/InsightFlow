@@ -28,7 +28,7 @@ class KnowledgeChunkerTest {
                 .containsExactly("第一段内容。", "第二段内容。");
     }
 
-    /** 首段无标题的正文作为 preamble，与后续标题 section 分开切片。 */
+    /** 首段无标题的正文作为导语 section，与后续标题 section 分开切片并打上固定章节名。 */
     @Test
     void keepsPreambleSeparateFromFirstHeaderSection() {
         KnowledgeChunker chunker = new KnowledgeChunker(200);
@@ -36,10 +36,33 @@ class KnowledgeChunkerTest {
         List<KnowledgeChunker.ChunkDraft> chunks = chunker.chunk("前言说明。\n\n# 正文\n\n章节内容。");
 
         assertThat(chunks).hasSize(2);
-        assertThat(chunks.get(0).sectionHeading()).isNull();
+        assertThat(chunks.get(0).sectionHeading()).isEqualTo(KnowledgeChunker.PREAMBLE_SECTION_HEADING);
         assertThat(chunks.get(0).content()).isEqualTo("前言说明。");
         assertThat(chunks.get(1).sectionHeading()).isEqualTo("正文");
         assertThat(chunks.get(1).content()).isEqualTo("章节内容。");
+    }
+
+    /** YAML frontmatter 不参与切片；导语 blockquote 仍可独立成 chunk。 */
+    @Test
+    void stripsYamlFrontmatterAndLabelsPreamble() {
+        KnowledgeChunker chunker = new KnowledgeChunker(200);
+
+        List<KnowledgeChunker.ChunkDraft> chunks = chunker.chunk("""
+                ---
+                title: 测试
+                ---
+                > 历史版本说明，仅供对比。
+
+                # 1.4 版本更新说明
+
+                正文段落。
+                """);
+
+        assertThat(chunks).hasSize(2);
+        assertThat(chunks.get(0).sectionHeading()).isEqualTo(KnowledgeChunker.PREAMBLE_SECTION_HEADING);
+        assertThat(chunks.get(0).content()).contains("历史版本说明");
+        assertThat(chunks.get(0).content()).doesNotContain("title: 测试");
+        assertThat(chunks.get(1).sectionHeading()).isEqualTo("1.4 版本更新说明");
     }
 
     /** 四级及以下标题不触发 section 切分，仍视为正文。 */

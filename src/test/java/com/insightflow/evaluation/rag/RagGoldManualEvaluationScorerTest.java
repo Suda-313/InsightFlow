@@ -117,7 +117,7 @@ class RagGoldManualEvaluationScorerTest {
                 "prompt-v1", "text-embedding-v3", "knowledge:rrf:v1");
         RagEvaluationMetrics metrics = scorer.aggregateWithLegacy(
                 1.0, 1.0, 0.0, List.of(score),
-                List.of(new RagGoldManualCaseExecutionMeta("case-1", "succeeded", null, 10L, 20L, 30L)),
+                List.of(new RagGoldManualCaseExecutionMeta("case-1", "succeeded", null, 10L, 20L, 30L, null, null, null)),
                 context);
 
         assertThat(metrics.retrievalRecallRate()).isEqualTo(1.0);
@@ -129,13 +129,30 @@ class RagGoldManualEvaluationScorerTest {
     }
 
     @Test
+    void sumsPromptAndCompletionTokensAcrossSucceededCases() {
+        RagGoldManualCaseScore score = caseScore("a", RagGoldQuestionType.SINGLE_DOCUMENT_FACT, false, true);
+        RagGoldManualRunContext context = new RagGoldManualRunContext(
+                "ops-rag-v1", "dev-240", "DEVELOPMENT", "abc123", List.of("a"),
+                "prompt-v1", "text-embedding-v3", "knowledge:rrf:v1");
+        List<RagGoldManualCaseExecutionMeta> metas = List.of(
+                new RagGoldManualCaseExecutionMeta("a", "succeeded", null, 10L, 20L, 30L, 1700L, 200L, 1900L),
+                new RagGoldManualCaseExecutionMeta("b", "failed", "generation_failed", 10L, 0L, 10L, null, null, null));
+
+        RagEvaluationMetrics metrics = scorer.aggregate(List.of(score, score), metas, context);
+
+        assertThat(metrics.extended().promptTokens()).isEqualTo("1700");
+        assertThat(metrics.extended().completionTokens()).isEqualTo("200");
+        assertThat(metrics.extended().totalTokens()).isEqualTo("1900");
+    }
+
+    @Test
     void skipsNullLatenciesWhenAggregatingPercentiles() {
         List<RagGoldManualCaseScore> scores = List.of(
                 caseScore("a", RagGoldQuestionType.SINGLE_DOCUMENT_FACT, false, true),
                 caseScore("b", RagGoldQuestionType.SINGLE_DOCUMENT_FACT, false, true));
         List<RagGoldManualCaseExecutionMeta> metas = List.of(
-                new RagGoldManualCaseExecutionMeta("a", "succeeded", null, 100L, 500L, 600L),
-                new RagGoldManualCaseExecutionMeta("b", "succeeded", null, null, null, null));
+                new RagGoldManualCaseExecutionMeta("a", "succeeded", null, 100L, 500L, 600L, null, null, null),
+                new RagGoldManualCaseExecutionMeta("b", "succeeded", null, null, null, null, null, null, null));
         RagGoldManualRunContext context = new RagGoldManualRunContext(
                 "ops-rag-v1", "dev-240", "DEVELOPMENT", "abc123", List.of("a", "b"),
                 "prompt-v1", "text-embedding-v3", "knowledge:rrf:v1");
@@ -190,7 +207,7 @@ class RagGoldManualEvaluationScorerTest {
 
         RagEvaluationMetrics metrics = scorer.aggregate(
                 scores,
-                List.of(new RagGoldManualCaseExecutionMeta("refusal-ok", "succeeded", null, 10L, 20L, 30L)),
+                List.of(new RagGoldManualCaseExecutionMeta("refusal-ok", "succeeded", null, 10L, 20L, 30L, null, null, null)),
                 context);
 
         assertThat(metrics.extended().shouldRefuseComplianceRate()).isEqualTo(0.2);
@@ -212,7 +229,7 @@ class RagGoldManualEvaluationScorerTest {
         RagGoldManualExtendedMetrics metrics = scorer.aggregate(
                         scores,
                         List.of(new RagGoldManualCaseExecutionMeta(
-                                "cross-gain", "succeeded", null, 10L, null, 10L)),
+                                "cross-gain", "succeeded", null, 10L, null, 10L, null, null, null)),
                         context)
                 .extended();
 
@@ -309,10 +326,7 @@ class RagGoldManualEvaluationScorerTest {
                 List.of(),
                 List.of(),
                 requirementCoverage,
-                crossDualHit,
-                List.of(),
-                List.of(),
-                List.of());
+                crossDualHit);
         return new RagGoldManualCaseScore(
                 caseKey, questionType, false, true,
                 true, true, true, afterRank == 1, afterRank > 0 && afterRank <= 3, afterRank > 0,

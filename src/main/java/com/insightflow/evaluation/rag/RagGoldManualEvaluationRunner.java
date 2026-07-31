@@ -1,5 +1,6 @@
 package com.insightflow.evaluation.rag;
 
+import com.insightflow.agent.investigation.ContextTurn;
 import com.insightflow.config.AgentApiKeyPresentCondition;
 import com.insightflow.entity.RagGoldDatasetSplit;
 import com.insightflow.evaluation.rag.RagGoldManualEvaluationPreviousRunLoader.RagGoldManualEvaluationPreviousRun;
@@ -186,6 +187,9 @@ public class RagGoldManualEvaluationRunner {
                         : new RagGoldEvaluationEmbeddingCache(runRequest.embeddingCacheDir()),
                 runRequest.useEmbeddingCache(),
                 runRequest.rerankerEnabled(),
+                runRequest.identifierSupplementEnabled(),
+                runRequest.subQueryQuotaEnabled(),
+                runRequest.evidenceGateEnabled(),
                 null,
                 List.of());
 
@@ -233,7 +237,7 @@ public class RagGoldManualEvaluationRunner {
                         goldCase,
                         definition,
                         versionNumbers,
-                        runRequest.rerankerEnabled(),
+                        runRequest,
                         frozenSplit,
                         caseScores,
                         executionMetas,
@@ -314,13 +318,18 @@ public class RagGoldManualEvaluationRunner {
             RagGoldCaseSnapshot goldCase,
             RagEvaluationCaseDefinition definition,
             Map<UUID, Integer> versionNumbers,
-            boolean rerankerEnabled,
+            RagGoldEvaluationRunRequest runRequest,
             boolean frozenSplit,
             List<RagGoldManualCaseScore> caseScores,
             List<RagGoldManualCaseExecutionMeta> executionMetas,
             List<RagGoldManualEvaluationCaseResult> caseResults,
             Map<String, RagEvaluationObservation> observations) {
-        RagEvaluationCaseExecution execution = caseExecutor.execute(workspacePublicId, definition, rerankerEnabled);
+        RagEvaluationCaseExecution execution = caseExecutor.execute(
+                workspacePublicId,
+                definition,
+                runRequest.rerankerEnabled(),
+                runRequest.identifierSupplementEnabled(),
+                runRequest.subQueryQuotaEnabled());
         RagEvaluationObservation observation = "succeeded".equals(execution.status())
                 ? observation(execution.retrieval(), execution.answer())
                 : conservativeObservation(goldCase);
@@ -366,7 +375,10 @@ public class RagGoldManualEvaluationRunner {
                 execution.failureStage(),
                 execution.retrievalLatencyMs(),
                 execution.generationLatencyMs(),
-                execution.totalLatencyMs()));
+                execution.totalLatencyMs(),
+                execution.promptTokens(),
+                execution.completionTokens(),
+                execution.totalTokens()));
         caseResults.add(toCaseResult(goldCase, caseScore, execution, frozenSplit, versionNumbers, retrievalDiagnostics));
         logCaseCompletion(goldCase.caseKey(), execution, frozenSplit);
     }
@@ -433,7 +445,10 @@ public class RagGoldManualEvaluationRunner {
                 retrievalExecution.failureStage(),
                 retrievalExecution.retrievalLatencyMs(),
                 null,
-                retrievalExecution.totalLatencyMs()));
+                retrievalExecution.totalLatencyMs(),
+                null,
+                null,
+                null));
         RagEvaluationCaseExecution pseudoExecution = new RagEvaluationCaseExecution(
                 retrieval,
                 "",
@@ -462,6 +477,9 @@ public class RagGoldManualEvaluationRunner {
                 base.embeddingCache(),
                 base.useEmbeddingCache(),
                 base.rerankerEnabled(),
+                base.identifierSupplementEnabled(),
+                base.subQueryQuotaEnabled(),
+                base.evidenceGateEnabled(),
                 goldCase.questionType(),
                 goldCase.evidences());
     }
@@ -469,11 +487,17 @@ public class RagGoldManualEvaluationRunner {
     private RagEvaluationCaseDefinition toCaseDefinition(
             RagGoldCaseSnapshot goldCase, Map<UUID, Integer> versionNumbers) {
         Set<String> prefixes = evidenceMatcher.toLegacyPrefixes(goldCase.evidences(), versionNumbers);
+        List<ContextTurn> contextTurns = goldCase.contextTurns() == null
+                ? List.of()
+                : goldCase.contextTurns().stream()
+                        .map(turn -> new ContextTurn(turn.role(), turn.content()))
+                        .toList();
         return new RagEvaluationCaseDefinition(
                 goldCase.caseKey(),
                 goldCase.questionType().name().toLowerCase(),
                 goldCase.questionText(),
-                prefixes);
+                prefixes,
+                contextTurns);
     }
 
     private RagEvaluationObservation conservativeObservation(RagGoldCaseSnapshot goldCase) {
@@ -623,19 +647,30 @@ public class RagGoldManualEvaluationRunner {
                     toErrorCode(execution.failureStage()));
         } else {
             log.info(
-                    "RAG_GOLD_EVAL case_key={}, status={}, failure_stage={}, retrieval_latency_ms={}, generation_latency_ms={}, total_latency_ms={}, prompt_tokens=unavailable, completion_tokens=unavailable, total_tokens=unavailable",
+                    "RAG_GOLD_EVAL case_key={}, status={}, failure_stage={}, retrieval_latency_ms={}, generation_latency_ms={}, total_latency_ms={}, prompt_tokens={}, completion_tokens={}, total_tokens={}",
                     caseKey,
                     execution.status(),
                     execution.failureStage(),
                     execution.retrievalLatencyMs(),
                     execution.generationLatencyMs(),
-                    execution.totalLatencyMs());
+                    execution.totalLatencyMs(),
+                    formatTokenCount(execution.promptTokens()),
+                    formatTokenCount(execution.completionTokens()),
+                    formatTokenCount(execution.totalTokens()));
         }
+    }
+
+    private String formatTokenCount(Long tokens) {
+        return tokens == null ? "unavailable" : String.valueOf(tokens);
     }
 
     private String resolveRetrievalVersion(RagGoldEvaluationRunRequest runRequest) {
         boolean rerankerEnabled = runRequest != null && runRequest.rerankerEnabled();
+        boolean identifierEnabled = runRequest == null || runRequest.identifierSupplementEnabled();
+        boolean subquotaEnabled = runRequest == null || runRequest.subQueryQuotaEnabled();
+        boolean evidenceGateEnabled = runRequest == null || runRequest.evidenceGateEnabled();
         return knowledgeSearchTool.resolveRetrievalVersionLabel(
-                KnowledgeRetrievalOptions.withReranker(rerankerEnabled));
+                KnowledgeRetrievalOptions.withDecomposition(
+                        rerankerEnabled, null, null, identifierEnabled, subquotaEnabled, evidenceGateEnabled));
     }
 }

@@ -12,6 +12,7 @@ import com.insightflow.entity.KnowledgeDocumentType;
 import com.insightflow.entity.Workspace;
 import com.insightflow.service.WorkspaceService;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +50,167 @@ class KnowledgeSearchToolTest {
                 rerankerSelector,
                 crossQueryDecomposer,
                 titleEntityScoreBooster,
-                new KnowledgeCoverageAwareSelector(titleEntityScoreBooster));
+                new KnowledgeCoverageAwareSelector(titleEntityScoreBooster),
+                new KnowledgeIdentifierCandidateSupplement(vectorStore),
+                new KnowledgeSubQueryQuotaEnforcer(titleEntityScoreBooster));
+    }
+
+    /** Phase 4A：版本标签随 identifier / subquota 开关动态拼接。 */
+    @Test
+    void resolveRetrievalVersionLabelReflectsAblationFlags() {
+        assertThat(searchTool.resolveRetrievalVersionLabel(KnowledgeRetrievalOptions.withDecomposition(
+                        false, null, null, false, false)))
+                .isEqualTo("knowledge:rrf:v3+entity+coverage+gate+small2big");
+        assertThat(searchTool.resolveRetrievalVersionLabel(KnowledgeRetrievalOptions.withDecomposition(
+                        false, null, null, true, false)))
+                .isEqualTo("knowledge:rrf:v3+entity+coverage+identifier+gate+small2big");
+        assertThat(searchTool.resolveRetrievalVersionLabel(KnowledgeRetrievalOptions.withDecomposition(
+                        false, null, null, false, true)))
+                .isEqualTo("knowledge:rrf:v3+entity+coverage+subquota+precise+upgrade+anchor+gate+small2big");
+        assertThat(searchTool.resolveRetrievalVersionLabel(KnowledgeRetrievalOptions.withDecomposition(
+                        false, null, null, true, true)))
+                .isEqualTo("knowledge:rrf:v3+entity+coverage+identifier+subquota+precise+upgrade+anchor+gate+small2big");
+        assertThat(searchTool.resolveRetrievalVersionLabel(KnowledgeRetrievalOptions.withDecomposition(
+                        false, null, null, true, true, false)))
+                .isEqualTo("knowledge:rrf:v3+entity+coverage+identifier+subquota+precise+upgrade+anchor+small2big");
+    }
+
+    @Test
+    void evidenceGateOffPreservesPreGateEvidenceCount() {
+        UUID workspacePublicId = UUID.randomUUID();
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
+        when(workspace.getId()).thenReturn(7L);
+        when(workspace.getOrganizationId()).thenReturn(3L);
+        KnowledgeVectorStore.SearchCandidate strongHit = new KnowledgeVectorStore.SearchCandidate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                "title",
+                "content",
+                0.05d,
+                KnowledgeDocumentType.KNOWN_ISSUE.name(),
+                "section",
+                null);
+        KnowledgeVectorStore.SearchCandidate weakHit = new KnowledgeVectorStore.SearchCandidate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                "weak",
+                "weak content",
+                0.01d,
+                KnowledgeDocumentType.KNOWN_ISSUE.name(),
+                "section",
+                null);
+        when(vectorStore.searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any()))
+                .thenReturn(new KnowledgeSearchResult(List.of(strongHit, weakHit), Set.of(), Set.of(), Set.of()))
+                .thenReturn(emptySearchResult());
+
+        KnowledgeRetrievalDiagnostics diagnostics = searchTool.retrieveWithDiagnostics(
+                workspacePublicId,
+                "7 月版本有哪些已知问题？",
+                List.of(0.1d, 0.2d),
+                KnowledgeRetrievalOptions.withDecomposition(false, null, null, false, false, false));
+
+        assertThat(diagnostics.result().evidence()).hasSize(2);
+        assertThat(diagnostics.result().gateOutcome()).isEqualTo(KnowledgeEvidenceGateDecision.OUTCOME_INJECT);
+    }
+
+    @Test
+    void evidenceGateAbstainsOnWeakTopScore() {
+        UUID workspacePublicId = UUID.randomUUID();
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
+        when(workspace.getId()).thenReturn(7L);
+        when(workspace.getOrganizationId()).thenReturn(3L);
+        KnowledgeVectorStore.SearchCandidate weakHit = new KnowledgeVectorStore.SearchCandidate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                "weak",
+                "weak content",
+                0.01d,
+                KnowledgeDocumentType.KNOWN_ISSUE.name(),
+                "section",
+                null);
+        when(vectorStore.searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any()))
+                .thenReturn(new KnowledgeSearchResult(List.of(weakHit), Set.of(), Set.of(), Set.of()))
+                .thenReturn(emptySearchResult());
+
+        KnowledgeRetrievalDiagnostics diagnostics = searchTool.retrieveWithDiagnostics(
+                workspacePublicId,
+                "你好",
+                List.of(0.1d, 0.2d),
+                KnowledgeRetrievalOptions.withDecomposition(false, null, null, false, false, true));
+
+        assertThat(diagnostics.result().evidence()).isEmpty();
+        assertThat(diagnostics.result().abstained()).isTrue();
+    }
+
+    @Test
+    void truncatesExpandedContextAtOneThousandCharacters() {
+        UUID workspacePublicId = UUID.randomUUID();
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
+        when(workspace.getId()).thenReturn(7L);
+        when(workspace.getOrganizationId()).thenReturn(3L);
+        String longBody = "段".repeat(1200);
+        KnowledgeVectorStore.SearchCandidate hit = new KnowledgeVectorStore.SearchCandidate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                "title",
+                longBody,
+                0.05d,
+                KnowledgeDocumentType.KNOWN_ISSUE.name(),
+                "section",
+                null);
+        when(vectorStore.searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any()))
+                .thenReturn(new KnowledgeSearchResult(List.of(hit), Set.of(), Set.of(), Set.of()))
+                .thenReturn(emptySearchResult());
+        when(vectorStore.loadSectionChunksBatch(eq(3L), eq(7L), any()))
+                .thenReturn(Map.of(hit.chunkId(), List.of(new KnowledgeSectionChunkSlice(1, longBody, "section"))));
+
+        KnowledgeRetrievalDiagnostics diagnostics = searchTool.retrieveWithDiagnostics(
+                workspacePublicId,
+                "7 月版本有哪些已知问题？",
+                List.of(0.1d, 0.2d),
+                KnowledgeRetrievalOptions.withDecomposition(false, null, null, false, false, false));
+
+        assertThat(diagnostics.result().evidence()).hasSize(1);
+        assertThat(diagnostics.result().evidence().get(0).snippet())
+                .hasSize(KnowledgeEvidenceContextExpander.EVIDENCE_CONTEXT_MAX_CHARACTERS);
+    }
+
+    @Test
+    void preservesShortEvidenceSnippetWithoutPadding() {
+        UUID workspacePublicId = UUID.randomUUID();
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
+        when(workspace.getId()).thenReturn(7L);
+        when(workspace.getOrganizationId()).thenReturn(3L);
+        KnowledgeVectorStore.SearchCandidate hit = new KnowledgeVectorStore.SearchCandidate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                "title",
+                "短正文",
+                0.05d,
+                KnowledgeDocumentType.KNOWN_ISSUE.name(),
+                "section",
+                null);
+        when(vectorStore.searchWithOptions(eq(3L), eq(7L), anyString(), any(), any(), any()))
+                .thenReturn(new KnowledgeSearchResult(List.of(hit), Set.of(), Set.of(), Set.of()))
+                .thenReturn(emptySearchResult());
+
+        KnowledgeRetrievalDiagnostics diagnostics = searchTool.retrieveWithDiagnostics(
+                workspacePublicId,
+                "7 月版本有哪些已知问题？",
+                List.of(0.1d, 0.2d),
+                KnowledgeRetrievalOptions.withDecomposition(false, null, null, false, false, false));
+
+        assertThat(diagnostics.result().evidence().get(0).snippet()).isEqualTo("短正文");
     }
 
     /**

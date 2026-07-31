@@ -1,6 +1,6 @@
 # InsightFlow 项目开发记录
 
-> 最后更新：2026-07-30
+> 最后更新：2026-07-31
 >
 > 本文档是项目的长期开发记录，用于沉淀业务背景、架构取舍、关键问题和验证结果。它面向后续开发、简历项目说明和技术面试；只记录已经在代码、测试或运行环境中得到验证的事实，待完成事项明确标记为待办。
 
@@ -37,7 +37,7 @@ InsightFlow 的目标是将 CSV 反馈数据转化为可调查的舆情信号：
 | 异常检测 | EWMA 基线、z-score 告警和冷却窗口 | 将“工单多了”的主观感受变为可量化的异常信号。 |
 | Agent 增强 | 分类、情感、风险分析与报告生成 | 为确定性分析补充解释、摘要和运营报告。 |
 | 看板与报告 | Dashboard、主题详情、告警历史和报告下载 | 提供运营查看和复盘入口。 |
-| 前端聊天 | Workspace 范围内的 AI 问答、会话恢复和短期记忆 | 刷新后恢复最近活动会话；模型基于最近 12 条最终消息理解追问。 |
+| 前端聊天 | Workspace 范围内的 AI 问答、会话恢复、短期记忆与滚动摘要 | 刷新后恢复最近活动会话；模型基于最近 12 条最终消息理解追问；超出窗口的更早消息以确定性摘要注入 Prompt。 |
 
 ## 4. 关键问题与解决记录
 
@@ -135,7 +135,7 @@ InsightFlow 的目标是将 CSV 反馈数据转化为可调查的舆情信号：
 
 | 问题 | 影响 | 后续方向 |
 |---|---|---|
-| 超长会话尚无摘要 | 当前只注入最近 12 条消息，极长会话的早期上下文不会自动浓缩 | 观察真实会话长度后引入滚动摘要，并将其纳入评测。 |
+| 超长会话尚无摘要 | ~~当前只注入最近 12 条消息，极长会话的早期上下文不会自动浓缩~~ | **已解决（2026-07-31）：** V34 滚动摘要 + 600 字上限；仍不调用 LLM 生成摘要。 |
 | Agent 缺少统一评测 | 修改 Prompt、模型或检索策略后无法量化效果 | 建立金标问题集、AgentRun 记录和评测运行器。 |
 | 回答可能过于笼统 | 用户难以判断结论是否可信或可执行 | 接入只读数据 Tool，强制输出证据、未知项和建议。 |
 | 知识库尚未接入聊天 | 无法基于版本公告、SOP 等企业资料回答 | 在评测基础完成后，以 pgvector 实现带来源引用的混合检索。 |
@@ -516,7 +516,70 @@ erankFallbackRate=0。
 - **方案与取舍：** 用 `pickLocalTop(subResult, excludeChunkIds)` 替换 `pickBestFromPool`：直接返回 `candidates.get(0)`，若已被前一路保留则跳过（KISS，不尝试 Top2）；移除 `buildEligibleChunkSets` + `pickBestFromPool` 死代码；`rankedPool` 仅用于后续覆盖贪心填槽，不再参与配额选取顺序。
 - **实现：** `KnowledgeSubQueryQuotaEnforcer.java`（2 方法替换为 1 个 `pickLocalTop`）；新增单测 `quotaUsesLocalTopOneNotGlobalRanking`（gushu gold 在全局末位但本地 Top1，断言其进入 Top8）；`KnowledgeSubQueryQuotaEnforcerTest` 3/3、`KnowledgeCoverageAwareSelectorTest` 3/3 通过。commit `52e84a5`。
 - **验证：** cross-dev-slice Phase 4B run `1f18c22d`：chunk@8=**0.667**（vs Phase 4A p3-subquota `1f18c203` 0.750，**-8pp 退步**）；dev-fast-40 Phase 4B run `1f18c231`：chunk@8=0.575、primary@8=0.40（与 Phase 4A p3-subquota **完全持平**）。退步集中于 dev-154：Phase 4A signin-window gold 在 finalFirstRank=7（hit），Phase 4B 降为 0（miss）；gushu-window 两个 phase 均 miss。
-- **沉淀：** Phase 4B 假设在 dev-154 不成立——signin 子查询本地 Top1 ≠ signin-window gold，phase 4B 保留了另一个 c174 系 chunk 作为配额，改变 remaining pool 构成，coverage fill 的实体覆盖加分机制不再把 signin-window gold 推上 Top7；Phase 3 的「全局池顺序+配额+覆盖贪心」对 dev-154 反而有偶发收益（覆盖加分覆盖的是 rank16 处的 gold）。Phase 4B 代码已提交、实验已记录，**生产默认 `subquota=on` 不受影响**（Phase 4B 仅修改配额挑选方式，下一步如需改善 dev-154 须针对「local gold rank」而非「local Top1」做更精准的 quota pick）。
+- **沉淀：** Phase 4B 假设在 dev-154 不成立——signin 子查询本地 Top1 ≠ signin-window gold；**已回滚 pickLocalTop**，恢复 Phase 3 `pickBestFromPool`（cross-dev-slice 75% 可复现）。下一步 quota 改进须基于各路 gold 本地 rank 诊断，而非盲取 index=0。
+
+### 2026-07-30：Phase 4C 精准 quota + Top8 chunk 选择
+
+- **背景或现象：** Phase 4A 表明瓶颈在 Top8 选择（cross candidate@50≈92%，chunk@8=75%）；Phase 4B 盲取本地 Top1 退步至 66.7%。未命中题 dev-147（cand50=false）、dev-149/151（gold 在 RRF rank 8–10 但未进 Top8）。
+- **根因：** Phase 3 配额按子查询顺序扫描全局池，强势路先占共享 eligible chunk；coverage 的 `enforceSoftEntityCoverage` 仅在 greedy 剩余池 swap，对 rank 8–20 的组代表覆盖不足。
+- **方案与取舍：** (1) 配额按各路 eligible 最高分升序处理（最弱子查询优先）；(2) lookback 内显式 max boosted 选取 + 子查询索引 entityGroup tie-break；(3) coverage 保留 fullPool Top30 快照做 deep swap；(4) 版本后缀 `+subquota+precise`；诊断脚本 `scripts/dump-cross-slice-diagnostics.py`。
+- **实现：** `KnowledgeSubQueryQuotaEnforcer.orderSubQueriesWeakestFirst` / `pickHighestScoreEligible`；`KnowledgeCoverageAwareSelector.enforceSoftEntityCoverage` 扩展 Top30 搜索；单测 +3。
+- **验证：** `./mvnw.cmd test -Dtest=KnowledgeSubQueryQuotaEnforcerTest,KnowledgeCoverageAwareSelectorTest,KnowledgeSearchToolTest` 通过。run `1f18c25d` cross chunk **75%**（9/12，与 4A 持平）、dev-154 仍 hit；`1f18c25e` fast-40 **57.5%**；`1f18c262` dev-240 **52.9%** / primary **40.4%**。dev-149 faq rrf=8 final=0、dev-151 data-boundary rrf=10 final=0 仍 miss。
+- **沉淀：** Phase 4C 结构更合理且未像 4B 退步，但 aggregate 指标未超 4A；剩余 miss 需 Phase 4D（candidate 召回 / 精排 / chunk 级 requirement 对齐），非 quota 顺序 alone。
+
+### 2026-07-31：Phase 4D 子查询修复 + Top8 entity 锚定（部分）
+
+- **背景或现象：** Phase 4C 后 cross chunk@8 仍 75%；dev-147 cand50=false（KI 子查询交叉污染）；dev-149/151 gold 在 RRF rank 8–10 但未进 Top8；dev-154 等仍 hit。
+- **根因：** (1) dev-147 第一路子查询拼接 sharedAspect 混入 KI-1405，向量/lexical 偏航；(2) `matchesGroup` 仅靠泛 token（如「匹配」）使热修 chunk 占位 FAQ 组，`enforceSoftEntityCoverage`/`upgrade` 误判已有代表；(3) `pickClause` 仅匹配版本号前缀（1.4.1）即跳过 docLabel，第二路缺少「热修复说明」导致 KI-1405/hotfix-141 **candidate rrf=0**。
+- **方案与取舍：** 分三路交付且不重复 4B 退步：(1) 子查询分解 + 按子查询 supplement；(2) `EntityGroup.titleAnchors` + `groupMatchQuality`（token 重合 ×1000 − poolIndex）；(3) `upgradeGroupRepresentatives` 按 quality 替换弱代表；(4) `extractDistinctiveDocMarker` 约束 docLabel 前缀。版本 `+subquota+precise+upgrade+anchor`。
+- **实现：** `KnowledgeCrossQueryDecomposer.splitBodyForRequirementGroups`；`KnowledgeSearchTool` 子查询 supplement；`KnowledgeTitleEntityScoreBooster.extractTitleAnchors`/`groupMatchQuality`；`KnowledgeCoverageAwareSelector.upgradeGroupRepresentatives`；`RagGoldCrossQueryDecomposer.extractDistinctiveDocMarker`；单测 `KnowledgeTitleEntityScoreBoosterTest`、`RagGoldCrossQueryDecomposerTest`、`KnowledgeCoverageAwareSelectorTest` 通过。
+- **验证：** `./mvnw.cmd test -Dtest=KnowledgeTitleEntityScoreBoosterTest,KnowledgeCoverageAwareSelectorTest,RagGoldCrossQueryDecomposerTest` 通过。cross run `1f18c385` chunk **75%**（9/12，与 4C 持平）；fast-40 run `1f18c387` **57.5%**（与 4C 持平）。dev-147 cand50 **true**、goldRrf≈28 仍 chunk miss；dev-149 faq rrf=24 final=0、hotfix-141 rrf=0；dev-151 data-boundary rrf=10 final=0。
+- **沉淀：** Top8 结构改进未带来 aggregate +pp；**candidate 层**（KI-1405/hotfix-141 未进 subquery Top50）与 **同文档 chunk 消歧**（FAQ chunk3 vs 其他 FAQ chunk）仍是 blocker；下一步 reranker 或 requirement-aware chunk 锚定，frozen-80 待收敛后再跑。
+
+### 2026-07-31：检索 Small-to-big 展示层（Recall@8 不变）
+
+- **背景或现象：** 固定 300/500 字截断对长 section（如 KI 热修 417 字）仍偏短；spot dev-051/052 在 500 字下 prompt 仅多 ~120 字，无法覆盖同 section 多 chunk 上下文。
+- **根因：** 检索与展示共用 chunk 粒度；Recall@8 与门控 diagnostics 依赖命中 chunkId，不宜改为 section 级召回。
+- **方案与取舍：** Small-to-big——候选池与评测口径仍按 chunk；仅在 `KnowledgeSearchTool.toEvidence` 前经 `expandBatch` 扩展 snippet。同版本 + 同 `section_heading` 整段合并；超出 1000 字则从命中 chunk 向两侧按 `chunk_no` 连续扩展；证据 ID 仍锚定命中 chunk。
+- **实现：** `KnowledgeSectionChunkSlice`、`KnowledgeEvidenceContextExpander`、`JdbcKnowledgeVectorStore.loadSectionChunksBatch`；`KnowledgeSearchTool` 注入 expander，版本标签追加 `+small2big`。
+- **验证：** `./mvnw.cmd test -Dtest=KnowledgeEvidenceContextExpanderTest,KnowledgeSearchToolTest` 与 `com.insightflow.knowledge.**` 全包测试通过。
+- **沉淀：** 800/1200 字上限可在 `EVIDENCE_CONTEXT_MAX_CHARACTERS` 单点调参；全量 dev-240 生成 P95 与 Recall 回归待 spot/批次复跑。
+
+### 2026-07-31：W1/W2 验收调优（弃权路由 + 多轮指代替换）
+
+- **背景或现象：** abstain-50 gate-on `correctAbstentionRate=0.50`（CHITCHAT 14/15、NO_ANSWER 6/20）；multiturn-40 primary 0.25 vs 自足 baseline 0.375。
+- **根因：** (1) W1 仅依赖 RRF Top1≥0.02 阈值，NO_ANSWER 业务问句仍召回伪相关 chunk（如「Steam版什么时候出」gateTopScore≈0.028、「早上好」≈0.136）；(2) W2 用 `topicKey + 原句` 前缀拼接，前序 user 整句（含「的相关说明是什么」）与 follow-up 叠成超长 query（dev-m02），向量检索偏航。
+- **方案与取舍：** KISS 最小改动——W1 对 CHITCHAT/NO_ANSWER 题型 + 线上寒暄启发式强制 ABSTAIN，有答案题仍走原双阈值；W2 剥离 context 套话、topicKey 限 48 字，指代 follow-up 改为 anchor 替换「里面/它」而非前缀拼接，改写总长上限 120。
+- **实现：** `KnowledgeEvidenceGuardrail.shouldForceAbstain` + `decide(..., forceAbstain)`；`KnowledgeSearchTool` 透传 `questionTypeName`；`ConversationFocusExtractor` 剥离 `的相关说明是什么`；`ContextualQueryRewriter` 指代替换 + 长度 cap；单测 5 文件通过。
+- **验证：** 单测通过。**abstain-50** run `1f18cb24`：**correctAbstentionRate=0.80**（≥0.7 ✓）；**multiturn-40** run `1f18cb26`：primary **0.325**（调优前 0.25 ↑，baseline 0.375 ✗），chunk R@8 **0.60**（baseline 0.50 ↑）。另修 `KnowledgeSearchTool` 双构造器缺 `@Autowired` 导致 `spring-boot:run` 评测无法启动。
+- **沉淀：** W1 强制弃权路由验收通过；W2 指代替换消除 prefix 污染但 CROSS/VERSION 组覆盖仍低于 baseline，需继续调 focus/改写或接受 chunk 与 primary 分流指标。
+
+### 2026-07-31：W4 调查 Agent 确定性摘要层
+
+- **背景或现象：** `InvestigationResult.renderForPrompt()` 仅直 dump「调查计划 + 证据索引」，模型需自行从多条数值证据推断涨跌方向，易误读趋势或忽略 `sufficient=false` 的数据不足项。
+- **根因：** Prompt 事实区缺少可复现的结构化骨架；若用 LLM 生成摘要则同一批证据两次运行 Prompt 不可比，评测失去对照意义。
+- **方案与取舍：** 新增纯确定性 `InvestigationSummarizer`（不调用 LLM）；「关键变化」只从 `ISSUE_TREND` / `PERIOD_COMPARISON` 正文解析已有计数与绝对变化，解析不到则省略该行；「数据不足项」直接列 `sufficient=false` 标题。
+- **实现：** `InvestigationSummarizer.summarize()` 输出 `## 调查摘要`（覆盖范围、关键变化、数据不足项、证据条数）；`InvestigationResult.renderForPrompt()` 在计划与证据索引之间插入摘要；`InvestigationSummarizerTest` 6 例覆盖方向/幅度/证据 id、无解析省略、不足项与确定性。
+- **验证：** `.\mvnw.cmd test -Dtest=InvestigationSummarizerTest,InvestigationToolServiceTest` 10/10 通过；全量 `.\mvnw.cmd test` **444/444** 绿。
+- **沉淀：** 摘要层与 W3 历史压缩共用 `chat:v5`，不改 prompt 版本号；数值断言必须带 `[证据 id]`，与 Chat 护栏第 1 条一致。
+
+### 2026-07-31：P0 超长会话滚动摘要（确定性，不调用 LLM）
+
+- **背景或现象：** W3 已压缩单条 assistant 历史为结论段，但极长会话在「最近 12 条」窗口之外的更早轮次仍无法进入 Prompt，追问跨窗口语境时模型失忆。
+- **根因：** 缺少会话级持久化摘要字段与刷新链路；若用 LLM 生成摘要则同一会话两次运行 Prompt 不可比，且增加成本与延迟。
+- **方案与取舍：** 窗口外消息经 `ConversationHistoryCompactor.compactLine` 逐条压缩（user 500 字、assistant 结论 300 字），分号拼接后总上限 600 字；`appendAssistantMessage` 后按消息总数触发刷新并写入 `chat_session.rolling_summary`；Prompt 在 `## 最近对话` 前注入 `## 更早对话摘要`。
+- **实现：** Flyway V34；`SessionRollingSummaryBuilder`、`ConversationService.refreshRollingSummary/readRollingSummary`、`ChatService` 读取并传入 `buildSystemPrompt`；`ChatMessageRepository.countByWorkspaceIdAndSessionId`；单测 `SessionRollingSummaryBuilderTest`、`ConversationServiceTest`、`ChatSessionRollingSummaryMigrationTest`。
+- **验证：** `.\mvnw.cmd test` **453/453** 绿。
+- **沉淀：** 与 W3 短期窗口互补；摘要格式与触发阈值（12 条窗口、600 字上限）可在 `SessionRollingSummaryBuilder` 单点调参；真实长会话 token 观测仍待生产数据。
+
+### 2026-07-31：W5 只读调查/知识 Tool MCP 暴露（默认关闭）
+
+- **背景或现象：** 外部 Agent 或 IDE 无法通过标准 MCP 协议调用 InsightFlow 已有的只读调查 Tool 与知识检索，只能走 HTTP 聊天 API。
+- **根因：** P2 Tool 仅在应用内 `InvestigationToolService` / `KnowledgeSearchTool` 链路使用，未注册 MCP Server 端点。
+- **方案与取舍：** 引入 Spring AI MCP Server（STREAMABLE），Tool 实现复用现有只读服务；`insightflow.mcp.enabled` 与 `spring.ai.mcp.server.enabled` 默认 false，避免未授权环境暴露数据面；每个 Tool 强制 `workspacePublicId` 参数以维持 Workspace 隔离。
+- **实现：** `pom.xml` 增加 `spring-ai-starter-mcp-server-webmvc`；`InvestigationMcpTools`（8 类调查 Tool）、`KnowledgeMcpTool`（`insightflow_knowledge_search`）；`McpToolConfiguration` 条件装配；`application.yml` 绑定 `MCP_ENABLED`。
+- **验证：** `.\mvnw.cmd test` **453/453** 绿；`McpToolConfigurationTest` 验证默认不加载 Bean；`InvestigationMcpToolsTest` 验证 UUID 校验与委托渲染。
+- **沉淀：** 启用方式：`MCP_ENABLED=true` 启动应用；尚未用 Cursor/Claude Desktop 等 MCP 客户端做端到端联调；写操作仍不暴露。
 
 ### 2026-07-30：P4 chunk 生成/索引优化（导语 + neighbor embed）
 

@@ -68,7 +68,26 @@ class RagGoldCrossQueryDecomposerTest {
 
         assertThat(subQueries).hasSize(2);
         assertThat(subQueries.get(0)).startsWith("社区舆情对照：").contains("FAQ").contains("匹配失败");
-        assertThat(subQueries.get(1)).startsWith("社区舆情对照：").contains("1.4.1").contains("匹配");
+        assertThat(subQueries.get(1)).startsWith("社区舆情对照：").contains("1.4.1").contains("热修复说明");
+    }
+
+    @Test
+    void buildsKiSubQueriesWithoutCrossEntityPollution() {
+        UUID ki1301Doc = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0101");
+        UUID ki1405Doc = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        stubDocument(ki1301Doc, "超自然行动组-1.3.1-热修复说明");
+        stubDocument(ki1405Doc, "超自然行动组-1.4.1-热修复说明");
+
+        List<String> subQueries = decomposer.buildSubQueries(
+                "客服转来一个问题：1.3 的 KI-1301 和 1.4.1 的 KI-1405 是同一个根因吗？",
+                RagGoldQuestionType.CROSS_DOCUMENT,
+                List.of(
+                        evidence("ki-1301", ki1301Doc),
+                        evidence("ki-1405", ki1405Doc)));
+
+        assertThat(subQueries).hasSize(2);
+        assertThat(subQueries.get(0)).contains("KI-1301").doesNotContain("KI-1405");
+        assertThat(subQueries.get(1)).contains("KI-1405").contains("热修复说明");
     }
 
     @Test

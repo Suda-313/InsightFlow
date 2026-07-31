@@ -19,5 +19,11 @@ public enum RagGoldQuestionType {
     OPERATION_PROCESS,
 
     /** 无依据或应拒答问题。 */
-    REFUSAL
+    REFUSAL,
+
+    /** 闲聊、寒暄或询问助手能力的元问题；不应注入任何企业知识证据。 */
+    CHITCHAT,
+
+    /** 业务口吻但当前知识库确实无覆盖的问题；应弃权而非用低分片段拼凑。 */
+    NO_ANSWER
 }

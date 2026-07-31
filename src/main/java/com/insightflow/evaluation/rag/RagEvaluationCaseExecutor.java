@@ -1,5 +1,9 @@
 package com.insightflow.evaluation.rag;
 
+import com.insightflow.agent.investigation.ChatSessionFocus;
+import com.insightflow.agent.investigation.ContextualQueryRewriter;
+import com.insightflow.agent.investigation.ConversationFocusExtractor;
+import com.insightflow.agent.investigation.RewriteOutcome;
 import com.insightflow.knowledge.KnowledgeRetrievalDiagnostics;
 import com.insightflow.knowledge.KnowledgeRetrievalOptions;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
@@ -31,6 +35,12 @@ public class RagEvaluationCaseExecutor {
     /** 回答网关只接收本题问题和受控检索结果，不能绕过 Tool 访问业务数据。*/
     private final RagEvaluationAnswerGateway answerGateway;
 
+    /** 多轮题 query 改写，与线上 ChatService 共用同一规则实现。 */
+    private final ContextualQueryRewriter contextualQueryRewriter;
+
+    /** 从前序 context turns 抽焦点，供评测改写使用。 */
+    private final ConversationFocusExtractor focusExtractor;
+
     /** 独立的小型调用池与任务 Worker 分离，防止卡住的供应商请求占满调度线程。*/
     private final AsyncTaskExecutor callExecutor;
 
@@ -44,9 +54,17 @@ public class RagEvaluationCaseExecutor {
     public RagEvaluationCaseExecutor(
             KnowledgeSearchTool knowledgeSearchTool,
             RagEvaluationAnswerGateway answerGateway,
+            ContextualQueryRewriter contextualQueryRewriter,
+            ConversationFocusExtractor focusExtractor,
             @Qualifier("ragEvaluationCallExecutor") AsyncTaskExecutor callExecutor,
             @Value("${insightflow.evaluation.rag.case-timeout-seconds:120}") long caseTimeoutSeconds) {
-        this(knowledgeSearchTool, answerGateway, callExecutor, Math.toIntExact(caseTimeoutSeconds * 1000L));
+        this(
+                knowledgeSearchTool,
+                answerGateway,
+                contextualQueryRewriter,
+                focusExtractor,
+                callExecutor,
+                Math.toIntExact(caseTimeoutSeconds * 1000L));
     }
 
     /**
@@ -55,10 +73,14 @@ public class RagEvaluationCaseExecutor {
     RagEvaluationCaseExecutor(
             KnowledgeSearchTool knowledgeSearchTool,
             RagEvaluationAnswerGateway answerGateway,
+            ContextualQueryRewriter contextualQueryRewriter,
+            ConversationFocusExtractor focusExtractor,
             AsyncTaskExecutor callExecutor,
             int caseTimeoutMillis) {
         this.knowledgeSearchTool = knowledgeSearchTool;
         this.answerGateway = answerGateway;
+        this.contextualQueryRewriter = contextualQueryRewriter;
+        this.focusExtractor = focusExtractor;
         this.callExecutor = callExecutor;
         this.caseTimeoutMillis = caseTimeoutMillis;
     }
@@ -67,7 +89,7 @@ public class RagEvaluationCaseExecutor {
      * 执行一题并把异常收敛为固定失败阶段；精排开关跟随全局配置。
      */
     public RagEvaluationCaseExecution execute(UUID workspacePublicId, RagEvaluationCaseDefinition evaluationCase) {
-        return execute(workspacePublicId, evaluationCase, false);
+        return execute(workspacePublicId, evaluationCase, false, true, true);
     }
 
     /**
@@ -78,11 +100,28 @@ public class RagEvaluationCaseExecutor {
      */
     public RagEvaluationCaseExecution execute(
             UUID workspacePublicId, RagEvaluationCaseDefinition evaluationCase, boolean rerankerEnabled) {
+        return execute(workspacePublicId, evaluationCase, rerankerEnabled, true, true);
+    }
+
+    public RagEvaluationCaseExecution execute(
+            UUID workspacePublicId,
+            RagEvaluationCaseDefinition evaluationCase,
+            boolean rerankerEnabled,
+            boolean identifierSupplementEnabled,
+            boolean subQueryQuotaEnabled) {
         long startedAt = System.nanoTime();
         AtomicReference<String> stage = new AtomicReference<>("retrieval");
         AtomicReference<Long> retrievalLatencyMs = new AtomicReference<>();
         Future<RagEvaluationCaseExecution> future = callExecutor.submit(
-                () -> executeCall(workspacePublicId, evaluationCase, rerankerEnabled, stage, retrievalLatencyMs, startedAt));
+                () -> executeCall(
+                        workspacePublicId,
+                        evaluationCase,
+                        rerankerEnabled,
+                        identifierSupplementEnabled,
+                        subQueryQuotaEnabled,
+                        stage,
+                        retrievalLatencyMs,
+                        startedAt));
         try {
             return future.get(caseTimeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException exception) {
@@ -104,28 +143,53 @@ public class RagEvaluationCaseExecutor {
             UUID workspacePublicId,
             RagEvaluationCaseDefinition evaluationCase,
             boolean rerankerEnabled,
+            boolean identifierSupplementEnabled,
+            boolean subQueryQuotaEnabled,
             AtomicReference<String> stage,
             AtomicReference<Long> retrievalLatencyMs,
             long startedAt) {
         long retrievalStartedAt = System.nanoTime();
+        String retrievalQuery = resolveRetrievalQuery(evaluationCase);
         KnowledgeRetrievalDiagnostics diagnostics = knowledgeSearchTool.retrieveWithDiagnostics(
                 workspacePublicId,
-                evaluationCase.question(),
+                retrievalQuery,
                 null,
                 KnowledgeRetrievalOptions.withDecomposition(
                         rerankerEnabled,
                         null,
-                        evaluationCase.category()));
+                        evaluationCase.category(),
+                        identifierSupplementEnabled,
+                        subQueryQuotaEnabled));
         KnowledgeRetrievalResult retrieval = diagnostics.result();
         long retrievalLatency = elapsedMillis(retrievalStartedAt);
         retrievalLatencyMs.set(retrievalLatency);
         stage.set("generation");
         long generationStartedAt = System.nanoTime();
-        String answer = answerGateway.answer(evaluationCase.question(), retrieval);
+        RagEvaluationGenerationResult generation = answerGateway.answer(evaluationCase.question(), retrieval);
         long generationLatencyMs = elapsedMillis(generationStartedAt);
+        String answer = generation.answer() == null ? "" : generation.answer();
         return new RagEvaluationCaseExecution(
-                retrieval, answer == null ? "" : answer, "succeeded", null,
-                retrievalLatency, generationLatencyMs, elapsedMillis(startedAt), diagnostics);
+                retrieval,
+                answer,
+                "succeeded",
+                null,
+                retrievalLatency,
+                generationLatencyMs,
+                elapsedMillis(startedAt),
+                diagnostics,
+                generation.promptTokens(),
+                generation.completionTokens(),
+                generation.totalTokens());
+    }
+
+    /** 多轮题先用 context turns 抽焦点再规则改写；单轮题保持原 question 引用不变。 */
+    private String resolveRetrievalQuery(RagEvaluationCaseDefinition evaluationCase) {
+        if (evaluationCase.contextTurns().isEmpty()) {
+            return evaluationCase.question();
+        }
+        ChatSessionFocus focus = focusExtractor.extractFromText(evaluationCase.contextTurns());
+        RewriteOutcome outcome = contextualQueryRewriter.rewrite(evaluationCase.question(), focus);
+        return outcome.rewritten();
     }
 
     /** 将阶段转为固定错误码；生成阶段前的超时只报告检索耗时，不伪造生成指标。*/

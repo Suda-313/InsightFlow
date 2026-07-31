@@ -16,9 +16,15 @@ public class RagGoldManualEvaluationRegressionGate {
     private static final double MAX_QUALITY_RATE_DECREASE = 0.02;
     private static final double MAX_FORBIDDEN_HIT_RATE_INCREASE = 0.01;
 
+    private static final double MAX_FALSE_ABSTENTION_RATE = 0.02;
+
     /** 比较候选与基线扩展指标，返回违规码列表。 */
     public Comparison compare(RagGoldManualExtendedMetrics baseline, RagGoldManualExtendedMetrics candidate) {
         List<String> violations = new ArrayList<>();
+        if (hasDatasetChecksumMismatch(baseline, candidate)) {
+            violations.add("dataset_checksum_mismatch");
+            return new Comparison(false, List.copyOf(violations));
+        }
         if (candidate.documentRecallAt8() < baseline.documentRecallAt8() - MAX_QUALITY_RATE_DECREASE) {
             violations.add("document_recall_at8_regressed");
         }
@@ -39,6 +45,9 @@ public class RagGoldManualEvaluationRegressionGate {
         if (isRefusalRegression(baseline.shouldRefuseComplianceRate(), candidate.shouldRefuseComplianceRate())) {
             violations.add("should_refuse_compliance_regressed");
         }
+        if (isFalseAbstentionRegression(baseline.falseAbstentionRate(), candidate.falseAbstentionRate())) {
+            violations.add("false_abstention_rate_regressed");
+        }
         if (candidate.citationSupportRate() < baseline.citationSupportRate() - MAX_QUALITY_RATE_DECREASE) {
             violations.add("citation_support_rate_regressed");
         }
@@ -50,6 +59,21 @@ public class RagGoldManualEvaluationRegressionGate {
 
     private boolean isRefusalRegression(Double baseline, Double candidate) {
         return baseline != null && candidate != null && candidate < baseline - MAX_QUALITY_RATE_DECREASE;
+    }
+
+    private boolean isFalseAbstentionRegression(Double baseline, Double candidate) {
+        if (baseline == null || candidate == null) {
+            return false;
+        }
+        return candidate > baseline + MAX_FALSE_ABSTENTION_RATE;
+    }
+
+    private boolean hasDatasetChecksumMismatch(
+            RagGoldManualExtendedMetrics baseline, RagGoldManualExtendedMetrics candidate) {
+        if (baseline.checksum() == null || candidate.checksum() == null) {
+            return false;
+        }
+        return !baseline.checksum().equals(candidate.checksum());
     }
 
     /** 质量门禁结果。 */

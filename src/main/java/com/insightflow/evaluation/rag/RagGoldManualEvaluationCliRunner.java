@@ -14,6 +14,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -185,7 +186,10 @@ public class RagGoldManualEvaluationCliRunner implements CommandLineRunner {
             String mode,
             String caseKeysFile,
             String embeddingCacheDir,
-            String reranker) {
+            String reranker,
+            String identifier,
+            String subquota,
+            String evidenceGate) {
 
         static CliArgs parse(String... args) {
             boolean enabled = false;
@@ -202,6 +206,9 @@ public class RagGoldManualEvaluationCliRunner implements CommandLineRunner {
             String caseKeysFile = null;
             String embeddingCacheDir = "output/rag-gold-embedding-cache";
             String reranker = "off";
+            String identifier = "on";
+            String subquota = "on";
+            String evidenceGate = "on";
             for (String arg : args) {
                 if ("--rag-gold-eval".equals(arg)) {
                     enabled = true;
@@ -233,6 +240,12 @@ public class RagGoldManualEvaluationCliRunner implements CommandLineRunner {
                     embeddingCacheDir = arg.substring("--embedding-cache-dir=".length());
                 } else if (arg.startsWith("--reranker=")) {
                     reranker = arg.substring("--reranker=".length());
+                } else if (arg.startsWith("--identifier=")) {
+                    identifier = arg.substring("--identifier=".length());
+                } else if (arg.startsWith("--subquota=")) {
+                    subquota = arg.substring("--subquota=".length());
+                } else if (arg.startsWith("--evidence-gate=")) {
+                    evidenceGate = arg.substring("--evidence-gate=".length());
                 }
             }
             return new CliArgs(
@@ -249,7 +262,10 @@ public class RagGoldManualEvaluationCliRunner implements CommandLineRunner {
                     mode,
                     caseKeysFile,
                     embeddingCacheDir,
-                    reranker);
+                    reranker,
+                    identifier,
+                    subquota,
+                    evidenceGate);
         }
 
         void validate() {
@@ -276,10 +292,32 @@ public class RagGoldManualEvaluationCliRunner implements CommandLineRunner {
                     && !"on".equalsIgnoreCase(reranker) && !"off".equalsIgnoreCase(reranker)) {
                 throw new IllegalArgumentException("不支持的 --reranker: " + reranker + "（仅 on/off）");
             }
+            validateOnOffFlag(identifier, "--identifier");
+            validateOnOffFlag(subquota, "--subquota");
+            validateOnOffFlag(evidenceGate, "--evidence-gate");
+        }
+
+        private static void validateOnOffFlag(String value, String flagName) {
+            if (value != null && !value.isBlank()
+                    && !"on".equalsIgnoreCase(value) && !"off".equalsIgnoreCase(value)) {
+                throw new IllegalArgumentException("不支持的 " + flagName + ": " + value + "（仅 on/off）");
+            }
         }
 
         boolean rerankerEnabled() {
             return "on".equalsIgnoreCase(reranker);
+        }
+
+        boolean identifierSupplementEnabled() {
+            return !"off".equalsIgnoreCase(identifier);
+        }
+
+        boolean subQueryQuotaEnabled() {
+            return !"off".equalsIgnoreCase(subquota);
+        }
+
+        boolean evidenceGateEnabled() {
+            return !"off".equalsIgnoreCase(evidenceGate);
         }
 
         RagGoldEvaluationRunRequest toRunRequest() throws java.io.IOException {
@@ -288,13 +326,33 @@ public class RagGoldManualEvaluationCliRunner implements CommandLineRunner {
                     : RagGoldCaseKeyFileLoader.load(java.nio.file.Path.of(caseKeysFile));
             if ("retrieval-only".equals(mode)) {
                 return RagGoldEvaluationRunRequest.retrievalOnly(
-                        caseKeys, java.nio.file.Path.of(embeddingCacheDir), rerankerEnabled());
+                        caseKeys,
+                        java.nio.file.Path.of(embeddingCacheDir),
+                        rerankerEnabled(),
+                        identifierSupplementEnabled(),
+                        subQueryQuotaEnabled(),
+                        evidenceGateEnabled());
             }
             if (!caseKeys.isEmpty()) {
                 return new RagGoldEvaluationRunRequest(
-                        RagGoldEvaluationRunMode.END_TO_END, caseKeys, null, false, rerankerEnabled());
+                        RagGoldEvaluationRunMode.END_TO_END,
+                        caseKeys,
+                        null,
+                        false,
+                        rerankerEnabled(),
+                        identifierSupplementEnabled(),
+                        subQueryQuotaEnabled(),
+                        evidenceGateEnabled());
             }
-            return RagGoldEvaluationRunRequest.endToEnd(rerankerEnabled());
+            return new RagGoldEvaluationRunRequest(
+                    RagGoldEvaluationRunMode.END_TO_END,
+                    Set.of(),
+                    null,
+                    false,
+                    rerankerEnabled(),
+                    identifierSupplementEnabled(),
+                    subQueryQuotaEnabled(),
+                    evidenceGateEnabled());
         }
     }
 }

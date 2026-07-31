@@ -18,12 +18,14 @@ public record InvestigationResult(InvestigationPlan plan, List<InvestigationEvid
     }
 
     /**
-     * 将计划和证据渲染为模型只能引用的事实区；证据不足项保留原文，禁止模型把它改写为确定性结论。
+     * 将计划、确定性摘要与证据渲染为模型只能引用的事实区；证据不足项保留原文，禁止模型把它改写为确定性结论。
      */
     public String renderForPrompt() {
         StringBuilder context = new StringBuilder("\n## 调查计划\n");
         context.append("意图：").append(plan.intent()).append("\n");
-        context.append("已调用 Tool：").append(plan.tools()).append("\n\n## 证据索引\n");
+        context.append("已调用 Tool：").append(plan.tools()).append("\n");
+        context.append(InvestigationSummarizer.DEFAULT.summarize(this));
+        context.append("\n## 证据索引\n");
         for (InvestigationEvidence item : evidence) {
             context.append("- [").append(item.id()).append("] ")
                     .append(item.title()).append("：").append(item.content());

@@ -1,6 +1,9 @@
 package com.insightflow.evaluation.rag.gold.importing;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.entity.RagGoldAssertionType;
 import com.insightflow.entity.RagGoldDataset;
 import com.insightflow.entity.RagGoldDatasetSplit;
@@ -25,6 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class RagGoldSeedImporter {
 
     private static final Logger log = LoggerFactory.getLogger(RagGoldSeedImporter.class);
+
+    private static final TypeReference<List<RagGoldSeedFile.ContextTurn>> CONTEXT_TURN_LIST_TYPE =
+            new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
     private final RagGoldDatasetCommandService commandService;
@@ -112,7 +118,19 @@ public class RagGoldSeedImporter {
                 goldCase.reviewer(),
                 goldCase.sortOrder(),
                 evidences,
-                assertions);
+                assertions,
+                serializeContextTurns(goldCase.contextTurns()));
+    }
+
+    private String serializeContextTurns(List<RagGoldSeedFile.ContextTurn> contextTurns) {
+        if (contextTurns == null || contextTurns.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(contextTurns);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("无法序列化 context_turns", exception);
+        }
     }
 
     /** 导入完成后返回给脚本/Runner 的摘要。 */

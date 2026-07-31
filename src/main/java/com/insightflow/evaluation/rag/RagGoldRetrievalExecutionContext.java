@@ -13,6 +13,9 @@ public record RagGoldRetrievalExecutionContext(
         RagGoldEvaluationEmbeddingCache embeddingCache,
         boolean useEmbeddingCache,
         boolean rerankerEnabled,
+        boolean identifierSupplementEnabled,
+        boolean subQueryQuotaEnabled,
+        boolean evidenceGateEnabled,
         RagGoldQuestionType questionType,
         List<RagGoldEvidenceSnapshot> evidences) {
 
@@ -21,7 +24,7 @@ public record RagGoldRetrievalExecutionContext(
             String embeddingModel,
             RagGoldEvaluationEmbeddingCache embeddingCache,
             boolean useEmbeddingCache) {
-        this(datasetChecksum, embeddingModel, embeddingCache, useEmbeddingCache, false, null, List.of());
+        this(datasetChecksum, embeddingModel, embeddingCache, useEmbeddingCache, false, true, true, true, null, List.of());
     }
 
     public RagGoldRetrievalExecutionContext(
@@ -30,7 +33,17 @@ public record RagGoldRetrievalExecutionContext(
             RagGoldEvaluationEmbeddingCache embeddingCache,
             boolean useEmbeddingCache,
             boolean rerankerEnabled) {
-        this(datasetChecksum, embeddingModel, embeddingCache, useEmbeddingCache, rerankerEnabled, null, List.of());
+        this(
+                datasetChecksum,
+                embeddingModel,
+                embeddingCache,
+                useEmbeddingCache,
+                rerankerEnabled,
+                true,
+                true,
+                true,
+                null,
+                List.of());
     }
 
     public RagGoldRetrievalExecutionContext {

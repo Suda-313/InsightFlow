@@ -18,7 +18,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 13
         }
       ],
@@ -53,7 +53,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 14
         }
       ],
@@ -88,7 +88,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 15
         }
       ],
@@ -123,7 +123,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 16
         }
       ],
@@ -158,7 +158,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 17
         }
       ],
@@ -186,15 +186,15 @@
       "question_type": "SINGLE_DOCUMENT_FACT",
       "difficulty": "EASY",
       "should_refuse": false,
-      "annotation_basis": "超自然行动组-7月稳定性说明 chunk 18 preview",
+      "annotation_basis": "超自然行动组-7月稳定性说明 chunk 9 preview（v5 重切后由 chunk 18 映射）",
       "reviewer": "yangyufei",
       "sort_order": 5,
       "evidences": [
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
-          "chunk_no": 18
+          "version_no": 5,
+          "chunk_no": 9
         }
       ],
       "assertions": [
@@ -221,15 +221,15 @@
       "question_type": "SINGLE_DOCUMENT_FACT",
       "difficulty": "EASY",
       "should_refuse": false,
-      "annotation_basis": "超自然行动组-7月稳定性说明 chunk 19 preview",
+      "annotation_basis": "超自然行动组-7月稳定性说明 chunk 9 preview（v5 重切后由 chunk 19 映射）",
       "reviewer": "yangyufei",
       "sort_order": 6,
       "evidences": [
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
-          "chunk_no": 18
+          "version_no": 5,
+          "chunk_no": 9
         }
       ],
       "assertions": [
@@ -263,7 +263,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 1
         }
       ],
@@ -298,7 +298,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -333,7 +333,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         }
       ],
@@ -368,7 +368,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 5
         }
       ],
@@ -403,7 +403,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 6
         }
       ],
@@ -438,7 +438,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 7
         }
       ],
@@ -473,7 +473,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 8
         }
       ],
@@ -508,7 +508,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 9
         }
       ],
@@ -543,7 +543,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 10
         }
       ],
@@ -578,7 +578,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 11
         }
       ],
@@ -613,7 +613,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 12
         }
       ],
@@ -648,7 +648,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 13
         }
       ],
@@ -683,7 +683,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 14
         }
       ],
@@ -718,7 +718,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 15
         }
       ],
@@ -753,7 +753,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 16
         }
       ],
@@ -788,7 +788,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 17
         }
       ],
@@ -816,15 +816,15 @@
       "question_type": "SINGLE_DOCUMENT_FACT",
       "difficulty": "EASY",
       "should_refuse": false,
-      "annotation_basis": "超自然行动组-7月维护窗口-OPERATION_EVENT chunk 18 preview",
+      "annotation_basis": "超自然行动组-7月维护窗口-OPERATION_EVENT chunk 4 preview（v5 重切后由 chunk 18 映射）",
       "reviewer": "yangyufei",
       "sort_order": 23,
       "evidences": [
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
-          "chunk_no": 18
+          "version_no": 5,
+          "chunk_no": 4
         }
       ],
       "assertions": [
@@ -851,15 +851,15 @@
       "question_type": "SINGLE_DOCUMENT_FACT",
       "difficulty": "MEDIUM",
       "should_refuse": false,
-      "annotation_basis": "超自然行动组-7月维护窗口-OPERATION_EVENT chunk 19 preview",
+      "annotation_basis": "超自然行动组-7月维护窗口-OPERATION_EVENT chunk 17 preview（v5 重切后由 chunk 19 映射）",
       "reviewer": "yangyufei",
       "sort_order": 24,
       "evidences": [
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
-          "chunk_no": 18
+          "version_no": 5,
+          "chunk_no": 17
         }
       ],
       "assertions": [
@@ -893,7 +893,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 1
         }
       ],
@@ -928,7 +928,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -963,7 +963,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         }
       ],
@@ -998,7 +998,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 5
         }
       ],
@@ -1033,7 +1033,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 6
         }
       ],
@@ -1068,7 +1068,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 7
         }
       ],
@@ -1103,7 +1103,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 8
         }
       ],
@@ -1138,7 +1138,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 9
         }
       ],
@@ -1173,7 +1173,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 10
         }
       ],
@@ -1208,7 +1208,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 11
         }
       ],
@@ -1243,7 +1243,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 12
         }
       ],
@@ -1278,7 +1278,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 13
         }
       ],
@@ -1313,7 +1313,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 14
         }
       ],
@@ -1348,7 +1348,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 15
         }
       ],
@@ -1383,7 +1383,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 16
         }
       ],
@@ -1411,15 +1411,15 @@
       "question_type": "SINGLE_DOCUMENT_FACT",
       "difficulty": "MEDIUM",
       "should_refuse": false,
-      "annotation_basis": "超自然行动组-v1.3-v1.4-版本差异对照档案 chunk 17 preview",
+      "annotation_basis": "超自然行动组-v1.3-v1.4-版本差异对照档案 chunk 7 preview（v5 重切后由 chunk 17 映射）",
       "reviewer": "yangyufei",
       "sort_order": 40,
       "evidences": [
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
-          "chunk_no": 17
+          "version_no": 5,
+          "chunk_no": 7
         }
       ],
       "assertions": [
@@ -1453,7 +1453,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-历史已归档已知问题记录",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 1
         }
       ],
@@ -1488,7 +1488,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-历史已归档已知问题记录",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -1523,7 +1523,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-历史已归档已知问题记录",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -1558,7 +1558,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-历史已归档已知问题记录",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         }
       ],
@@ -1593,7 +1593,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-历史已归档已知问题记录",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 5
         }
       ],
@@ -1628,7 +1628,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-历史已归档已知问题记录",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 6
         }
       ],
@@ -1663,7 +1663,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 1
         }
       ],
@@ -1698,13 +1698,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4.2-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -1744,13 +1744,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-暑期签到活动-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -1790,13 +1790,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4-版本更新说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -1836,13 +1836,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -1882,13 +1882,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.3.1-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4.1-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -1928,13 +1928,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -1974,13 +1974,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组玩家常见问题FAQ",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4.1-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -2020,13 +2020,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组玩法机制与舆情判读参考",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4-版本更新说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2066,13 +2066,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-运营数据可用性与限制说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -2112,13 +2112,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-外挂举报舆情复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.3-版本更新说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 5
         }
       ],
@@ -2158,13 +2158,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-v1.3-v1.4-版本差异对照档案",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4.2-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2204,13 +2204,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-暑期签到活动-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2250,13 +2250,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4-版本更新说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2296,13 +2296,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -2342,13 +2342,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.3.1-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4.1-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2388,13 +2388,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月维护窗口-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2434,13 +2434,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4.1-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-1.4.2-热修复说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2480,13 +2480,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2526,13 +2526,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2572,13 +2572,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2618,13 +2618,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2664,13 +2664,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-7月稳定性复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2710,13 +2710,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2756,13 +2756,13 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动公告-OPERATION_EVENT",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         },
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-古蜀遗迹联动活动复盘-POSTMORTEM",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2802,7 +2802,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-舆情采样与分析口径-SOP",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2842,7 +2842,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-玩家反馈响应-SOP",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -2882,7 +2882,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "游戏舆情分析与风险分级手册",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -2922,7 +2922,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组玩法机制与舆情判读参考",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 4
         }
       ],
@@ -2962,7 +2962,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-版本窗口反馈归因-SOP",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -3002,7 +3002,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-版本更新说明模板",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 2
         }
       ],
@@ -3042,7 +3042,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-运营数据可用性与限制说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 3
         }
       ],
@@ -3082,7 +3082,7 @@
         {
           "granularity": "CHUNK",
           "document_ref": "超自然行动组-运营数据可用性与限制说明",
-          "version_no": 3,
+          "version_no": 5,
           "chunk_no": 5
         }
       ],

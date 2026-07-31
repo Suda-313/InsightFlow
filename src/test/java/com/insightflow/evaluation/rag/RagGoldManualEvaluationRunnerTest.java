@@ -71,7 +71,8 @@ class RagGoldManualEvaluationRunnerTest {
         when(readService.loadRunnableSnapshot(WORKSPACE, "ops-rag-v1", "dev-240")).thenReturn(snapshot);
         KnowledgeRetrievalResult retrieval = new KnowledgeRetrievalResult(1, List.of(
                 new KnowledgeEvidence("knowledge:" + DOC + ":v2:" + CHUNK, "title", 2, "snippet", "/src")));
-        when(caseExecutor.execute(eq(WORKSPACE), any(), anyBoolean())).thenReturn(new RagEvaluationCaseExecution(
+        when(caseExecutor.execute(eq(WORKSPACE), any(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(new RagEvaluationCaseExecution(
                         retrieval, "[证据: knowledge:" + DOC + ":v2:" + CHUNK + "]", "succeeded", null, 5, 6, 11))
                 .thenReturn(RagEvaluationCaseExecution.failed("retrieval_timeout", 10, 0, 10));
 
@@ -89,8 +90,9 @@ class RagGoldManualEvaluationRunnerTest {
         when(readService.loadRunnableSnapshot(WORKSPACE, "ops-rag-v1", "frozen-80")).thenReturn(snapshot);
         KnowledgeRetrievalResult retrieval = new KnowledgeRetrievalResult(1, List.of(
                 new KnowledgeEvidence("knowledge:" + DOC + ":v2:" + CHUNK, "title", 2, "snippet", "/src")));
-        when(caseExecutor.execute(eq(WORKSPACE), any(), anyBoolean())).thenReturn(new RagEvaluationCaseExecution(
-                retrieval, "secret answer text", "succeeded", null, 5, 6, 11));
+        when(caseExecutor.execute(eq(WORKSPACE), any(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(new RagEvaluationCaseExecution(
+                        retrieval, "secret answer text", "succeeded", null, 5, 6, 11));
 
         RagGoldManualEvaluationRunOutcome outcome = runner.run(WORKSPACE, "ops-rag-v1", "frozen-80");
 

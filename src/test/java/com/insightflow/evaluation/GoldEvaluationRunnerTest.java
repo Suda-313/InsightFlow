@@ -50,7 +50,7 @@ class GoldEvaluationRunnerTest {
 
         verify(literalChatModelCaller).call(contains("玩法 Bug 85 条"), eq("玩法 Bug 趋势如何？"));
         assertThat(result.datasetVersion()).isEqualTo("gold:v1");
-        assertThat(result.promptVersion()).isEqualTo("chat:v4");
+        assertThat(result.promptVersion()).isEqualTo("chat:v5");
         assertThat(result.modelName()).isEqualTo("qwen-test");
         assertThat(result.metrics().totalCaseCount()).isEqualTo(1);
         assertThat(result.metrics().succeededCaseCount()).isEqualTo(1);

@@ -1,5 +1,7 @@
 package com.insightflow.evaluation.rag;
 
+import com.insightflow.agent.investigation.ContextTurn;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -16,10 +18,19 @@ public record RagEvaluationCaseDefinition(
         /** 直接交给受控 RAG 链路的问题，不携带原文内容。 */
         String question,
         /** 预期被召回的文档证据前缀集合；空集合表示应如实说明知识缺口。 */
-        Set<String> expectedEvidencePrefixes) {
+        Set<String> expectedEvidencePrefixes,
+        /** 多轮题的前序对话；空表示单轮自足题。 */
+        List<ContextTurn> contextTurns) {
+
+    /** 单轮题构造：无 context turns。 */
+    public RagEvaluationCaseDefinition(
+            String caseId, String category, String question, Set<String> expectedEvidencePrefixes) {
+        this(caseId, category, question, expectedEvidencePrefixes, List.of());
+    }
 
     /** 固化集合，避免调用方在模型执行过程中篡改金标预期。 */
     public RagEvaluationCaseDefinition {
         expectedEvidencePrefixes = Set.copyOf(expectedEvidencePrefixes);
+        contextTurns = contextTurns == null ? List.of() : List.copyOf(contextTurns);
     }
 }

@@ -1,5 +1,6 @@
 package com.insightflow.evaluation.rag;
 
+import com.insightflow.knowledge.KnowledgeEvidenceGateDecision;
 import java.util.List;
 
 /**
@@ -34,7 +35,15 @@ public record RagGoldRetrievalCaseDiagnostics(
         /** CROSS 分解后的子查询文本；未分解时为单元素原问题或空。 */
         List<String> subQueries,
         /** 各子查询 RRF 候选数量，与 {@link #subQueries} 一一对应。 */
-        List<Integer> candidatesPerSubQuery) {
+        List<Integer> candidatesPerSubQuery,
+        /** 后验门控结果：INJECT / ABSTAIN。 */
+        String gateOutcome,
+        /** Top1 分数，供阈值调优诊断。 */
+        double gateTopScore,
+        /** 门控前候选数。 */
+        int gateInputCount,
+        /** 门控后实际注入条数。 */
+        int gateInjectedCount) {
 
     /** 向后兼容：无 requirement 组明细与分解字段。 */
     public RagGoldRetrievalCaseDiagnostics(
@@ -69,7 +78,11 @@ public record RagGoldRetrievalCaseDiagnostics(
                 finalCrossDocumentDualHitAt8,
                 List.of(),
                 List.of(),
-                List.of());
+                List.of(),
+                KnowledgeEvidenceGateDecision.OUTCOME_INJECT,
+                0.0d,
+                0,
+                0);
     }
 
     public RagGoldRetrievalCaseDiagnostics {

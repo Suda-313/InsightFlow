@@ -16,4 +16,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     /** 用于模型短期记忆，倒序取有限窗口后由服务层恢复为时间正序。 */
     List<ChatMessage> findTop12ByWorkspaceIdAndSessionIdOrderByCreatedAtDesc(Long workspaceId, Long sessionId);
+
+    /** 统计会话消息总数，用于判断是否需维护滚动摘要。 */
+    long countByWorkspaceIdAndSessionId(Long workspaceId, Long sessionId);
 }

@@ -27,6 +27,20 @@ class RagGoldManualEvaluationCliRunnerTest {
     }
 
     @Test
+    void parseIdentifierAndSubquotaFlags() {
+        RagGoldManualEvaluationCliRunner.CliArgs args = RagGoldManualEvaluationCliRunner.CliArgs.parse(
+                "--rag-gold-eval",
+                "--workspace=1f1898d9-8b54-6fe3-88fa-9b6f9cb0d668",
+                "--dataset-key=ops-rag-v1",
+                "--dataset-version=dev-240",
+                "--identifier=off",
+                "--subquota=on");
+
+        assertThat(args.identifierSupplementEnabled()).isFalse();
+        assertThat(args.subQueryQuotaEnabled()).isTrue();
+    }
+
+    @Test
     void rejectsMissingDatasetSelector() {
         RagGoldManualEvaluationCliRunner.CliArgs args = RagGoldManualEvaluationCliRunner.CliArgs.parse(
                 "--rag-gold-eval", "--workspace=1f1898d9-8b54-6fe3-88fa-9b6f9cb0d668");
@@ -61,7 +75,7 @@ class RagGoldManualEvaluationCliRunnerTest {
         return new RagGoldManualExtendedMetrics(
                 "ops-rag-v1", "frozen-80", "FROZEN", "checksum", java.util.List.of("case-1"),
                 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9,
-                factCoverage, forbiddenHit, 0.95, 1.0,
+                factCoverage, forbiddenHit, 0.95, 1.0, null, null,
                 10L, 20L, 30L, 40L,
                 1,
                 "unavailable", "unavailable", "unavailable",

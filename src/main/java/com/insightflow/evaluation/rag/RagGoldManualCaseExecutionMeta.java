@@ -11,5 +11,9 @@ public record RagGoldManualCaseExecutionMeta(
         String failureStage,
         Long retrievalLatencyMs,
         Long generationLatencyMs,
-        Long totalLatencyMs) {
+        Long totalLatencyMs,
+        /** 单次生成 prompt tokens；retrieval-only 或未返回 Usage 时为 null。 */
+        Long promptTokens,
+        Long completionTokens,
+        Long totalTokens) {
 }

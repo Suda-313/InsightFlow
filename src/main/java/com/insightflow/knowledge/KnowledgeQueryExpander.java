@@ -16,11 +16,24 @@ import org.springframework.stereotype.Component;
 @Component
 public class KnowledgeQueryExpander {
 
-    private static final Pattern VERSION = Pattern.compile("(?i)\\bv?(\\d+(?:\\.\\d+)+)\\b");
-    private static final Pattern EVENT_ID = Pattern.compile("\\b([A-Z]{2,6}-\\d{3,6})\\b");
-    private static final Pattern EVENT_ID_COMPACT = Pattern.compile("\\b([A-Z]{2,6})(\\d{3,6})\\b");
+    /** 与 FTS 扩展共用，供会话焦点与 query 改写复用，避免多处维护版本号正则。 */
+    static final Pattern VERSION = Pattern.compile("(?i)\\bv?(\\d+(?:\\.\\d+)+)\\b");
     private static final Pattern YEAR_MONTH = Pattern.compile("(\\d{4})[-/年](\\d{1,2})");
     private static final Pattern MONTH_DAY = Pattern.compile("(\\d{1,2})月");
+
+    /**
+     * 从文本中抽取首个版本号标签（如 {@code 1.4}）；无命中时返回 {@code null}。
+     *
+     * <p>供 {@link com.insightflow.agent.investigation.ConversationFocusExtractor} 与
+     * {@link com.insightflow.agent.investigation.ContextualQueryRewriter} 判定问句是否已自足。</p>
+     */
+    public String extractVersionLabel(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = VERSION.matcher(text);
+        return matcher.find() ? matcher.group(1) : null;
+    }
 
     /**
      * 在原问题后追加抽取到的结构化 token；无命中时返回原问题。
@@ -39,17 +52,9 @@ public class KnowledgeQueryExpander {
             tokens.add("v" + numeric);
         }
 
-        Matcher eventMatcher = EVENT_ID.matcher(question.toUpperCase(Locale.ROOT));
-        while (eventMatcher.find()) {
-            String id = eventMatcher.group(1);
+        for (String id : KnowledgeIdentifierExtractor.extractEventIds(question)) {
             tokens.add(id);
             tokens.add(id.replace("-", ""));
-        }
-
-        Matcher compactEventMatcher = EVENT_ID_COMPACT.matcher(question.toUpperCase(Locale.ROOT));
-        while (compactEventMatcher.find()) {
-            tokens.add(compactEventMatcher.group(1) + "-" + compactEventMatcher.group(2));
-            tokens.add(compactEventMatcher.group(1) + compactEventMatcher.group(2));
         }
 
         Matcher yearMonthMatcher = YEAR_MONTH.matcher(question);

@@ -10,12 +10,17 @@ import static org.mockito.Mockito.when;
 import com.insightflow.knowledge.KnowledgeRetrievalDiagnostics;
 import com.insightflow.knowledge.KnowledgeRetrievalOptions;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
+import com.insightflow.agent.investigation.ChatSessionFocus;
+import com.insightflow.agent.investigation.ContextualQueryRewriter;
+import com.insightflow.agent.investigation.ConversationFocusExtractor;
+import com.insightflow.knowledge.KnowledgeQueryExpander;
 import com.insightflow.knowledge.KnowledgeSearchTool;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.concurrent.ConcurrentTaskExecutor;
 
@@ -23,6 +28,16 @@ import org.springframework.scheduling.concurrent.ConcurrentTaskExecutor;
  * 单题超时必须独立收敛，不能因供应商调用阻塞让整批 RAG 评测永久卡在 running。
  */
 class RagEvaluationCaseExecutorTest {
+
+    private ContextualQueryRewriter contextualQueryRewriter;
+    private ConversationFocusExtractor focusExtractor;
+
+    @BeforeEach
+    void setUpRewriter() {
+        KnowledgeQueryExpander queryExpander = new KnowledgeQueryExpander();
+        contextualQueryRewriter = new ContextualQueryRewriter(queryExpander);
+        focusExtractor = new ConversationFocusExtractor(queryExpander);
+    }
 
     @Test
     void marksTimedOutRetrievalAsFailedWithoutLeakingItsException() {
@@ -38,7 +53,8 @@ class RagEvaluationCaseExecutorTest {
         ExecutorService delegate = Executors.newSingleThreadExecutor();
         try {
             RagEvaluationCaseExecutor executor = new RagEvaluationCaseExecutor(
-                    searchTool, answerGateway, new ConcurrentTaskExecutor(delegate), 10);
+                    searchTool, answerGateway, contextualQueryRewriter, focusExtractor,
+                    new ConcurrentTaskExecutor(delegate), 10);
 
             RagEvaluationCaseExecution result = executor.execute(workspaceId, slowCase);
 
@@ -61,19 +77,26 @@ class RagEvaluationCaseExecutorTest {
         KnowledgeRetrievalDiagnostics diagnostics = new KnowledgeRetrievalDiagnostics(
                 retrieval, List.of(), Set.of(), Set.of(), Set.of());
         when(searchTool.retrieveWithDiagnostics(
-                        eq(workspaceId), eq("精排题"), eq(null), eq(KnowledgeRetrievalOptions.withReranker(true))))
+                        eq(workspaceId),
+                        eq("精排题"),
+                        eq(null),
+                        eq(KnowledgeRetrievalOptions.withDecomposition(true, null, "release-note", true, true))))
                 .thenReturn(diagnostics);
-        when(answerGateway.answer(any(), any())).thenReturn("answer");
+        when(answerGateway.answer(any(), any())).thenReturn(new RagEvaluationGenerationResult("answer", null, null, null));
         ExecutorService delegate = Executors.newSingleThreadExecutor();
         try {
             RagEvaluationCaseExecution result = new RagEvaluationCaseExecutor(
-                    searchTool, answerGateway, new ConcurrentTaskExecutor(delegate), 500)
+                    searchTool, answerGateway, contextualQueryRewriter, focusExtractor,
+                    new ConcurrentTaskExecutor(delegate), 500)
                     .execute(workspaceId, evaluationCase, true);
 
             assertThat(result.status()).isEqualTo("succeeded");
             assertThat(result.retrievalDiagnostics()).isSameAs(diagnostics);
             verify(searchTool).retrieveWithDiagnostics(
-                    eq(workspaceId), eq("精排题"), eq(null), eq(KnowledgeRetrievalOptions.withReranker(true)));
+                    eq(workspaceId),
+                    eq("精排题"),
+                    eq(null),
+                    eq(KnowledgeRetrievalOptions.withDecomposition(true, null, "release-note", true, true)));
         } finally {
             delegate.shutdownNow();
         }
@@ -101,7 +124,8 @@ class RagEvaluationCaseExecutorTest {
         ExecutorService delegate = Executors.newSingleThreadExecutor();
         try {
             RagEvaluationCaseExecution result = new RagEvaluationCaseExecutor(
-                    searchTool, answerGateway, new ConcurrentTaskExecutor(delegate), 500).execute(workspaceId, evaluationCase);
+                    searchTool, answerGateway, contextualQueryRewriter, focusExtractor,
+                    new ConcurrentTaskExecutor(delegate), 500).execute(workspaceId, evaluationCase);
 
             assertThat(result.failureStage()).isEqualTo("generation_failed");
             assertThat(result.generationLatencyMs()).isGreaterThan(0L);

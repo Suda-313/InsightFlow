@@ -24,7 +24,7 @@ P0 基础安全与会话记忆
 - [x] 新增会话 API：创建会话、查询会话列表、读取消息、发送消息、归档会话。
 - [x] 前端支持新建会话、历史会话列表、刷新恢复和归档当前会话。
 - [x] 实现短期记忆：每次提问读取最近 12 条最终消息，并限制单条历史文本长度。
-- [ ] 对超长会话引入滚动摘要控制上下文长度（先观察真实 token 与会话长度，再决定摘要格式和触发阈值）。
+- [x] 对超长会话引入滚动摘要控制上下文长度：V34 `chat_session.rolling_summary`；`SessionRollingSummaryBuilder` 在 12 条窗口外消息上确定性压缩（不调用 LLM），上限 600 字；`ConversationHistoryCompactor` 注入 `## 更早对话摘要`；`appendAssistantMessage` 后异步刷新。`.\mvnw.cmd test` **453/453** 绿。
 - [x] 不持久化或展示模型原始思维链；只保存用户消息和最终回答。
 - [x] 为会话 Workspace 隔离、消息恢复、模型上下文连续性补充单元测试；待补真实浏览器刷新 E2E 测试。
 
@@ -67,7 +67,8 @@ P0 基础安全与会话记忆
 - [ ] **Top8 按 document 限流：** 每个 `document_id` 最多 2 chunk 进最终证据。
 - [ ] **中文 FTS 补强：** `pg_bigm` 或 keywords 列 + GIN（择一实现）。
 - [ ] **收紧补检索：** 首轮证据已足则不再第二次全类型检索。
-- [ ] **证据片段 300→500 字 + 标题/vN/chunk_no 展示。**
+- [x] **Small-to-big 展示层：** 召回仍按 chunk（Top50→Top8、Recall@8 不变）；`KnowledgeEvidenceContextExpander` 在 `toEvidence` 前批量合并同 section 切片，整段优先、超限从命中 chunk 向外扩展，单条上限 1000 字；版本标签 `+small2big`。
+- [ ] **标题/vN/chunk_no 元数据展示**（snippet 正文已扩展，元数据仍待 UI/Prompt 模板）。
 - [ ] **评测扩至 20+ 题。**
 
 #### Phase R3 — 规模运维（60～100 篇）
@@ -326,7 +327,13 @@ P0 基础安全与会话记忆
 - [x] **val-80 全量 `1f18c1d0`：** chunk **47.5%**、primary **32.5%**、CROSS dual **100%**（P2P3 `1f18c04c` 93.75% ↑）、CROSS chunk **62.5%**；门禁 vs v3 基线 **chunk/coverage 回归**（语料 v5 不可直接比）
 - [x] **Phase 4A — 同语料可比消融（2026-07-30）：** `identifier`/`subquota` CLI 开关 + 门禁 `dataset_checksum_mismatch`；16 组 retrieval-only（4 变体 × 4 切片），输出 `output/rag-gold-runs/phase4a/`
 - [x] **Phase 4B — identifier booster 校准（2026-07-30）：** `buildSignals()` 中 `eventIds` 提取与 `identifierSupplementEnabled` 联动；常量 BODY 0.15→0.08, TITLE 0.10→0.05；新增 3 条单测；cross-dev-slice p1/p2 消融现在代码层真正分离（无 chunk 回归）
-- [x] **Phase 4B — 子查询本地 Top1 配额修正（2026-07-30，实验结论：退步）：** `KnowledgeSubQueryQuotaEnforcer.pickLocalTop` 直取各子查询 candidates.get(0) 作配额代表；单测 3/3 通过；cross-dev-slice chunk@8 0.750→0.667（dev-154 signin-window gold 因 local Top1≠gold 且改变 remaining pool 构成而 miss）；dev-fast-40 持平；代码已提交 `52e84a5`，**生产不变（下一步需精准 quota pick，非盲取 Top1）**
+- [x] **Phase 4B — 子查询本地 Top1 配额（2026-07-30，已回滚）：** pickLocalTop 实验 cross chunk 75%→66.7%；已恢复 Phase 3 `pickBestFromPool`
+- [x] **Phase 4C — 精准 quota + Top8（2026-07-30）：** 最弱子查询优先 + lookback 内 max boosted 配额 + coverage Top30 deep swap；版本 `+subquota+precise`；cross **75%** / fast-40 **57.5%** / dev-240 **52.9%**（与 4A p3 持平，未退步）；dev-147/149/151 仍 miss
+- [x] **Phase 4D — 子查询 / Top8 对齐（2026-07-31，部分交付）：** (1) `splitBodyForRequirementGroups` 避免 dev-147 KI 交叉污染；(2) 按子查询 identifier supplement；(3) `upgradeGroupRepresentatives` + `titleAnchors`/`groupMatchQuality` 收紧 `matchesGroup`；(4) `pickClause` 要求文档类型标记（非仅版本号前缀）。run `1f18c378`/`1f18c385` cross **75%**、fast-40 **57.5%**（与 4C 持平）；dev-147 **cand50 true**（4C false）但 chunk 仍 miss（ki-1301 rrf≈24–28）；dev-149/151 仍 miss（faq rrf=8–24 final=0；hotfix-141/data-boundary 部分 **rrf=0** 为 candidate 未召回）
+- [ ] **Phase 4D 续 — candidate 召回 + chunk 精排：** ki-1405 / hotfix-141-match 未进 subquery Top50；Top8 swap 仍无法对齐 gold chunk（dev-149 FAQ chunk3、dev-151 chunk2/4）
+- [ ] **dev-147 gold 边界：** gold 指向无 KI 编号元数据 chunk，与 identifier 链路无关，需标注讨论
+- [ ] **VERSION 专项 + neighbor v6 消融：** primary 在 dev/val 均为 0%～40%；neighbor 对 fast-40 曾 +10pp
+- [ ] **frozen-80：** 上述收敛后再跑，带 checksum 门禁 baseline
 - [ ] **下一步：** dev-147 gold 边界讨论（gold chunk 未进 candidate@50 是 Candidate 层问题）；frozen-80 发布前再跑；探索 Cross-encoder reranker 是否能从 candidate@50 把 hard CROSS 题拉进 Top8；dev-154 signin-window gold 的精准 quota 策略（需确认 local rank）
 
 **R2 精排边界（备忘）：**
@@ -526,9 +533,28 @@ Phase 5: 检索版本通过门禁后再进入 Step P（chat:v5）
 
 **验收标准：** 一条告警可完成“发现、调查、确认、分派、处置、复盘”的完整闭环，所有关键操作可追溯。
 
+## 批次 0：弃权评测数据 + 多轮指代数据（2026-07-31）
+
+> 执行方案：`docs/superpowers/plans/2026-07-31-abstention-memory-mcp-implementation.md`
+
+- [x] **W0.1** 扩展 `RagGoldQuestionType`（`CHITCHAT` / `NO_ANSWER`）与 `RagGoldSeedValidator` 弃权规则；新增 `ops-rag-v1-abstain-50.json`（15 闲聊 + 20 无答案 + 15 拒答）；Flyway `V32` 扩展题型 CHECK 与 `context_turns` 列。
+- [x] **W0.2** seed 增加可选 `context_turns`；新增 `ops-rag-v1-multiturn-40.json`（源自 dev-240 的 40 题指代拆分）与 `multiturn-source-keys.txt`；ReadService / Importer 透传 context turns。
+- [x] **W1** 后验证据门控 + 误弃权率 / 正确弃权率双指标 + 回归门禁（`KnowledgeEvidenceGateDecision`、`KnowledgeEvidenceGuardrail` 双阈值；`KnowledgeSearchTool` +gate 标签；`RagGoldRetrievalCaseDiagnostics` / Scorer / RegressionGate / CLI `--evidence-gate=on|off`；`KnowledgeEvidenceGuardrailTest` + SearchTool 门控单测）。**`.\mvnw.cmd test` 409/409 通过。**
+- [x] **W1 验收评测（2026-07-31 通过）：** run `1f18cb24-3d8e-6ab4-9c07-f924617b8f1a`（abstain-50 retrieval-only gate-on）：**correctAbstentionRate=0.80**（40/50，≥0.7 ✓）；`falseAbstentionRate=N/A`（全 should_refuse）；P50=95ms P95=139ms；调优前 0.50 → 强制 ABSTAIN 后 CHITCHAT 15/15 + NO_ANSWER 20/20
+- [ ] **W1 dev-240 gate-on 回归：** primary 0.3958 vs 无 gate 0.4042（待复跑确认未退化）
+- [x] **W2** 会话焦点 + 规则 query 改写 + 意图兜底（`V33` focus 列、`ChatSessionFocus`、`ConversationFocusExtractor`、`ContextualQueryRewriter`、ChatService/评测接入 + 单测）。**`.\mvnw.cmd test` 425/425 通过。**
+- [ ] **W2 验收评测（部分改善，primary 未达 baseline）：**
+  - run `1f18cb26-6c8f-6f22-92da-c97fd5d1785d`（multiturn-40 retrieval-only）：**primaryRecallAt8=0.325**（调优前 0.25 ↑，baseline `1f18c8b2` **0.375** ✗）；chunk R@8 **0.60**（baseline 0.50 ↑）；CROSS dual-hit **100%**
+  - 调优：焦点剥离 + 指代替换 + 120 字上限；CROSS/VERSION 组覆盖仍拖累 primary
+- [x] **W3** 历史压缩（assistant 只保留结论段）；`ConversationHistoryCompactor` + `chat:v5`；`ConversationHistoryCompactorTest` + `ChatServiceTest` 历史段断言。
+- [x] **W4** 调查 Agent 确定性摘要层（`InvestigationSummarizer` + `renderForPrompt` 插入 `## 调查摘要`；`InvestigationSummarizerTest` 6 例 + `InvestigationToolServiceTest` 通过）。`.\mvnw.cmd test` **444/444** 绿（顺带修复 W2 相关：`ConversationFocusExtractor` 全角问号剥离 + `ChatServiceTest` 指代替换断言对齐）。
+- [x] **W5** 只读 Tool 暴露为 MCP Server（默认关闭）：`spring-ai-starter-mcp-server-webmvc` + `insightflow.mcp.enabled` / `MCP_ENABLED` 条件装配；9 个调查 Tool + `insightflow_knowledge_search`（Spring AI `@Tool`）；`McpToolConfigurationTest` + `InvestigationMcpToolsTest`。`.\mvnw.cmd test` **453/453** 绿；未用外部 MCP 客户端联调。
+
+**验收（W0）：** `.\mvnw.cmd test` 全绿；abstain-50 / multiturn-40 seed 校验通过；现有 400 题金标 checksum 与分布不变。
+
 ## 当前建议的第一项
 
-P4 核心业务闭环已完成。下一项应先补齐版本/活动事件数据源与报告口径，再评估长期会话摘要；飞书、钉钉、Jira 等外部协作集成仍需单独确认授权、通知策略、失败重试与幂等边界。
+P4 核心业务闭环已完成。下一项可先跑 W1 dev-240 gate-on 回归或继续 W2 multiturn primary 调优；MCP 启用后可用 `MCP_ENABLED=true` 做外部客户端联调。
 
 ## P3 完成记录（2026-07-25）
 

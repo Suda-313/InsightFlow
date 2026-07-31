@@ -66,6 +66,28 @@ class KnowledgeCrossQueryDecomposerTest {
     }
 
     @Test
+    void splitBodyForRequirementGroupsAvoidsSharedAspectPollutionForDistinctKi() {
+        List<String> parts = decomposer.splitBodyForRequirementGroups(
+                "1.3 的 KI-1301 和 1.4.1 的 KI-1405 是同一个根因吗？",
+                2);
+
+        assertThat(parts).hasSize(2);
+        assertThat(parts.get(0)).contains("KI-1301").doesNotContain("KI-1405");
+        assertThat(parts.get(1)).contains("KI-1405");
+    }
+
+    @Test
+    void splitBodyForRequirementGroupsStillEnrichesSharedAspectForSigninGushu() {
+        List<String> parts = decomposer.splitBodyForRequirementGroups(
+                "暑期签到和古蜀活动的时间窗有没有重叠？各自独立链路吗？",
+                2);
+
+        assertThat(parts).hasSize(2);
+        assertThat(parts.get(0)).contains("时间窗");
+        assertThat(parts.get(1)).contains("时间窗");
+    }
+
+    @Test
     void extractSharedAspectFromConnectorBody() {
         String aspect = decomposer.extractSharedAspect(
                 "暑期签到和古蜀活动的时间窗有没有重叠？各自独立链路吗？");

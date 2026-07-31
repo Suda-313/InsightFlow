@@ -10,6 +10,9 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insightflow.agent.investigation.InvestigationEvidence;
+import com.insightflow.agent.investigation.ChatSessionFocus;
+import com.insightflow.agent.investigation.ContextualQueryRewriter;
+import com.insightflow.agent.investigation.ConversationFocusExtractor;
 import com.insightflow.agent.investigation.InvestigationIntent;
 import com.insightflow.agent.investigation.InvestigationPlan;
 import com.insightflow.agent.investigation.InvestigationPlanner;
@@ -20,6 +23,7 @@ import com.insightflow.entity.AgentRun;
 import com.insightflow.prompt.ChatPromptTemplate;
 import com.insightflow.prompt.LiteralChatModelCaller;
 import com.insightflow.knowledge.KnowledgeRetrievalResult;
+import com.insightflow.knowledge.KnowledgeQueryExpander;
 import com.insightflow.knowledge.KnowledgeSearchTool;
 import com.insightflow.knowledge.KnowledgeEvidence;
 import java.util.List;
@@ -60,6 +64,7 @@ class ChatServiceEvidenceTest {
                         "来源 alert：当前值 19、EWMA 9.8、z-score 3.1。", true)));
 
         when(conversationService.recentMessagesForModel(workspaceId, sessionId)).thenReturn(List.of());
+        when(conversationService.readFocus(workspaceId, sessionId)).thenReturn(ChatSessionFocus.empty());
         when(agentRunService.start(eq(workspaceId), any(AgentRunService.StartRequest.class))).thenReturn(run);
         when(planner.plan("玩法Bug 为什么暴增？")).thenReturn(plan);
         when(toolService.investigate(workspaceId, "玩法Bug 为什么暴增？", plan)).thenReturn(investigation);
@@ -73,9 +78,13 @@ class ChatServiceEvidenceTest {
         when(generation.getOutput()).thenReturn(assistant);
         when(assistant.getContent()).thenReturn("## 结论\n反馈增加。\n## 证据\n[证据: trend:gameplay:last_14_days]");
 
+        KnowledgeQueryExpander queryExpander = new KnowledgeQueryExpander();
         ChatService service = new ChatService(
                 literalChatModelCaller, conversationService, agentRunService,
-                planner, toolService, knowledgeSearchTool, new ObjectMapper(), new ChatPromptTemplate());
+                planner, toolService, knowledgeSearchTool, new ObjectMapper(), new ChatPromptTemplate(),
+                new ConversationHistoryCompactor(),
+                new ContextualQueryRewriter(queryExpander),
+                new ConversationFocusExtractor(queryExpander));
 
         ChatService.ChatReply reply = service.chat(workspaceId, sessionId, "玩法Bug 为什么暴增？");
 

@@ -1,6 +1,7 @@
 package com.insightflow.entity;
 
 import com.github.f4b6a3.uuid.UuidCreator;
+import com.insightflow.agent.investigation.ChatSessionFocus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -49,6 +50,31 @@ public class ChatSession {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    /**
+     * 当前会话正在讨论的主题名或短语；多轮指代改写时补全 query，空表示尚未建立焦点。
+     */
+    @Column(name = "focus_topic_key", length = 120)
+    private String focusTopicKey;
+
+    /** 调查时间窗的人类可读标签，如「近14天」；来自 Tool 证据 id 而非用户自由输入。 */
+    @Column(name = "focus_time_window", length = 60)
+    private String focusTimeWindow;
+
+    /** 当前讨论涉及的版本号标签，如 1.4；来自证据或用户消息中的结构化 token。 */
+    @Column(name = "focus_version_label", length = 60)
+    private String focusVersionLabel;
+
+    /** 焦点最后一次被确定性抽取更新的时间；仅审计用，不参与检索过滤。 */
+    @Column(name = "focus_updated_at")
+    private OffsetDateTime focusUpdatedAt;
+
+    /**
+     * 超出 {@link ConversationService#recentMessagesForModel} 窗口的更早对话确定性摘要；
+     * 由 {@link SessionRollingSummaryBuilder} 维护，不存模型推理。
+     */
+    @Column(name = "rolling_summary", columnDefinition = "TEXT")
+    private String rollingSummary;
+
     /** 仅供 JPA 反射使用；业务代码必须通过 {@link #create(Long)} 创建会话。 */
     protected ChatSession() {
     }
@@ -79,6 +105,64 @@ public class ChatSession {
             if (!normalized.isBlank()) {
                 title = normalized.substring(0, Math.min(normalized.length(), 40));
             }
+        }
+        touch();
+    }
+
+    /**
+     * 用本轮抽取到的焦点更新会话；空焦点或不完整槽位不得覆盖已有非空值。
+     *
+     * <p>避免一次无法识别主题的泛问把上一轮已确定的调查对象清空。</p>
+     */
+    public void updateFocus(ChatSessionFocus focus) {
+        if (focus == null || focus.isEmpty()) {
+            return;
+        }
+        if (focus.topicKey() != null && !focus.topicKey().isBlank()) {
+            this.focusTopicKey = focus.topicKey().trim();
+        }
+        if (focus.timeWindow() != null && !focus.timeWindow().isBlank()) {
+            this.focusTimeWindow = focus.timeWindow().trim();
+        }
+        if (focus.versionLabel() != null && !focus.versionLabel().isBlank()) {
+            this.focusVersionLabel = focus.versionLabel().trim();
+        }
+        this.focusUpdatedAt = OffsetDateTime.now();
+        touch();
+    }
+
+    /** 读取当前会话焦点；字段可能部分为空。 */
+    public ChatSessionFocus currentFocus() {
+        return ChatSessionFocus.of(focusTopicKey, focusTimeWindow, focusVersionLabel);
+    }
+
+    public String getFocusTopicKey() {
+        return focusTopicKey;
+    }
+
+    public String getFocusTimeWindow() {
+        return focusTimeWindow;
+    }
+
+    public String getFocusVersionLabel() {
+        return focusVersionLabel;
+    }
+
+    public OffsetDateTime getFocusUpdatedAt() {
+        return focusUpdatedAt;
+    }
+
+    /** 读取持久化的滚动摘要；无更早轮次或未超窗口时为 null。 */
+    public String getRollingSummary() {
+        return rollingSummary;
+    }
+
+    /** 更新滚动摘要；null 或空白表示清除（例如消息数回落到窗口内时）。 */
+    public void updateRollingSummary(String summary) {
+        if (summary == null || summary.isBlank()) {
+            this.rollingSummary = null;
+        } else {
+            this.rollingSummary = summary.trim();
         }
         touch();
     }

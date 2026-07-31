@@ -24,6 +24,7 @@ import com.insightflow.repository.RagGoldCaseEvidenceRepository;
 import com.insightflow.repository.RagGoldCaseRepository;
 import com.insightflow.repository.RagGoldDatasetRepository;
 import com.insightflow.service.WorkspaceService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,7 +54,12 @@ class RagGoldDatasetReadServiceTest {
         evidenceRepository = mock(RagGoldCaseEvidenceRepository.class);
         assertionRepository = mock(RagGoldCaseAssertionRepository.class);
         service = new RagGoldDatasetReadService(
-                workspaceService, datasetRepository, caseRepository, evidenceRepository, assertionRepository);
+                workspaceService,
+                datasetRepository,
+                caseRepository,
+                evidenceRepository,
+                assertionRepository,
+                new ObjectMapper());
         Workspace workspace = mock(Workspace.class);
         when(workspace.getId()).thenReturn(7L);
         when(workspaceService.get(WORKSPACE_PUBLIC_ID)).thenReturn(workspace);
@@ -72,6 +78,7 @@ class RagGoldDatasetReadServiceTest {
         when(goldCase.isShouldRefuse()).thenReturn(false);
         when(goldCase.getAnnotationBasis()).thenReturn("basis");
         when(goldCase.getReviewer()).thenReturn("reviewer");
+        when(goldCase.getContextTurnsJson()).thenReturn(null);
         RagGoldCaseEvidence evidence = RagGoldCaseEvidence.create(
                 7L, 10L, RagGoldEvidenceGranularity.CHUNK, DOC, VER, CHUNK, 0);
         RagGoldCaseAssertion assertion = RagGoldCaseAssertion.create(
