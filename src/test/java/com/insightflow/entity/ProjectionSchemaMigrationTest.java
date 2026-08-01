@@ -108,4 +108,39 @@ class ProjectionSchemaMigrationTest {
                 .contains("topic_llm_confidence DOUBLE PRECISION NULL")
                 .contains("ALTER TABLE feedback_projection_annotation");
     }
+
+    /** 响应闭环的迁移必须保留响应状态、首位响应人与站内提醒，不能退化为派单或外部通知表。 */
+    @Test
+    void declaresMinimalInvestigationFollowUpSchema() throws IOException {
+        ClassPathResource responseResource = new ClassPathResource("db/migration/V35__add_investigation_follow_up_state.sql");
+        ClassPathResource reminderResource = new ClassPathResource("db/migration/V37__add_investigation_follow_up_reminder.sql");
+
+        assertThat(responseResource.exists()).isTrue();
+        assertThat(reminderResource.exists()).isTrue();
+        String responseSql = new String(responseResource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        String reminderSql = new String(reminderResource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(responseSql).contains("follow_up_status VARCHAR(30) NOT NULL DEFAULT 'awaiting_follow_up'")
+                .contains("follow_up_by_user_public_id UUID")
+                .contains("follow_up_started_at TIMESTAMP WITH TIME ZONE")
+                .contains("idx_investigation_case_follow_up");
+        assertThat(reminderSql).contains("follow_up_reminder_at TIMESTAMP WITH TIME ZONE")
+                .contains("idx_investigation_case_follow_up_sla");
+    }
+
+    /** 风险队列必须保存创建时的分数、等级、依据与策略版本，保证后续策略变化不篡改历史排序。 */
+    @Test
+    void declaresFrozenRiskPrioritySnapshotSchema() throws IOException {
+        ClassPathResource resource = new ClassPathResource("db/migration/V36__add_risk_priority_snapshot.sql");
+
+        assertThat(resource.exists()).isTrue();
+        String sql = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(sql).contains("CREATE TABLE risk_priority_snapshot")
+                .contains("workspace_id BIGINT NOT NULL")
+                .contains("alert_id BIGINT NOT NULL UNIQUE")
+                .contains("score INTEGER NOT NULL")
+                .contains("level VARCHAR(10) NOT NULL")
+                .contains("reasons VARCHAR(1000) NOT NULL")
+                .contains("policy_version VARCHAR(40) NOT NULL")
+                .contains("idx_risk_priority_snapshot_workspace_score");
+    }
 }

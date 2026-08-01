@@ -4,6 +4,7 @@ import com.insightflow.entity.InvestigationCase;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -25,4 +26,8 @@ public interface InvestigationCaseRepository extends JpaRepository<Investigation
 
     /** 已确认卡片是报告证据的唯一有效调查来源。 */
     List<InvestigationCase> findByWorkspaceIdAndStatusOrderByUpdatedAtDesc(Long workspaceId, String status);
+
+    /** 站内提醒只扫描尚未开始跟进且超过 SLA 的卡片，避免读取全部历史调查。 */
+    List<InvestigationCase> findByFollowUpStatusAndFollowUpReminderAtIsNullAndCreatedAtBefore(
+            String followUpStatus, OffsetDateTime createdAt);
 }

@@ -10,8 +10,10 @@ import com.insightflow.entity.ManualCorrection;
 import com.insightflow.correction.CorrectionCommandService;
 import com.insightflow.correction.CorrectionPublicationService;
 import com.insightflow.investigation.InvestigationCommandService;
+import com.insightflow.investigation.FollowUpCommandService;
 import com.insightflow.proposal.ProposalCommandService;
 import com.insightflow.proposal.ProposalPreviewService;
+import com.insightflow.risk.RiskQueueService;
 import com.insightflow.repository.ActionProposalRepository;
 import com.insightflow.repository.ActionExecutionRepository;
 import com.insightflow.repository.InvestigationCaseRepository;
@@ -44,6 +46,10 @@ public class InvestigationController {
 
     /** 调查重试命令会创建或复用幂等调查卡片。 */
     private final InvestigationCommandService investigationCommandService;
+    /** 开始跟进命令只记录响应事实，不承担提案执行或调查取证职责。 */
+    private final FollowUpCommandService followUpCommandService;
+    /** 风险队列将冻结快照投影为运营待办，不在 Controller 重算任何分数。 */
+    private final RiskQueueService riskQueueService;
     /** 读取前统一完成 Workspace 范围校验。 */
     private final WorkspaceAccessService accessService;
     /** 卡片仓储只经 Workspace 内部键读取。 */
@@ -66,6 +72,8 @@ public class InvestigationController {
     /** 构造器明确区分只读查询、提案预览和人工命令。 */
     public InvestigationController(
             InvestigationCommandService investigationCommandService,
+            FollowUpCommandService followUpCommandService,
+            RiskQueueService riskQueueService,
             WorkspaceAccessService accessService,
             InvestigationCaseRepository investigationCaseRepository,
             InvestigationEvidenceSnapshotRepository evidenceRepository,
@@ -76,6 +84,8 @@ public class InvestigationController {
             CorrectionCommandService correctionCommandService,
             CorrectionPublicationService correctionPublicationService) {
         this.investigationCommandService = investigationCommandService;
+        this.followUpCommandService = followUpCommandService;
+        this.riskQueueService = riskQueueService;
         this.accessService = accessService;
         this.investigationCaseRepository = investigationCaseRepository;
         this.evidenceRepository = evidenceRepository;
@@ -93,6 +103,12 @@ public class InvestigationController {
         Workspace workspace = accessService.requireRead(workspaceId);
         return investigationCaseRepository.findByWorkspaceIdOrderByUpdatedAtDesc(workspace.getId()).stream()
                 .map(CaseResponse::from).toList();
+    }
+
+    /** 首页和调查中心共用的风险待办入口，结果按冻结优先级降序返回。 */
+    @GetMapping("/risk-queue")
+    public List<RiskQueueService.RiskQueueItem> riskQueue(@PathVariable UUID workspaceId) {
+        return riskQueueService.list(workspaceId);
     }
 
     /** 查询一张卡片时同时返回冻结证据和待审/已执行提案。 */
@@ -115,6 +131,15 @@ public class InvestigationController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public CaseResponse enqueue(@PathVariable UUID workspaceId, @PathVariable UUID alertId) {
         return CaseResponse.from(investigationCommandService.enqueue(workspaceId, alertId));
+    }
+
+    /**
+     * 由具备分析或运营权限的成员显式开始跟进；不接收前端传入的操作人，
+     * 也不把卡片锁定给单一成员，保持首期非派单式响应闭环。
+     */
+    @PostMapping("/{caseId}/follow-up")
+    public CaseResponse startFollowUp(@PathVariable UUID workspaceId, @PathVariable UUID caseId) {
+        return CaseResponse.from(followUpCommandService.start(workspaceId, caseId));
     }
 
     /** 人工执行前取得服务端生成的影响预览。 */
@@ -167,10 +192,14 @@ public class InvestigationController {
     }
 
     /** 列表卡片只展示安全状态与摘要。 */
-    public record CaseResponse(UUID id, String status, String summary, String errorCode, String errorMessage, OffsetDateTime updatedAt) {
+    public record CaseResponse(
+            UUID id, String status, String followUpStatus, String summary, String errorCode, String errorMessage,
+            OffsetDateTime followUpStartedAt, OffsetDateTime followUpReminderAt, OffsetDateTime updatedAt) {
         /** 将内部实体投影为公开调查卡片契约。 */
         static CaseResponse from(InvestigationCase source) {
-            return new CaseResponse(source.getPublicId(), source.getStatus(), source.getSummary(), source.getErrorCode(), source.getErrorMessage(), source.getUpdatedAt());
+            return new CaseResponse(source.getPublicId(), source.getStatus(), source.getFollowUpStatus(), source.getSummary(),
+                    source.getErrorCode(), source.getErrorMessage(), source.getFollowUpStartedAt(),
+                    source.getFollowUpReminderAt(), source.getUpdatedAt());
         }
     }
 

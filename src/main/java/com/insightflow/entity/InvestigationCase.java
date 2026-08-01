@@ -56,6 +56,33 @@ public class InvestigationCase {
     @Column(name = "error_message", length = 500)
     private String errorMessage;
 
+    /**
+     * 最小响应闭环的独立状态；它不替代调查取证状态，
+     * 仅回答当前异常是否已被团队成员开始跟进。
+     */
+    @Column(name = "follow_up_status", nullable = false, length = 30)
+    private String followUpStatus;
+
+    /**
+     * 首位开始跟进成员的公开 UUID；不把它解释为排他责任人，
+     * 后续协作成员仍可读取、复核和执行既有处置提案。
+     */
+    @Column(name = "follow_up_by_user_public_id")
+    private UUID followUpByUserPublicId;
+
+    /**
+     * 首次开始跟进的时间，用于计算未响应提醒而不是考勤或绩效用途。
+     */
+    @Column(name = "follow_up_started_at")
+    private OffsetDateTime followUpStartedAt;
+
+    /**
+     * 最近一次站内提醒时间；它只用于限制重复提醒频率，
+     * 不替代原始告警时间，也不表示已经有人实际处理。
+     */
+    @Column(name = "follow_up_reminder_at")
+    private OffsetDateTime followUpReminderAt;
+
     /** 调查受理时间，不因重试或人工操作改写。 */
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -77,6 +104,7 @@ public class InvestigationCase {
         investigation.workspaceId = workspaceId;
         investigation.alertId = alertId;
         investigation.status = "queued";
+        investigation.followUpStatus = "awaiting_follow_up";
         investigation.createdAt = OffsetDateTime.now();
         investigation.updatedAt = investigation.createdAt;
         return investigation;
@@ -153,6 +181,31 @@ public class InvestigationCase {
         touch();
     }
 
+    /**
+     * 记录团队中首位开始跟进的成员；重复操作保持首位记录不变，
+     * 从而避免在未实现派单模型时悄然产生责任人被覆盖的语义。
+     */
+    public void startFollowUp(UUID actorPublicId) {
+        if (actorPublicId == null) {
+            throw new IllegalArgumentException("跟进成员不能为空");
+        }
+        if ("awaiting_follow_up".equals(followUpStatus)) {
+            followUpStatus = "in_follow_up";
+            followUpByUserPublicId = actorPublicId;
+            followUpStartedAt = OffsetDateTime.now();
+            followUpReminderAt = null;
+            touch();
+        }
+    }
+
+    /** 仅未开始跟进的卡片可被标记提醒；调用方负责根据 SLA 过滤候选集。 */
+    public void markFollowUpReminder() {
+        if ("awaiting_follow_up".equals(followUpStatus)) {
+            followUpReminderAt = OffsetDateTime.now();
+            touch();
+        }
+    }
+
     /** 所有可变流程字段统一更新时间，保证轮询读取语义一致。 */
     private void touch() { updatedAt = OffsetDateTime.now(); }
 
@@ -174,6 +227,14 @@ public class InvestigationCase {
     public String getErrorCode() { return errorCode; }
     /** 安全失败摘要。 */
     public String getErrorMessage() { return errorMessage; }
+    /** 响应闭环状态，不等同于调查取证状态。 */
+    public String getFollowUpStatus() { return followUpStatus; }
+    /** 首位开始跟进者的公开 UUID。 */
+    public UUID getFollowUpByUserPublicId() { return followUpByUserPublicId; }
+    /** 首次开始跟进时间。 */
+    public OffsetDateTime getFollowUpStartedAt() { return followUpStartedAt; }
+    /** 最近一次站内提醒时间。 */
+    public OffsetDateTime getFollowUpReminderAt() { return followUpReminderAt; }
     /** 创建时间。 */
     public OffsetDateTime getCreatedAt() { return createdAt; }
     /** 最近变更时间。 */

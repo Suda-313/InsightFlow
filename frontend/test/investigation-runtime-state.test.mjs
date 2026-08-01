@@ -25,3 +25,17 @@ test('调查中心展示加载、空态和失败状态，而不是把权限错�
   assert.match(investigationView, /v-else-if="error"/)
   assert.match(investigationView, /暂无待办调查/)
 })
+
+test('风险优先队列展示冻结等级和依据，并可进入调查处理', () => {
+  assert.match(investigationView, /riskQueue/)
+  assert.match(investigationView, /risk-queue/)
+  assert.match(investigationView, /priorityText/)
+  assert.match(investigationView, /openRisk/)
+})
+
+test('调查卡片支持开始跟进，并明确展示站内超时提醒', () => {
+  assert.match(investigationView, /followUpRunning/)
+  assert.match(investigationView, /\/follow-up/)
+  assert.match(investigationView, /开始跟进/)
+  assert.match(investigationView, /followUpReminderAt/)
+})
