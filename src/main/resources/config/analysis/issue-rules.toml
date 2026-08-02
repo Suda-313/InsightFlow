@@ -1,0 +1,58 @@
+# 规则优先主题归并；未命中返回 unclassified，不伪造主题。改规则即升 version 触发重新投影。
+version = "rules:v1"
+
+[[rules]]
+canonical_key = "login_failure"
+name = "登录失败"
+priority = 90
+any_patterns = ["登录不上", "登录失败", "登不上", "进不去游戏", "无法登录", "登录异常"]
+exclude_patterns = ["充值", "退款"]
+
+[[rules]]
+canonical_key = "payment_recharge"
+name = "充值异常"
+priority = 80
+any_patterns = ["充值", "到账", "未到账", "充了没收到", "充值失败"]
+exclude_patterns = []
+
+[[rules]]
+canonical_key = "item_loss"
+name = "道具丢失或异常"
+priority = 70
+any_patterns = ["道具", "没了", "消失", "丢失", "扣了", "异常消失"]
+exclude_patterns = ["充值"]
+
+[[rules]]
+canonical_key = "account_recovery"
+name = "账号找回"
+priority = 70
+any_patterns = ["账号找回", "找回账号", "换绑", "账号丢失", "账号异常"]
+exclude_patterns = ["登录失败"]
+
+[[rules]]
+canonical_key = "bug_gameplay"
+name = "玩法bug"
+priority = 60
+any_patterns = ["bug", "卡死", "闪退", "报错", "玩法", "打不开", "卡住"]
+exclude_patterns = ["充值", "登录"]
+
+[[rules]]
+canonical_key = "bug_network"
+name = "网络问题"
+priority = 55
+any_patterns = ["网络", "延迟", "掉线", "卡顿", "460", "断线"]
+exclude_patterns = []
+
+[[rules]]
+canonical_key = "violation_report"
+name = "违规举报"
+priority = 40
+any_patterns = ["举报", "挂机", "外挂", "辱骂", "违规", "作弊"]
+exclude_patterns = []
+
+[[rules]]
+canonical_key = "suggestion"
+name = "建议反馈"
+priority = 30
+any_patterns = ["建议", "希望", "能不能", "可不可以", "提议"]
+exclude_patterns = ["bug", "闪退"]

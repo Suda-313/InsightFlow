@@ -1,0 +1,71 @@
+# game-chaoziran:v1 首包 L1 议题目录；平台只约束"必须含 topic_general"这一形态，
+# 词表数量、canonical_key 命名与 alert_eligible 完全由本 Pack 自行决定。
+# sort_order 决定 Dashboard 钻取时的展示顺序，不影响分类逻辑。
+version = "game-chaoziran:v2"
+
+[[topics]]
+canonical_key = "topic_matchmaking"
+name = "匹配/组队"
+alert_eligible = false
+sort_order = 10
+
+[[topics]]
+canonical_key = "topic_gameplay"
+name = "玩法/平衡"
+alert_eligible = false
+sort_order = 20
+
+[[topics]]
+canonical_key = "topic_visual"
+name = "画面/性能"
+alert_eligible = false
+sort_order = 30
+
+# 稳定性问题（闪退/卡死等）直接影响可玩性，标记为可行动告警议题。
+[[topics]]
+canonical_key = "topic_stability"
+name = "稳定性/bug"
+alert_eligible = true
+sort_order = 40
+
+# 网络与登录问题会直接拦截玩家进入游戏，属于高优先级可行动议题。
+[[topics]]
+canonical_key = "topic_network"
+name = "网络/登录"
+alert_eligible = true
+sort_order = 50
+
+# 付费/经济问题涉及资损投诉，需要运营与客服快速介入。
+[[topics]]
+canonical_key = "topic_payment"
+name = "付费/经济"
+alert_eligible = true
+sort_order = 60
+
+# 外挂/举报类问题影响生态健康，需持续监控异常增长。
+[[topics]]
+canonical_key = "topic_social"
+name = "社交/举报/外挂"
+alert_eligible = true
+sort_order = 70
+
+[[topics]]
+canonical_key = "topic_content"
+name = "内容/版本/活动"
+alert_eligible = false
+sort_order = 80
+
+# 客服处置类问题（封号申诉等）需要人工介入，纳入告警范围。
+[[topics]]
+canonical_key = "topic_service"
+name = "客服/封号/申诉"
+alert_eligible = true
+sort_order = 90
+
+# topic_general 是平台强制要求的兜底议题：规则零命中时写入，正常参与统计与钻取，不进复核，
+# alert_eligible 固定 false——避免笼统议题误触发告警噪声。
+[[topics]]
+canonical_key = "topic_general"
+name = "综合/未指向"
+alert_eligible = false
+sort_order = 100

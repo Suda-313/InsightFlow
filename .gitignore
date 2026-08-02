@@ -1,0 +1,27 @@
+target/
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/dists/
+
+.idea/
+*.iml
+.vscode/
+
+.env
+# 本机 Agent 密钥配置；仅供开发机启动类自动加载，不得提交到仓库。
+src/main/resources/application-local.yml
+data/
+*.log
+
+# Local Python environments, generated evaluation artifacts, and agent workspaces.
+.venv*/
+output/
+# Vite output is rebuilt locally or by CI; never keep hashed bundles in source control.
+src/main/resources/static/
+.worktrees/
+.superpowers/
+.demo-materials/
+
+# Claude Code 本地配置（settings.local.json 等，非项目产物）
+.claude/
+

@@ -1,0 +1,19 @@
+# 复制为 application-local.yml 后，仅在本机填写真实 DashScope 密钥。
+# application-local.yml 已被 Git 忽略；不要把真实密钥写入本示例文件或 application.yml。
+spring:
+  ai:
+    openai:
+      api-key: your-dashscope-api-key
+
+insightflow:
+  agent:
+    enabled: true
+    # DashScope 长回答可能超过旧版 50 秒读超时；若本地仍设 AGENT_HTTP_READ_TIMEOUT_SECONDS，请同步调大。
+    # http-read-timeout-seconds: 110
+    # 主模型额度或限流失败时自动切换；示例：qwen3.7-plus
+    # fallback-chat-model: qwen3.7-plus
+  security:
+    # 本地生成至少 32 字节的随机字符串；不要使用示例值，也不要提交真实密钥。
+    jwt-secret: replace-with-a-local-random-secret-at-least-32-bytes
+    # 仅首次创建 Owner 时使用；创建完成后可从本地配置删除或更换。
+    bootstrap-token: replace-with-a-one-time-local-bootstrap-token

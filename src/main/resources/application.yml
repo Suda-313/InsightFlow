@@ -1,0 +1,151 @@
+spring:
+  profiles:
+    # 本机默认读取 application-local.yml；该文件仅保存开发机私有配置且不进入 Git。
+    default: local
+  autoconfigure:
+    exclude:
+      - org.springframework.cloud.function.context.config.ContextFunctionCatalogAutoConfiguration
+      # Spring AI 1.1.0 会无条件装配未使用的音频模型；聊天模型由 AgentConfiguration 按开关和密钥显式创建。
+      - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
+  ai:
+    openai:
+      # 密钥只能由部署环境注入；空值允许在未启用 Agent 的本地场景运行基础分析功能。
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      chat:
+        options:
+          model: qwen3.7-max
+          temperature: 0.3
+          max-tokens: 2000
+    mcp:
+      server:
+        enabled: ${MCP_ENABLED:false}
+        protocol: STREAMABLE
+        name: insightflow-readonly
+        version: 0.1.0
+        type: SYNC
+        annotation-scanner:
+          enabled: true
+  application:
+    name: insightflow
+  servlet:
+    multipart:
+      # CSV 是 V1 的唯一导入入口；限制在进入业务代码前拦住异常大的文件。
+      max-file-size: ${IMPORT_MAX_FILE_SIZE:10MB}
+      max-request-size: ${IMPORT_MAX_FILE_SIZE:10MB}
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/insightflow}
+    username: ${DB_USERNAME:insightflow}
+    password: ${DB_PASSWORD:insightflow}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+server:
+  error:
+    include-message: never
+
+# 原始文件只进入 MinIO；PostgreSQL 中仅保存已脱敏、可分析的反馈事件和文件元数据。
+insightflow:
+  storage:
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ROOT_USER:insightflow}
+      secret-key: ${MINIO_ROOT_PASSWORD:change-me-locally}
+      bucket: ${MINIO_BUCKET:insightflow-imports}
+  import:
+    preview-row-limit: ${IMPORT_PREVIEW_ROW_LIMIT:5}
+    task-error-limit: ${IMPORT_TASK_ERROR_LIMIT:10}
+    # 调度器从 PostgreSQL 扫描 queued/过期租约任务；它是进程重启后的恢复入口。
+    dispatch-delay-ms: ${IMPORT_DISPATCH_DELAY_MS:5000}
+    lease-seconds: ${IMPORT_TASK_LEASE_SECONDS:300}
+    max-dispatch-per-cycle: ${IMPORT_MAX_DISPATCH_PER_CYCLE:4}
+  projection:
+    # 投影与导入共享持久任务表但拥有独立调度节奏，避免 CSV 解析积压阻塞看板状态闭环。
+    dispatch-delay-ms: ${PROJECTION_DISPATCH_DELAY_MS:5000}
+    lease-seconds: ${PROJECTION_TASK_LEASE_SECONDS:120}
+    max-dispatch-per-cycle: ${PROJECTION_MAX_DISPATCH_PER_CYCLE:2}
+    # v2 含 L2 标注管线；变更后会生成新 idempotency_key，避免旧 succeeded 任务阻塞重投影。
+    rule-version: ${PROJECTION_RULE_VERSION:rules:v2-l2}
+  analysis:
+    ewma-alpha: ${ANALYSIS_EWMA_ALPHA:0.3}
+    min-history-days: ${ANALYSIS_MIN_HISTORY_DAYS:3}
+    surge-z: ${ANALYSIS_SURGE_Z:2.0}
+    surge-min: ${ANALYSIS_SURGE_MIN:5}
+    chronic-baseline: ${ANALYSIS_CHRONIC_BASELINE:5.0}
+    longtail-max: ${ANALYSIS_LONGTAIL_MAX:2}
+    alert-cooldown-hours: ${ANALYSIS_ALERT_COOLDOWN_HOURS:6}
+    global-alert-threshold: ${ANALYSIS_GLOBAL_ALERT_THRESHOLD:10}
+    # Phase C：Pack 级 LLM Topic Skill；须 Pack pack.toml topic_llm_skill_enabled=true 且配置 API 密钥。
+    topic-llm-skill:
+      enabled: ${TOPIC_LLM_SKILL_ENABLED:false}
+      confidence-threshold: ${TOPIC_LLM_CONFIDENCE_THRESHOLD:0.7}
+      min-text-length: ${TOPIC_LLM_MIN_TEXT_LENGTH:15}
+  investigation:
+    # 调查任务只读取告警与受控 Tool 证据；独立租约避免与导入、报告任务相互阻塞。
+    dispatch-delay-ms: ${INVESTIGATION_DISPATCH_DELAY_MS:5000}
+    lease-seconds: ${INVESTIGATION_TASK_LEASE_SECONDS:180}
+    max-dispatch-per-cycle: ${INVESTIGATION_MAX_DISPATCH_PER_CYCLE:2}
+    # 首期仅标记站内提醒；不引入派单、外部推送或组织层级升级。
+    follow-up-reminder-minutes: ${INVESTIGATION_FOLLOW_UP_REMINDER_MINUTES:30}
+    follow-up-reminder-delay-ms: ${INVESTIGATION_FOLLOW_UP_REMINDER_DELAY_MS:60000}
+  agent:
+    # 基础分析可在无模型密钥的本地环境运行；Agent 是显式开启的可选能力。
+    enabled: ${AGENT_ENABLED:false}
+    # 主模型额度或限流失败时自动切换；留空表示不启用备用模型。
+    fallback-chat-model: ${AGENT_FALLBACK_CHAT_MODEL:}
+    # 同步模型调用的连接与读取上限；必须小于 RAG 单题应用层兜底，避免阻塞线程长期占用。
+    http-read-timeout-seconds: ${AGENT_HTTP_READ_TIMEOUT_SECONDS:110}
+    max-retries: ${AGENT_MAX_RETRIES:2}
+    timeout-seconds: ${AGENT_TIMEOUT_SECONDS:120}
+      # 单题超时必须大于 HTTP 读超时；整批租约需覆盖全部题目最坏耗时（默认 5 题 × 120 秒 + 缓冲）。
+  knowledge:
+    # P3 固定嵌入维度必须与 V13 的 vector(1024) 一致，修改模型或维度需要新的迁移和全量重建。
+    embedding-model: ${KNOWLEDGE_EMBEDDING_MODEL:text-embedding-v3}
+    embedding-dimensions: ${KNOWLEDGE_EMBEDDING_DIMENSIONS:1024}
+    # 首版同步发布小型 Markdown/TXT；窗口改变会影响可复现的切片与 RAG 金标结果。
+    chunk-max-characters: ${KNOWLEDGE_CHUNK_MAX_CHARACTERS:1000}
+    reranker:
+      # 默认关闭；dev-fast-40 对比验证通过后再由部署开启
+      enabled: ${KNOWLEDGE_RERANKER_ENABLED:false}
+      model: ${KNOWLEDGE_RERANKER_MODEL:qwen3-rerank}
+      # qwen3-rerank 走 compatible-api，与 embedding 的 compatible-mode 不同
+      base-url: ${KNOWLEDGE_RERANKER_BASE_URL:https://dashscope.aliyuncs.com/compatible-api}
+      candidate-limit: ${KNOWLEDGE_RERANKER_CANDIDATE_LIMIT:${KNOWLEDGE_RERANKER_INPUT_LIMIT:30}}
+      # 离线实验参数；默认 0 保持既有纯 rerank + Top8 行为
+      rrf-weight: ${KNOWLEDGE_RERANKER_RRF_WEIGHT:0}
+      diversity-penalty: ${KNOWLEDGE_RERANKER_DIVERSITY_PENALTY:0}
+      timeout-seconds: ${KNOWLEDGE_RERANKER_TIMEOUT_SECONDS:5}
+  security:
+    # 密钥和首个 Owner 初始化口令必须由部署环境提供；空值使应用启动失败，避免出现默认可登录账号。
+    jwt-secret: ${INSIGHTFLOW_JWT_SECRET:}
+    jwt-expiration-minutes: ${INSIGHTFLOW_JWT_EXPIRATION_MINUTES:60}
+    bootstrap-token: ${INSIGHTFLOW_BOOTSTRAP_TOKEN:}
+  mcp:
+    # 只读调查/知识 Tool 的 MCP 暴露；默认关闭，本地演示时 MCP_ENABLED=true
+    enabled: ${MCP_ENABLED:false}
+
+logging:
+  level:
+    org.springframework.ai.openai: DEBUG
+    org.springframework.web.client.RestTemplate: DEBUG
+  report:
+    dispatch-delay-ms: ${REPORT_DISPATCH_DELAY_MS:5000}
+    max-dispatch-per-cycle: ${REPORT_MAX_DISPATCH_PER_CYCLE:2}
