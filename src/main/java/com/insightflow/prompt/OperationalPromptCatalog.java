@@ -1,6 +1,7 @@
 package com.insightflow.prompt;
 
 import com.insightflow.service.analysis.TopicPackTopic;
+import com.insightflow.report.OperationalReportRiskAssembler.ReportRisk;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -103,11 +104,22 @@ public class OperationalPromptCatalog {
      */
     public String renderReportUserPrompt(
             long actualTicketCount, Object issueMentions, Object expressionMentions) {
+        return renderReportUserPrompt(actualTicketCount, issueMentions, expressionMentions, List.of());
+    }
+
+    /**
+     * 将后端冻结的风险快照作为报告的唯一风险事实来源；模型只能解释和组织这些事实，
+     * 不得凭主题分布自行发明风险等级或告警。
+     */
+    public String renderReportUserPrompt(
+            long actualTicketCount, Object issueMentions, Object expressionMentions, List<ReportRisk> risks) {
         return "根据以下聚合数据生成一份运营周报：\n"
                 + "- 实际总工单数：" + actualTicketCount + "\n"
                 + "- L1 主题分布：" + issueMentions + "\n"
                 + "- L2 表达分布：" + expressionMentions + "\n\n"
+                + "- 本时间段内新建风险（等级、分数、原因、主题、数量、创建时间）：" + risks + "\n\n"
                 + "请生成一份包含执行摘要、要点、建议和风险提示的报告；"
+                + "风险提示只能引用上方的新建风险；没有风险时明确写“本时间段未发现已冻结的告警风险”。"
                 + "若 L2 表达分布中吐槽/不满占比较高，请在风险提示中单独说明。";
     }
 

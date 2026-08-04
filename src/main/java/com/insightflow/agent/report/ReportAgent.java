@@ -66,7 +66,8 @@ public class ReportAgent {
         String userPrompt = promptCatalog.renderReportUserPrompt(
                 mergedData.actualTicketCount(),
                 mergedData.issueMentions(),
-                mergedData.expressionMentions());
+                mergedData.expressionMentions(),
+                mergedData.risks());
         long start = System.currentTimeMillis();
         AgentRun run = workspacePublicId == null ? null : agentRunService.start(workspacePublicId,
                 new AgentRunService.StartRequest("report", promptVersion(), modelName, "none", userPrompt));

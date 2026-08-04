@@ -4,6 +4,7 @@ import com.insightflow.entity.Alert;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -40,6 +41,13 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
      * @return 预警列表
      */
     List<Alert> findByWorkspaceIdAndIssueIdOrderByCreatedAtDesc(Long workspaceId, Long issueId);
+
+    /**
+     * 运营报告按告警首次创建时间读取历史风险，采用左闭右开区间，
+     * 不能以当前 active/resolved 状态或队列排序替代历史事实。
+     */
+    List<Alert> findByWorkspaceIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+            Long workspaceId, OffsetDateTime start, OffsetDateTime end);
 
     /**
      * 通过外部告警 UUID 读取时仍必须携带 Workspace 内部键，避免跨工作区调查同一公开标识。

@@ -40,6 +40,31 @@ public class OperationalReportEvidenceAssembler {
                 .toList();
     }
 
+    /**
+     * 按用户冻结的报告区间读取已确认调查证据。区间采用左闭右开规则，
+     * 使相邻日报或周报不会重复引用恰好落在分界点的同一条证据。
+     */
+    public List<ReportEvidence> forTimeRange(
+            UUID workspacePublicId,
+            OffsetDateTime start,
+            OffsetDateTime end,
+            OperationalReportScope scope) {
+        if (start == null || end == null || !start.isBefore(end)) {
+            throw new IllegalArgumentException("报告时间范围必须为有效的左闭右开区间");
+        }
+        Workspace workspace = workspaceService.get(workspacePublicId);
+        OperationalReportScope resolvedScope = scope == null ? OperationalReportScope.WEEKLY : scope;
+        return caseRepository.findByWorkspaceIdAndStatusOrderByUpdatedAtDesc(workspace.getId(), "confirmed").stream()
+                .flatMap(investigation -> evidenceRepository
+                        .findByInvestigationCaseIdAndWorkspaceIdOrderByCreatedAtAsc(
+                                investigation.getId(), workspace.getId())
+                        .stream()
+                        .filter(snapshot -> !snapshot.getCreatedAt().isBefore(start)
+                                && snapshot.getCreatedAt().isBefore(end))
+                        .map(snapshot -> ReportEvidence.from(investigation, snapshot, resolvedScope)))
+                .toList();
+    }
+
     /** 日报和周报按调查最终更新时间切分；版本复盘缺少版本事件来源时保留全部已确认事实。 */
     private boolean belongsToScope(InvestigationCase investigation, OperationalReportScope scope) {
         OffsetDateTime updatedAt = investigation.getUpdatedAt();

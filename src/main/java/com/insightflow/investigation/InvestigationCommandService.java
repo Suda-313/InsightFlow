@@ -11,6 +11,7 @@ import com.insightflow.security.WorkspaceAccessService;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +65,7 @@ public class InvestigationCommandService {
      * 告警事务提交后的内部事件入口；事件仅在提交后处理，避免回滚告警仍创建孤立调查。
      * 监听器本身须开启新事务：AFTER_COMMIT 阶段已无投影事务，且同类自调用不会触发 enqueueForAlert 的 @Transactional。
      */
+    @Order(2)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onAlertCreated(AlertCreatedEvent event) {

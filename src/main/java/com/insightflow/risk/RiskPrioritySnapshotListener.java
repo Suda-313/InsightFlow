@@ -2,6 +2,7 @@ package com.insightflow.risk;
 
 import com.insightflow.investigation.AlertCreatedEvent;
 import org.springframework.stereotype.Component;
+import org.springframework.core.annotation.Order;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
@@ -21,6 +22,7 @@ public class RiskPrioritySnapshotListener {
     }
 
     /** AFTER_COMMIT 中开启新事务，以便重放失败事件时安全复用同一告警快照。 */
+    @Order(1)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onAlertCreated(AlertCreatedEvent event) {

@@ -129,6 +129,24 @@ public class DashboardService {
 
         DataCoverage coverage = buildDataCoverage(workspaceId);
         AnalysisWindow window = AnalysisWindowResolver.resolve(coverage, from, to);
+        return buildDashboard(workspace, coverage, window);
+    }
+
+    /**
+     * 报告 Worker 使用精确的带时区时间范围，避免先降级为 LocalDate 后把边界日的整天数据误并入报告。
+     * 调用方已负责校验左闭右开区间；看板内部仍沿用现有的聚合查询逻辑。
+     */
+    public DashboardResponse getDashboardForTimeRange(UUID workspacePublicId, OffsetDateTime start, OffsetDateTime end) {
+        if (start == null || end == null || !start.isBefore(end)) {
+            throw new IllegalArgumentException("看板时间范围必须为有效的左闭右开区间");
+        }
+        Workspace workspace = workspaceService.get(workspacePublicId);
+        return buildDashboard(workspace, buildDataCoverage(workspace.getId()), new AnalysisWindow(start, end.minusNanos(1)));
+    }
+
+    /** 集中组装两个时间范围入口共享的脱敏看板投影，防止报告与页面字段漂移。 */
+    private DashboardResponse buildDashboard(Workspace workspace, DataCoverage coverage, AnalysisWindow window) {
+        Long workspaceId = workspace.getId();
         List<IssueSummary> topIssues = buildTopIssues(workspaceId, window);
         List<AlertSummary> recentAlerts = buildRecentAlerts(workspaceId);
         BaselineStatus baselineStatus = buildBaselineStatus(workspaceId);

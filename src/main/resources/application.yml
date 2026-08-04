@@ -28,6 +28,18 @@ spring:
           enabled: true
   application:
     name: insightflow
+  mail:
+    # Java Mail 的连接参数全部由部署环境注入；未配置通知邮箱时不会触发投递。
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
   servlet:
     multipart:
       # CSV 是 V1 的唯一导入入口；限制在进入业务代码前拦住异常大的文件。
@@ -106,6 +118,10 @@ insightflow:
     # 首期仅标记站内提醒；不引入派单、外部推送或组织层级升级。
     follow-up-reminder-minutes: ${INVESTIGATION_FOLLOW_UP_REMINDER_MINUTES:30}
     follow-up-reminder-delay-ms: ${INVESTIGATION_FOLLOW_UP_REMINDER_DELAY_MS:60000}
+  notification:
+    # 单一 Owner 邮箱与 SMTP 密钥仅由部署环境提供；为空时关闭邮件投递但不影响告警、调查和报告主链路。
+    owner-email: ${RISK_NOTIFICATION_OWNER_EMAIL:}
+    application-base-url: ${INSIGHTFLOW_APPLICATION_BASE_URL:http://localhost:8080}
   agent:
     # 基础分析可在无模型密钥的本地环境运行；Agent 是显式开启的可选能力。
     enabled: ${AGENT_ENABLED:false}
