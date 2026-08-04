@@ -37,6 +37,24 @@ services:
     volumes:
       - minio-data:/data
 
+  # 单机 NameServer 供本地风险邮件 Outbox 发布器和消费者连接；生产环境应替换为受管集群。
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.3.4
+    command: sh mqnamesrv
+    ports:
+      - "9876:9876"
+
+  # Broker 持久化本地消息；即使应用重启，已确认消息仍可由消费者继续处理。
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.4
+    command: sh mqbroker -n rocketmq-namesrv:9876
+    depends_on:
+      - rocketmq-namesrv
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+    ports:
+      - "10911:10911"
+
 volumes:
   postgres-data:
   minio-data:

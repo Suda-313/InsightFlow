@@ -47,7 +47,7 @@ InsightFlow 面向游戏/产品线的**用户反馈舆情分析**场景：确定
 - **可解释风险优先队列**（P0–P3 快照冻结，队列不重算历史分数）
 - 跟进状态与调查取证状态正交；SLA 站内提醒；提案预览 / 执行 / 撤销与审计
 - **指定时间段风险报告**：以冻结的 `[start, end)` 区间统一统计看板、调查证据与区间内新建告警，报告引用 P0–P3 快照而非模型猜测
-- **P0/P1 Owner 邮件通知**：风险快照和调查卡片创建后，通过 Java Mail 发送脱敏摘要与卡片链接；收件人与 SMTP 凭据仅由环境变量注入
+- **P0/P1 邮件通知**：风险快照和调查卡片创建后先写入 PostgreSQL Outbox，再经 RocketMQ 异步发送脱敏摘要与卡片链接；收件人与 SMTP 凭据仅由环境变量注入
 
 ### 4. Agent 只读调查（可选，默认关闭）
 
@@ -94,13 +94,13 @@ flowchart LR
 | 层级 | 技术 |
 |------|------|
 | 后端 | Java 17、Spring Boot **3.5.16**、Spring Security、JPA |
-| 通知 | Spring Boot Mail / Java Mail（仅 P0/P1 风险邮件） |
+| 通知 | PostgreSQL Outbox、RocketMQ、Spring Boot Mail / Java Mail（仅 P0/P1 风险邮件） |
 | AI | Spring AI **1.1.0**、DashScope 兼容 API（默认聊天 `qwen3.7-max`，嵌入 `text-embedding-v3`） |
 | 前端 | Vue **3** + Pinia + Vite + Tailwind + Chart.js |
 | 数据库 | PostgreSQL 16 + **pgvector** |
 | 对象存储 | MinIO |
 | 缓存 | Redis 7（Compose 已提供；业务层按需接入） |
-| 迁移 | Flyway **V1–V37** |
+| 迁移 | Flyway **V1–V38** |
 | 部署 | Docker Compose + Spring Boot 一体托管前端 |
 
 ---
@@ -110,7 +110,7 @@ flowchart LR
 ### 前置条件
 
 - JDK 17、Maven（或使用 `./mvnw.cmd`）
-- Docker Desktop（PostgreSQL / Redis / MinIO）
+- Docker Desktop（PostgreSQL / Redis / MinIO / RocketMQ）
 - Node.js 18+（仅在前端需重新构建时）
 
 ### 1. 启动基础设施
@@ -175,6 +175,8 @@ curl http://localhost:8080/actuator/health
 | `TOPIC_LLM_SKILL_ENABLED` | `false` | Pack 级 LLM 主题 Skill |
 | `RISK_NOTIFICATION_OWNER_EMAIL` | — | P0/P1 调查卡片的单一 Owner 收件邮箱；为空时不投递 |
 | `MAIL_HOST` / `MAIL_PORT` | `localhost` / `25` | SMTP 主机与端口；认证信息通过 `MAIL_USERNAME` / `MAIL_PASSWORD` 注入 |
+| `ROCKETMQ_NAME_SERVER` | `localhost:9876` | RocketMQ NameServer 地址；本地 `docker compose up -d` 会启动单机 NameServer 与 Broker |
+| `RISK_NOTIFICATION_ROCKETMQ_TOPIC` | `risk-email-notification` | P0/P1 邮件 Outbox 的消息 Topic |
 
 ---
 

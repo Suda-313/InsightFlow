@@ -5,6 +5,8 @@ import com.insightflow.entity.Alert;
 import com.insightflow.entity.IssueBaselineProfile;
 import com.insightflow.repository.AlertRepository;
 import com.insightflow.investigation.AlertCreatedEvent;
+import com.insightflow.notification.RiskEmailNotificationOutboxService;
+import com.insightflow.risk.RiskPrioritySnapshotService;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
@@ -27,11 +29,13 @@ public class AlertDetector {
     private final double surgeZ;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final RiskPrioritySnapshotService snapshotService;
+    private final RiskEmailNotificationOutboxService outboxService;
 
     public AlertDetector(AlertRepository alertRepository, EwmaBaselineService ewmaBaselineService,
                          int cooldownHours, int globalAlertThreshold, double surgeZ,
                          ObjectMapper objectMapper) {
-        this(alertRepository, ewmaBaselineService, cooldownHours, globalAlertThreshold, surgeZ, objectMapper, null);
+        this(alertRepository, ewmaBaselineService, cooldownHours, globalAlertThreshold, surgeZ, objectMapper, null, null, null);
     }
 
     /**
@@ -40,6 +44,13 @@ public class AlertDetector {
     public AlertDetector(AlertRepository alertRepository, EwmaBaselineService ewmaBaselineService,
                          int cooldownHours, int globalAlertThreshold, double surgeZ,
                          ObjectMapper objectMapper, ApplicationEventPublisher eventPublisher) {
+        this(alertRepository, ewmaBaselineService, cooldownHours, globalAlertThreshold, surgeZ, objectMapper, eventPublisher, null, null);
+    }
+
+    public AlertDetector(AlertRepository alertRepository, EwmaBaselineService ewmaBaselineService,
+                         int cooldownHours, int globalAlertThreshold, double surgeZ,
+                         ObjectMapper objectMapper, ApplicationEventPublisher eventPublisher,
+                         RiskPrioritySnapshotService snapshotService, RiskEmailNotificationOutboxService outboxService) {
         this.alertRepository = alertRepository;
         this.ewmaBaselineService = ewmaBaselineService;
         this.cooldownHours = cooldownHours;
@@ -47,6 +58,8 @@ public class AlertDetector {
         this.surgeZ = surgeZ;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+        this.snapshotService = snapshotService;
+        this.outboxService = outboxService;
     }
 
     /**
@@ -91,9 +104,13 @@ public class AlertDetector {
                 workspaceId, issueId, projectionId, bucketStart, todayCount,
                 ewma, std, zScore, effectiveThreshold, evidenceJson);
         Alert savedAlert = alertRepository.save(alert);
+        AlertCreatedEvent event = new AlertCreatedEvent(savedAlert.getWorkspaceId(), savedAlert.getId(), savedAlert.getPublicId());
+        if (snapshotService != null && outboxService != null) {
+            snapshotService.recordForAlert(event.workspaceId(), event.alertId());
+            outboxService.enqueueIfHighRisk(event);
+        }
         if (eventPublisher != null) {
-            eventPublisher.publishEvent(new AlertCreatedEvent(
-                    savedAlert.getWorkspaceId(), savedAlert.getId(), savedAlert.getPublicId()));
+            eventPublisher.publishEvent(event);
         }
         return Optional.of(savedAlert);
     }

@@ -195,8 +195,10 @@ public class AnalysisConfiguration {
      */
     @Bean
     AlertDetector alertDetector(
-            AlertRepository alertRepo, EwmaBaselineService ewmaBaselineService, ApplicationEventPublisher eventPublisher) {
+            AlertRepository alertRepo, EwmaBaselineService ewmaBaselineService, ApplicationEventPublisher eventPublisher,
+            com.insightflow.risk.RiskPrioritySnapshotService snapshotService,
+            com.insightflow.notification.RiskEmailNotificationOutboxService outboxService) {
         return new AlertDetector(alertRepo, ewmaBaselineService,
-                alertCooldownHours, globalAlertThreshold, surgeZ, new ObjectMapper(), eventPublisher);
+                alertCooldownHours, globalAlertThreshold, surgeZ, new ObjectMapper(), eventPublisher, snapshotService, outboxService);
     }
 }

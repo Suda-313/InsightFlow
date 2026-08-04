@@ -122,6 +122,14 @@ insightflow:
     # 单一 Owner 邮箱与 SMTP 密钥仅由部署环境提供；为空时关闭邮件投递但不影响告警、调查和报告主链路。
     owner-email: ${RISK_NOTIFICATION_OWNER_EMAIL:}
     application-base-url: ${INSIGHTFLOW_APPLICATION_BASE_URL:http://localhost:8080}
+    rocketmq:
+      # 本地 Compose 默认暴露 NameServer 9876；Topic 仅传递 Outbox 的公开标识。
+      topic: ${RISK_NOTIFICATION_ROCKETMQ_TOPIC:risk-email-notification}
+      consumer-group: ${RISK_NOTIFICATION_ROCKETMQ_CONSUMER_GROUP:insightflow-risk-email}
+      publish-interval-ms: ${RISK_NOTIFICATION_OUTBOX_PUBLISH_INTERVAL_MS:5000}
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
   agent:
     # 基础分析可在无模型密钥的本地环境运行；Agent 是显式开启的可选能力。
     enabled: ${AGENT_ENABLED:false}
