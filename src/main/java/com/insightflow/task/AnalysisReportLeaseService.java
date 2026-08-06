@@ -19,13 +19,13 @@ public class AnalysisReportLeaseService {
     private final long leaseSeconds;
 
     public AnalysisReportLeaseService(AsyncTaskRepository taskRepository,
-                                      @Value("${insightflow.projection.lease-seconds:120}") long leaseSeconds) {
+                                      @Value("${insightflow.task.lease-seconds:120}") long leaseSeconds) {
         this.taskRepository = taskRepository;
         this.leaseSeconds = leaseSeconds;
     }
 
     @Transactional
-    public Optional<UUID> claimNext(String workerId) {
+    public Optional<ClaimedTask> claimNext(String workerId) {
         OffsetDateTime now = OffsetDateTime.now();
         AsyncTask task = taskRepository.findNextClaimableTaskByType("analysis_report", now).orElse(null);
         if (task == null) return Optional.empty();
@@ -35,6 +35,10 @@ public class AnalysisReportLeaseService {
             return Optional.empty();
         }
         task.claim(workerId, now.plusSeconds(leaseSeconds));
-        return Optional.of(task.getPublicId());
+        return Optional.of(new ClaimedTask(task.getPublicId(), workerId, task.getAttemptCount()));
+    }
+
+    /** Scheduler only passes the leased public identifier, owner, and immutable execution version. */
+    public record ClaimedTask(UUID taskId, String workerId, int executionVersion) {
     }
 }

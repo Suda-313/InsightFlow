@@ -84,7 +84,7 @@ public class WorkspaceProjectionScheduler {
             if (claimed == null) {
                 return;
             }
-            taskRunner.run(claimed.taskId(), claimed.workerId());
+            taskRunner.run(claimed.taskId(), claimed.workerId(), claimed.executionVersion());
         }
     }
 }

@@ -37,8 +37,14 @@ public class AnalysisReportCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId, String reportJson, String evidenceJson) {
+        complete(taskPublicId, workerId, -1, reportJson, evidenceJson);
+    }
+
+    /** Report content is written only by the same leased execution that generated it. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void complete(UUID taskPublicId, String workerId, int executionVersion, String reportJson, String evidenceJson) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !task.isLeaseOwnedBy(workerId) || !"analysis_report".equals(task.getTaskType())) {
+        if (task == null || !ownsLease(task, workerId, executionVersion) || !"analysis_report".equals(task.getTaskType())) {
             return;
         }
         AnalysisReport report = reportRepository
@@ -60,12 +66,22 @@ public class AnalysisReportCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID taskPublicId, String workerId, String code, String message) {
+        fail(taskPublicId, workerId, -1, code, message);
+    }
+
+    /** Do not allow an expired report worker to fail a reclaimed task. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void fail(UUID taskPublicId, String workerId, int executionVersion, String code, String message) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !task.isLeaseOwnedBy(workerId) || !"analysis_report".equals(task.getTaskType())) {
+        if (task == null || !ownsLease(task, workerId, executionVersion) || !"analysis_report".equals(task.getTaskType())) {
             return;
         }
         task.markFailed(code, message);
         reportRepository.findByAsyncTaskIdAndWorkspaceId(task.getId(), task.getWorkspaceId())
                 .ifPresent(report -> report.markFailed(code, message));
+    }
+
+    private boolean ownsLease(AsyncTask task, String workerId, int executionVersion) {
+        return executionVersion < 0 ? task.isLeaseOwnedBy(workerId) : task.isLeaseOwnedBy(workerId, executionVersion);
     }
 }

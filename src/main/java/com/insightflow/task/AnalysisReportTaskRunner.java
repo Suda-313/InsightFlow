@@ -46,6 +46,9 @@ public class AnalysisReportTaskRunner {
     private final OperationalReportEvidenceAssembler reportEvidenceAssembler;
     /** 报告风险来自告警产生时冻结的 P0-P3 快照，而非模型推测或当前队列重算。 */
     private final OperationalReportRiskAssembler reportRiskAssembler;
+    /** A report can wait on an LLM, so its lease renews outside the Worker thread. */
+    private final TaskLeaseHeartbeat leaseHeartbeat;
+    private final java.time.Duration maxRuntime;
 
     public AnalysisReportTaskRunner(
             AsyncTaskRepository taskRepository,
@@ -56,7 +59,9 @@ public class AnalysisReportTaskRunner {
             AnalysisReportCompletionService completionService,
             ObjectMapper objectMapper,
             OperationalReportEvidenceAssembler reportEvidenceAssembler,
-            OperationalReportRiskAssembler reportRiskAssembler) {
+            OperationalReportRiskAssembler reportRiskAssembler,
+            TaskLeaseHeartbeat leaseHeartbeat,
+            @org.springframework.beans.factory.annotation.Value("${insightflow.task.report-max-runtime-seconds:900}") long maxRuntimeSeconds) {
         this.taskRepository = taskRepository;
         this.reportRepository = reportRepository;
         this.workspaceRepository = workspaceRepository;
@@ -66,23 +71,31 @@ public class AnalysisReportTaskRunner {
         this.objectMapper = objectMapper;
         this.reportEvidenceAssembler = reportEvidenceAssembler;
         this.reportRiskAssembler = reportRiskAssembler;
+        this.leaseHeartbeat = leaseHeartbeat;
+        this.maxRuntime = java.time.Duration.ofSeconds(maxRuntimeSeconds);
     }
 
     /**
      * 在线程池执行报告生成；重复调度或租约已转移时安全返回。
      */
     @Async("analysisReportTaskExecutor")
-    public void run(UUID taskPublicId, String workerId) {
+    public void run(UUID taskPublicId, String workerId) { run(taskPublicId, workerId, -1); }
+
+    /** The generated content is accepted only while this exact execution still owns the lease. */
+    public void run(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !"analysis_report".equals(task.getTaskType()) || !task.isLeaseOwnedBy(workerId)) {
+        int version = executionVersion < 0 ? task == null ? -1 : task.getAttemptCount() : executionVersion;
+        if (task == null || !"analysis_report".equals(task.getTaskType()) || !task.isLeaseOwnedBy(workerId, version)) {
             return;
         }
+        TaskLeaseHeartbeat.Guard guard = leaseHeartbeat.register(taskPublicId, workerId, version, maxRuntime);
         try {
+            guard.ensureActive();
             AnalysisReport report = reportRepository
                     .findByAsyncTaskIdAndWorkspaceId(task.getId(), task.getWorkspaceId())
                     .orElse(null);
             if (report == null) {
-                completionService.fail(taskPublicId, workerId, "REPORT_RECORD_NOT_FOUND", "报告记录不存在。");
+                completionService.fail(taskPublicId, workerId, version, "REPORT_RECORD_NOT_FOUND", "报告记录不存在。");
                 return;
             }
             report.markRunning();
@@ -90,7 +103,7 @@ public class AnalysisReportTaskRunner {
 
             Workspace workspace = workspaceRepository.findById(task.getWorkspaceId()).orElse(null);
             if (workspace == null) {
-                completionService.fail(taskPublicId, workerId, "WORKSPACE_NOT_FOUND", "工作区不存在。");
+                completionService.fail(taskPublicId, workerId, version, "WORKSPACE_NOT_FOUND", "工作区不存在。");
                 return;
             }
 
@@ -102,14 +115,21 @@ public class AnalysisReportTaskRunner {
             String evidenceJson = objectMapper.writeValueAsString(evidence);
             String reportContent = scopeBoundaryNote(report.getOperationalScope())
                     + reportAgent.generate(workspace.getPublicId(), mergedData);
+            guard.ensureActive();
             String reportJson = objectMapper.writeValueAsString(
                     Map.of("report", reportContent, "generatedAt", OffsetDateTime.now().toString(),
                             "timeRange", timeRange, "risks", risks, "evidence", evidence));
 
-            completionService.complete(taskPublicId, workerId, reportJson, evidenceJson);
+            completionService.complete(taskPublicId, workerId, version, reportJson, evidenceJson);
+        } catch (TaskLeaseHeartbeat.TaskExecutionTimeoutException timeout) {
+            completionService.fail(taskPublicId, workerId, version, "TASK_EXECUTION_TIMEOUT", "报告任务超过最大执行时长。");
+        } catch (TaskLeaseHeartbeat.TaskLeaseLostException lost) {
+            return;
         } catch (Exception exception) {
             log.error("报告生成失败: {}", exception.getMessage(), exception);
-            completionService.fail(taskPublicId, workerId, "REPORT_GENERATION_FAILED", "报告生成失败，请稍后重试。");
+            completionService.fail(taskPublicId, workerId, version, "REPORT_GENERATION_FAILED", "报告生成失败，请稍后重试。");
+        } finally {
+            leaseHeartbeat.unregister(taskPublicId, version);
         }
     }
 

@@ -41,8 +41,8 @@ public class InvestigationScheduler {
     @Scheduled(fixedDelayString = "${insightflow.investigation.dispatch-delay-ms:5000}")
     public void scheduledDispatch() {
         for (int index = 0; index < maxDispatchPerCycle; index++) {
-            if (leaseService.claimNext(workerId).map(taskId -> {
-                taskRunner.run(taskId, workerId);
+            if (leaseService.claimNext(workerId).map(claimed -> {
+                taskRunner.run(claimed.taskId(), claimed.workerId(), claimed.executionVersion());
                 return true;
             }).isEmpty()) {
                 return;

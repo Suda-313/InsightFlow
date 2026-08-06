@@ -87,6 +87,9 @@ public class ImportTaskRunner {
      * 共享 CSV 支持确保 Worker 与预览端对重复表头使用相同拒绝规则。
      */
     private final CsvFormatSupport csvFormatSupport;
+    private final TaskLeaseHeartbeat leaseHeartbeat;
+    /** Long CSV processing uses its own wall-clock budget. */
+    private final java.time.Duration maxRuntime;
 
     /**
      * 失败摘要上限，防止一个坏文件把错误列表膨胀成新的敏感数据载体。
@@ -106,6 +109,8 @@ public class ImportTaskRunner {
             ObjectMapper objectMapper,
             ImportTaskCompletionService completionService,
             CsvFormatSupport csvFormatSupport,
+            TaskLeaseHeartbeat leaseHeartbeat,
+            @org.springframework.beans.factory.annotation.Value("${insightflow.task.import-max-runtime-seconds:1800}") long maxRuntimeSeconds,
             @org.springframework.beans.factory.annotation.Value("${insightflow.import.task-error-limit}") int taskErrorLimit) {
         this.taskRepository = taskRepository;
         this.importFileRepository = importFileRepository;
@@ -116,6 +121,8 @@ public class ImportTaskRunner {
         this.objectMapper = objectMapper;
         this.completionService = completionService;
         this.csvFormatSupport = csvFormatSupport;
+        this.leaseHeartbeat = leaseHeartbeat;
+        this.maxRuntime = java.time.Duration.ofSeconds(maxRuntimeSeconds);
         this.taskErrorLimit = taskErrorLimit;
     }
 
@@ -123,37 +130,46 @@ public class ImportTaskRunner {
      * 在受限线程池异步执行一次已提交的任务；重复调度已完成任务时安全返回，不重复写入反馈。
      */
     @Async("importTaskExecutor")
-    public void run(UUID taskPublicId, String workerId) {
+    public void run(UUID taskPublicId, String workerId) { run(taskPublicId, workerId, -1); }
+    public void run(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !task.isLeaseOwnedBy(workerId)) {
+        int version = executionVersion < 0 ? task == null ? -1 : task.getAttemptCount() : executionVersion;
+        if (task == null || !task.isLeaseOwnedBy(workerId, version)) {
             return;
         }
+        TaskLeaseHeartbeat.Guard guard = leaseHeartbeat.register(taskPublicId, workerId, version, maxRuntime);
         try {
+            guard.ensureActive();
             ImportTaskPayload payload = readPayload(task);
             ImportFile file = importFileRepository.findByIdAndWorkspaceId(task.getImportFileId(), task.getWorkspaceId())
                     .orElse(null);
             if (file == null || !file.getId().equals(task.getImportFileId())) {
                 completionService.fail(
-                        taskPublicId, workerId, "IMPORT_FILE_NOT_FOUND", "导入文件不存在或不属于当前工作区。");
+                        taskPublicId, workerId, version, "IMPORT_FILE_NOT_FOUND", "导入文件不存在或不属于当前工作区。");
                 return;
             }
             if (!file.getPublicId().equals(payload.fileId()) || payload.mapping() == null) {
-                completionService.fail(taskPublicId, workerId, "IMPORT_PAYLOAD_INVALID", "导入任务输入无效。");
+                completionService.fail(taskPublicId, workerId, version, "IMPORT_PAYLOAD_INVALID", "导入任务输入无效。");
                 return;
             }
-            ImportTaskResult result = importFile(file, task, payload.mapping());
+            ImportTaskResult result = importFile(file, task, payload.mapping(), guard);
             String resultJson = objectMapper.writeValueAsString(result);
-            completionService.complete(taskPublicId, workerId, resultJson, result);
+            guard.ensureActive();
+            completionService.complete(taskPublicId, workerId, version, resultJson, result);
+        } catch (TaskLeaseHeartbeat.TaskExecutionTimeoutException timeout) {
+            completionService.fail(taskPublicId, workerId, version, "TASK_EXECUTION_TIMEOUT", "导入任务超过最大执行时长。");
+        } catch (TaskLeaseHeartbeat.TaskLeaseLostException lost) {
+            return;
         } catch (Exception exception) {
             completionService.fail(
-                    taskPublicId, workerId, "IMPORT_EXECUTION_FAILED", "导入执行失败，请检查 CSV 格式和字段映射。");
-        }
+                    taskPublicId, workerId, version, "IMPORT_EXECUTION_FAILED", "导入执行失败，请检查 CSV 格式和字段映射。");
+        } finally { leaseHeartbeat.unregister(taskPublicId, version); }
     }
 
     /**
      * 打开原始对象并逐行生成脱敏事件；任何行级异常只影响该行，不中断其它有效反馈。
      */
-    private ImportTaskResult importFile(ImportFile file, AsyncTask task, ImportMapping mapping) throws Exception {
+    private ImportTaskResult importFile(ImportFile file, AsyncTask task, ImportMapping mapping, TaskLeaseHeartbeat.Guard guard) throws Exception {
         int imported = 0;
         int duplicates = 0;
         int failed = 0;
@@ -162,6 +178,8 @@ public class ImportTaskRunner {
                 CSVParser parser = csvFormatSupport.parse(stream)) {
             Map<String, Integer> headerIndexes = csvFormatSupport.buildHeaderIndexes(parser.getHeaderNames());
             for (CSVRecord record : parser) {
+                // Check before each row so lease loss cannot create additional feedback facts.
+                guard.ensureActive();
                 try {
                     FeedbackEvent event = toFeedbackEvent(record, headerIndexes, mapping, file, task);
                     try {

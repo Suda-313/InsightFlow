@@ -33,7 +33,7 @@ public class ImportTaskLeaseService {
     public ImportTaskLeaseService(
             AsyncTaskRepository taskRepository,
             ImportFileRepository importFileRepository,
-            @Value("${insightflow.import.lease-seconds}") long leaseSeconds) {
+            @Value("${insightflow.task.lease-seconds:120}") long leaseSeconds) {
         this.taskRepository = taskRepository;
         this.importFileRepository = importFileRepository;
         this.leaseSeconds = leaseSeconds;
@@ -56,12 +56,12 @@ public class ImportTaskLeaseService {
             return Optional.empty();
         }
         task.claim(workerId, now.plusSeconds(leaseSeconds));
-        return Optional.of(new ClaimedTask(task.getPublicId(), workerId));
+        return Optional.of(new ClaimedTask(task.getPublicId(), workerId, task.getAttemptCount()));
     }
 
     /**
      * 已领取任务交给异步 Worker 时只传公开 UUID 与租约 owner，避免把内部键传出持久化边界。
      */
-    public record ClaimedTask(UUID taskId, String workerId) {
+    public record ClaimedTask(UUID taskId, String workerId, int executionVersion) {
     }
 }

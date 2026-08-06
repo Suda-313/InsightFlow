@@ -26,7 +26,7 @@ public class InvestigationTaskLeaseService {
     /** 构造器显式绑定任务仓储和调查专用租约期限。 */
     public InvestigationTaskLeaseService(
             AsyncTaskRepository asyncTaskRepository,
-            @Value("${insightflow.investigation.lease-seconds:180}") long leaseSeconds) {
+            @Value("${insightflow.task.lease-seconds:120}") long leaseSeconds) {
         this.asyncTaskRepository = asyncTaskRepository;
         this.leaseSeconds = leaseSeconds;
     }
@@ -35,7 +35,7 @@ public class InvestigationTaskLeaseService {
      * 原子领取最早的可恢复调查任务；达到重试上限时记录受控失败而不继续无限重试。
      */
     @Transactional
-    public Optional<UUID> claimNext(String workerId) {
+    public Optional<ClaimedTask> claimNext(String workerId) {
         OffsetDateTime now = OffsetDateTime.now();
         AsyncTask task = asyncTaskRepository.findNextClaimableTaskByType("investigation", now).orElse(null);
         if (task == null || !task.canBeClaimedAt(now)) {
@@ -46,6 +46,10 @@ public class InvestigationTaskLeaseService {
             return Optional.empty();
         }
         task.claim(workerId, now.plusSeconds(leaseSeconds));
-        return Optional.of(task.getPublicId());
+        return Optional.of(new ClaimedTask(task.getPublicId(), workerId, task.getAttemptCount()));
+    }
+
+    /** The execution version fences a previous owner after this task is reclaimed. */
+    public record ClaimedTask(UUID taskId, String workerId, int executionVersion) {
     }
 }

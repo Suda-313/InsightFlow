@@ -45,7 +45,7 @@ public class WorkspaceProjectionLeaseService {
             WorkspaceProjectionRepository projectionRepository,
             ProjectionFileRepository projectionFileRepository,
             ImportFileRepository importFileRepository,
-            @Value("${insightflow.projection.lease-seconds}") long leaseSeconds) {
+            @Value("${insightflow.task.lease-seconds:120}") long leaseSeconds) {
         this.taskRepository = taskRepository;
         this.projectionRepository = projectionRepository;
         this.projectionFileRepository = projectionFileRepository;
@@ -79,7 +79,7 @@ public class WorkspaceProjectionLeaseService {
         task.claim(workerId, now.plusSeconds(leaseSeconds));
         projection.markRunning();
         updateSourceFiles(projection, task.getWorkspaceId(), ImportFile::markProjecting);
-        return Optional.of(new ClaimedTask(task.getPublicId(), workerId));
+        return Optional.of(new ClaimedTask(task.getPublicId(), workerId, task.getAttemptCount()));
     }
 
     /** 在同一短事务中更新所有冻结文件，确保页面不会显示任务 running 而文件仍为 pending。 */
@@ -91,6 +91,6 @@ public class WorkspaceProjectionLeaseService {
     }
 
     /** 已领取任务传递给异步 Worker 的最小安全内容。 */
-    public record ClaimedTask(UUID taskId, String workerId) {
+    public record ClaimedTask(UUID taskId, String workerId, int executionVersion) {
     }
 }

@@ -249,6 +249,14 @@ public class AsyncTask {
     }
 
     /**
+     * 带领取版本的租约校验。每次 claim 都递增 attemptCount，旧 Worker 即使使用相同实例标识，
+     * 也不能拿旧版本续租或写入终态。
+     */
+    public boolean isLeaseOwnedBy(String workerId, int executionVersion) {
+        return isLeaseOwnedBy(workerId) && attemptCount == executionVersion;
+    }
+
+    /**
      * 全部有效行完成且无行级错误时写入成功摘要。
      */
     public void markSucceeded(String resultJson) {

@@ -33,6 +33,7 @@ InsightFlow 面向游戏/产品线的**用户反馈舆情分析**场景：确定
 ### 1. 数据导入与治理
 
 - CSV 上传 → 字段映射 → **PII 脱敏** → 异步 `import` 任务（租约 / 重试 / 幂等）
+- `import`、`projection`、`investigation`、`analysis_report` 统一使用 PostgreSQL 可续租租约：独立心跳、执行版本围栏与最长运行时间，旧 Worker 不能覆盖已重新领取的任务
 - 原始文件存 **MinIO**；可分析事实写入 PostgreSQL
 
 ### 2. 确定性舆情分析

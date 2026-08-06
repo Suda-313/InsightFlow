@@ -31,38 +31,52 @@ public class WorkspaceProjectionTaskRunner {
 
     /** 半完成投影判定；禁止仅有 L1/data_cell 无 L2 时标记 succeeded。 */
     private final ProjectionRequeueSupport requeueSupport;
+    /** Lease renewals are decoupled from projection computation and database writes. */
+    private final TaskLeaseHeartbeat leaseHeartbeat;
+    private final java.time.Duration maxRuntime;
 
     /** 构造投影 Worker。 */
     public WorkspaceProjectionTaskRunner(AsyncTaskRepository taskRepository,
                                          WorkspaceProjectionRepository projectionRepository,
                                          WorkspaceProjectionExecutionService executionService,
                                          WorkspaceProjectionCompletionService completionService,
-                                         ProjectionRequeueSupport requeueSupport) {
+                                         ProjectionRequeueSupport requeueSupport,
+                                         TaskLeaseHeartbeat leaseHeartbeat,
+                                         @org.springframework.beans.factory.annotation.Value("${insightflow.task.projection-max-runtime-seconds:600}") long maxRuntimeSeconds) {
         this.taskRepository = taskRepository;
         this.projectionRepository = projectionRepository;
         this.executionService = executionService;
         this.completionService = completionService;
         this.requeueSupport = requeueSupport;
+        this.leaseHeartbeat = leaseHeartbeat;
+        this.maxRuntime = java.time.Duration.ofSeconds(maxRuntimeSeconds);
     }
 
     /** 在线程池执行状态投影；重复调度或租约已转移时安全返回。 */
     @Async("projectionTaskExecutor")
-    public void run(UUID taskPublicId, String workerId) {
+    public void run(UUID taskPublicId, String workerId) { run(taskPublicId, workerId, -1); }
+
+    /** The claim version fences completion when a stalled projector is reclaimed. */
+    public void run(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !"projection".equals(task.getTaskType()) || !task.isLeaseOwnedBy(workerId)) {
+        int version = executionVersion < 0 ? task == null ? -1 : task.getAttemptCount() : executionVersion;
+        if (task == null || !"projection".equals(task.getTaskType()) || !task.isLeaseOwnedBy(workerId, version)) {
             return;
         }
+        TaskLeaseHeartbeat.Guard guard = leaseHeartbeat.register(taskPublicId, workerId, version, maxRuntime);
         try {
+            guard.ensureActive();
             WorkspaceProjection projection = projectionRepository
                     .findByAsyncTaskIdAndWorkspaceId(task.getId(), task.getWorkspaceId())
                     .orElse(null);
             if (projection == null) {
-                completionService.fail(taskPublicId, workerId, "PROJECTION_RECORD_NOT_FOUND", "投影状态记录不存在。");
+                completionService.fail(taskPublicId, workerId, version, "PROJECTION_RECORD_NOT_FOUND", "投影状态记录不存在。");
                 return;
             }
             boolean hasEvents = executionService.execute(projection.getId(), task.getWorkspaceId());
+            guard.ensureActive();
             if (!hasEvents) {
-                completionService.fail(taskPublicId, workerId, "PROJECTION_SOURCE_EMPTY", "投影来源事件为空。");
+                completionService.fail(taskPublicId, workerId, version, "PROJECTION_SOURCE_EMPTY", "投影来源事件为空。");
                 return;
             }
             if (!requeueSupport.isProjectionFactsComplete(task.getWorkspaceId(), projection.getId())) {
@@ -74,13 +88,20 @@ public class WorkspaceProjectionTaskRunner {
                 completionService.fail(
                         taskPublicId,
                         workerId,
+                        version,
                         "PROJECTION_INCOMPLETE",
                         "投影未写入 L2 表达标注。请执行 mvn clean compile 后完全重启后端再试。");
                 return;
             }
-            completionService.complete(taskPublicId, workerId);
+            completionService.complete(taskPublicId, workerId, version);
+        } catch (TaskLeaseHeartbeat.TaskExecutionTimeoutException timeout) {
+            completionService.fail(taskPublicId, workerId, version, "TASK_EXECUTION_TIMEOUT", "投影任务超过最大执行时长。");
+        } catch (TaskLeaseHeartbeat.TaskLeaseLostException lost) {
+            return;
         } catch (Exception exception) {
-            completionService.fail(taskPublicId, workerId, "PROJECTION_EXECUTION_FAILED", "看板投影执行失败，请稍后重试。");
+            completionService.fail(taskPublicId, workerId, version, "PROJECTION_EXECUTION_FAILED", "看板投影执行失败，请稍后重试。");
+        } finally {
+            leaseHeartbeat.unregister(taskPublicId, version);
         }
     }
 }

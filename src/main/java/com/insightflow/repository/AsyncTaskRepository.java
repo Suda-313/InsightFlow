@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Modifying;
 
 /**
  * 异步任务持久化端口。
@@ -62,4 +63,24 @@ public interface AsyncTaskRepository extends JpaRepository<AsyncTask, Long> {
             """, nativeQuery = true)
     Optional<AsyncTask> findNextClaimableTaskByType(
             @Param("taskType") String taskType, @Param("now") OffsetDateTime now);
+
+    /**
+     * 用 PostgreSQL 时间原子续租；影响行数为零意味着租约已过期、被接管或执行版本已失效。
+     */
+    @Modifying
+    @Query(value = """
+            update async_task
+               set lease_expires_at = current_timestamp + (:leaseSeconds * interval '1 second'),
+                   updated_at = current_timestamp
+             where public_id = :taskId
+               and status = 'running'
+               and lease_owner = :workerId
+               and attempt_count = :executionVersion
+               and lease_expires_at > current_timestamp
+            """, nativeQuery = true)
+    int renewLeaseIfOwned(
+            @Param("taskId") UUID taskId,
+            @Param("workerId") String workerId,
+            @Param("executionVersion") int executionVersion,
+            @Param("leaseSeconds") long leaseSeconds);
 }

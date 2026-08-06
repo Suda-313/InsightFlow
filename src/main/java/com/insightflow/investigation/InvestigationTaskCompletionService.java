@@ -42,8 +42,14 @@ public class InvestigationTaskCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId, int evidenceCount) {
+        complete(taskPublicId, workerId, -1, evidenceCount);
+    }
+
+    /** Snapshot completion is fenced so a previous owner cannot close a reclaimed case. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void complete(UUID taskPublicId, String workerId, int executionVersion, int evidenceCount) {
         AsyncTask task = asyncTaskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !"investigation".equals(task.getTaskType()) || !task.isLeaseOwnedBy(workerId)) {
+        if (task == null || !"investigation".equals(task.getTaskType()) || !ownsLease(task, workerId, executionVersion)) {
             return;
         }
         InvestigationCase investigation = investigationCaseRepository
@@ -63,12 +69,22 @@ public class InvestigationTaskCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID taskPublicId, String workerId, String code, String message) {
+        fail(taskPublicId, workerId, -1, code, message);
+    }
+
+    /** The timeout result belongs only to the execution that observed it. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void fail(UUID taskPublicId, String workerId, int executionVersion, String code, String message) {
         AsyncTask task = asyncTaskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !"investigation".equals(task.getTaskType()) || !task.isLeaseOwnedBy(workerId)) {
+        if (task == null || !"investigation".equals(task.getTaskType()) || !ownsLease(task, workerId, executionVersion)) {
             return;
         }
         task.markFailed(code, message);
         investigationCaseRepository.findByAsyncTaskIdAndWorkspaceId(task.getId(), task.getWorkspaceId())
                 .ifPresent(investigation -> investigation.markFailed(code, message));
+    }
+
+    private boolean ownsLease(AsyncTask task, String workerId, int executionVersion) {
+        return executionVersion < 0 ? task.isLeaseOwnedBy(workerId) : task.isLeaseOwnedBy(workerId, executionVersion);
     }
 }

@@ -50,7 +50,7 @@ public class ImportTaskScheduler {
             if (claimed == null) {
                 return;
             }
-            taskRunner.run(claimed.taskId(), claimed.workerId());
+            taskRunner.run(claimed.taskId(), claimed.workerId(), claimed.executionVersion());
         }
     }
 }

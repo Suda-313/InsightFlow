@@ -58,8 +58,14 @@ public class WorkspaceProjectionCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId) {
+        complete(taskPublicId, workerId, -1);
+    }
+
+    /** Completion is fenced by the version observed when the task was claimed. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void complete(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !task.isLeaseOwnedBy(workerId) || !"projection".equals(task.getTaskType())) {
+        if (task == null || !ownsLease(task, workerId, executionVersion) || !"projection".equals(task.getTaskType())) {
             return;
         }
         WorkspaceProjection projection = projectionRepository
@@ -83,8 +89,14 @@ public class WorkspaceProjectionCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID taskPublicId, String workerId, String code, String message) {
+        fail(taskPublicId, workerId, -1, code, message);
+    }
+
+    /** A stale projector cannot turn a later execution into failed. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void fail(UUID taskPublicId, String workerId, int executionVersion, String code, String message) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !task.isLeaseOwnedBy(workerId) || !"projection".equals(task.getTaskType())) {
+        if (task == null || !ownsLease(task, workerId, executionVersion) || !"projection".equals(task.getTaskType())) {
             return;
         }
         task.markFailed(code, message);
@@ -96,5 +108,9 @@ public class WorkspaceProjectionCompletionService {
                                     .findByIdAndWorkspaceId(link.getImportFileId(), task.getWorkspaceId())
                                     .ifPresent(ImportFile::markProjectionFailed));
                 });
+    }
+
+    private boolean ownsLease(AsyncTask task, String workerId, int executionVersion) {
+        return executionVersion < 0 ? task.isLeaseOwnedBy(workerId) : task.isLeaseOwnedBy(workerId, executionVersion);
     }
 }

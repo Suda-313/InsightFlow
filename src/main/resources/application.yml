@@ -76,6 +76,14 @@ server:
 
 # 原始文件只进入 MinIO；PostgreSQL 中仅保存已脱敏、可分析的反馈事件和文件元数据。
 insightflow:
+  task:
+    # All four business workers claim and renew the same lease duration; renewal is independent of business execution.
+    lease-seconds: ${TASK_LEASE_SECONDS:120}
+    heartbeat-seconds: ${TASK_HEARTBEAT_SECONDS:30}
+    import-max-runtime-seconds: ${IMPORT_MAX_RUNTIME_SECONDS:1800}
+    projection-max-runtime-seconds: ${PROJECTION_MAX_RUNTIME_SECONDS:600}
+    investigation-max-runtime-seconds: ${INVESTIGATION_MAX_RUNTIME_SECONDS:600}
+    report-max-runtime-seconds: ${REPORT_MAX_RUNTIME_SECONDS:900}
   storage:
     minio:
       endpoint: ${MINIO_ENDPOINT:http://localhost:9000}

@@ -29,6 +29,8 @@ class WorkspaceProjectionTaskRunnerTest {
         WorkspaceProjectionExecutionService executionService = mock(WorkspaceProjectionExecutionService.class);
         WorkspaceProjectionCompletionService completionService = mock(WorkspaceProjectionCompletionService.class);
         ProjectionRequeueSupport requeueSupport = mock(ProjectionRequeueSupport.class);
+        TaskLeaseHeartbeat leaseHeartbeat = mock(TaskLeaseHeartbeat.class);
+        TaskLeaseHeartbeat.Guard guard = mock(TaskLeaseHeartbeat.Guard.class);
 
         AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
         task.claim("projection-worker", OffsetDateTime.now().plusMinutes(1));
@@ -39,14 +41,16 @@ class WorkspaceProjectionTaskRunnerTest {
                 .thenReturn(Optional.of(projection));
         when(executionService.execute(projection.getId(), task.getWorkspaceId())).thenReturn(true);
         when(requeueSupport.isProjectionFactsComplete(task.getWorkspaceId(), projection.getId())).thenReturn(true);
+        when(leaseHeartbeat.register(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(guard);
 
         WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(
-                taskRepository, projectionRepository, executionService, completionService, requeueSupport);
+                taskRepository, projectionRepository, executionService, completionService, requeueSupport, leaseHeartbeat, 600);
 
         runner.run(task.getPublicId(), "projection-worker");
 
         verify(executionService).execute(projection.getId(), task.getWorkspaceId());
-        verify(completionService).complete(task.getPublicId(), "projection-worker");
+        verify(completionService).complete(task.getPublicId(), "projection-worker", task.getAttemptCount());
     }
 
     /**
@@ -59,6 +63,8 @@ class WorkspaceProjectionTaskRunnerTest {
         WorkspaceProjectionExecutionService executionService = mock(WorkspaceProjectionExecutionService.class);
         WorkspaceProjectionCompletionService completionService = mock(WorkspaceProjectionCompletionService.class);
         ProjectionRequeueSupport requeueSupport = mock(ProjectionRequeueSupport.class);
+        TaskLeaseHeartbeat leaseHeartbeat = mock(TaskLeaseHeartbeat.class);
+        TaskLeaseHeartbeat.Guard guard = mock(TaskLeaseHeartbeat.Guard.class);
 
         AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
         task.claim("projection-worker", OffsetDateTime.now().plusMinutes(1));
@@ -69,9 +75,11 @@ class WorkspaceProjectionTaskRunnerTest {
                 .thenReturn(Optional.of(projection));
         when(executionService.execute(projection.getId(), task.getWorkspaceId())).thenReturn(true);
         when(requeueSupport.isProjectionFactsComplete(task.getWorkspaceId(), projection.getId())).thenReturn(false);
+        when(leaseHeartbeat.register(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(guard);
 
         WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(
-                taskRepository, projectionRepository, executionService, completionService, requeueSupport);
+                taskRepository, projectionRepository, executionService, completionService, requeueSupport, leaseHeartbeat, 600);
 
         runner.run(task.getPublicId(), "projection-worker");
 
@@ -79,6 +87,7 @@ class WorkspaceProjectionTaskRunnerTest {
         verify(completionService).fail(
                 task.getPublicId(),
                 "projection-worker",
+                task.getAttemptCount(),
                 "PROJECTION_INCOMPLETE",
                 "投影未写入 L2 表达标注。请执行 mvn clean compile 后完全重启后端再试。");
         verify(completionService, never()).complete(task.getPublicId(), "projection-worker");
@@ -94,13 +103,14 @@ class WorkspaceProjectionTaskRunnerTest {
         WorkspaceProjectionExecutionService executionService = mock(WorkspaceProjectionExecutionService.class);
         WorkspaceProjectionCompletionService completionService = mock(WorkspaceProjectionCompletionService.class);
         ProjectionRequeueSupport requeueSupport = mock(ProjectionRequeueSupport.class);
+        TaskLeaseHeartbeat leaseHeartbeat = mock(TaskLeaseHeartbeat.class);
 
         AsyncTask task = AsyncTask.queuedProjection(7L, "projection:file:11:rules:v1", "{}");
         task.claim("new-worker", OffsetDateTime.now().plusMinutes(1));
         when(taskRepository.findByPublicId(task.getPublicId())).thenReturn(Optional.of(task));
 
         WorkspaceProjectionTaskRunner runner = new WorkspaceProjectionTaskRunner(
-                taskRepository, projectionRepository, executionService, completionService, requeueSupport);
+                taskRepository, projectionRepository, executionService, completionService, requeueSupport, leaseHeartbeat, 600);
 
         runner.run(task.getPublicId(), "old-worker");
 

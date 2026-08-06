@@ -32,7 +32,7 @@ public class AnalysisReportScheduler {
     public void scheduledDispatch() {
         for (int i = 0; i < maxDispatchPerCycle; i++) {
             leaseService.claimNext(workerId).ifPresentOrElse(
-                    taskId -> taskRunner.run(taskId, workerId),
+                    claimed -> taskRunner.run(claimed.taskId(), claimed.workerId(), claimed.executionVersion()),
                     () -> { return; });
         }
     }

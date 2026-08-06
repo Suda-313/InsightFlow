@@ -9,6 +9,16 @@ import org.junit.jupiter.api.Test;
  */
 class AsyncTaskTypeFactoryTest {
 
+    /** 每次领取必须生成新的执行版本，旧 Worker 不能沿用旧版本继续写任务终态。 */
+    @Test
+    void claimCreatesExecutionVersionThatGuardsLeaseOwnership() {
+        AsyncTask task = AsyncTask.queuedReport(7L, "report:request:lease", "{}");
+        task.claim("worker-a", java.time.OffsetDateTime.now().plusMinutes(2));
+
+        assertThat(task.isLeaseOwnedBy("worker-a", 1)).isTrue();
+        assertThat(task.isLeaseOwnedBy("worker-a", 2)).isFalse();
+    }
+
     /**
      * 自动投影是 Workspace 级命令，任务仍从 queued 状态进入既有租约流程。
      */

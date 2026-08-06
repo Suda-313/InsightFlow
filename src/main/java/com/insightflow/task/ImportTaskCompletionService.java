@@ -40,8 +40,14 @@ public class ImportTaskCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId, String resultJson, ImportTaskResult result) {
+        complete(taskPublicId, workerId, -1, resultJson, result);
+    }
+
+    /** Execution version prevents an expired worker from finalizing a task reclaimed by another worker. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void complete(UUID taskPublicId, String workerId, int executionVersion, String resultJson, ImportTaskResult result) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !task.isLeaseOwnedBy(workerId)) {
+        if (task == null || !ownsLease(task, workerId, executionVersion)) {
             return;
         }
         ImportFile file = importFileRepository.findByIdAndWorkspaceId(task.getImportFileId(), task.getWorkspaceId())
@@ -69,8 +75,14 @@ public class ImportTaskCompletionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID taskPublicId, String workerId, String code, String message) {
+        fail(taskPublicId, workerId, -1, code, message);
+    }
+
+    /** A timeout may only fail the exact execution which observed it. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void fail(UUID taskPublicId, String workerId, int executionVersion, String code, String message) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
-        if (task == null || !task.isLeaseOwnedBy(workerId)) {
+        if (task == null || !ownsLease(task, workerId, executionVersion)) {
             return;
         }
         task.markFailed(code, message);
@@ -90,5 +102,9 @@ public class ImportTaskCompletionService {
                         projectionCommandService.enqueueForImportedFile(task.getWorkspaceId(), file.getId());
                     }
                 });
+    }
+
+    private boolean ownsLease(AsyncTask task, String workerId, int executionVersion) {
+        return executionVersion < 0 ? task.isLeaseOwnedBy(workerId) : task.isLeaseOwnedBy(workerId, executionVersion);
     }
 }
