@@ -61,7 +61,7 @@ public class WorkspaceProjectionCompletionService {
         complete(taskPublicId, workerId, -1);
     }
 
-    /** Completion is fenced by the version observed when the task was claimed. */
+    /** 完成操作以领取时记录的执行版本为围栏，旧投影器不能结束新执行。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
@@ -92,7 +92,7 @@ public class WorkspaceProjectionCompletionService {
         fail(taskPublicId, workerId, -1, code, message);
     }
 
-    /** A stale projector cannot turn a later execution into failed. */
+    /** 已失效的投影器不能将后续重新领取的执行标记为失败。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID taskPublicId, String workerId, int executionVersion, String code, String message) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);

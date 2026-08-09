@@ -38,7 +38,7 @@ public class AnalysisReportLeaseService {
         return Optional.of(new ClaimedTask(task.getPublicId(), workerId, task.getAttemptCount()));
     }
 
-    /** Scheduler only passes the leased public identifier, owner, and immutable execution version. */
+    /** 调度器只向异步 Worker 传递公开任务标识、owner 和不可变执行版本，避免跨持久化边界传递实体。 */
     public record ClaimedTask(UUID taskId, String workerId, int executionVersion) {
     }
 }

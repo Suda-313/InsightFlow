@@ -18,6 +18,7 @@ import com.insightflow.service.WorkspaceService;
 import com.insightflow.service.analysis.ExpressionDefaults;
 import com.insightflow.service.analysis.ExpressionRule;
 import com.insightflow.service.analysis.ExpressionRulesLoader;
+import com.insightflow.investigation.window.InvestigationWindow;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -150,6 +151,96 @@ public class InvestigationToolService {
             evidence.add(executeTool(tool, workspacePublicId, workspaceId, question, catalogs, issue));
         }
         return new InvestigationResult(plan, evidence);
+    }
+
+    /**
+     * 为异步告警调查执行冻结窗口内的最小证据集。
+     *
+     * <p>这里不接受日期文本，也不读取 {@link #now()}：所有边界已在任务入队前根据 Alert 锚点冻结。
+     * 因此租约丢失后的重试仍查询同一批日桶、告警和样本。</p>
+     */
+    public List<InvestigationEvidence> investigateForAlert(
+            UUID workspacePublicId, IssueCatalog issue, List<InvestigationWindow> windows) {
+        Workspace workspace = workspaceService.get(workspacePublicId);
+        if (!workspace.getId().equals(issue.getWorkspaceId())) {
+            throw new IllegalArgumentException("主题不属于当前工作区");
+        }
+        List<InvestigationEvidence> evidence = new ArrayList<>();
+        for (InvestigationWindow window : windows) {
+            evidence.add(issueTrendForWindow(workspace.getId(), issue, window));
+            evidence.add(alertHistoryForWindow(workspace.getId(), issue, window));
+            evidence.add(sampleFeedbackForWindow(workspace.getId(), issue, window));
+            evidence.add(periodComparisonForWindow(workspace.getId(), issue, window));
+        }
+        return List.copyOf(evidence);
+    }
+
+    /** 日桶按半开区间过滤，避免相邻 current/previous 窗口重复计数。 */
+    private InvestigationEvidence issueTrendForWindow(Long workspaceId, IssueCatalog issue, InvestigationWindow window) {
+        List<IssueMetricBucket> buckets = metricRepository
+                .findByWorkspaceIdAndBucketStartGreaterThanEqual(workspaceId, window.previousStart()).stream()
+                .filter(bucket -> bucket.getBucketStart().isBefore(window.currentEnd()))
+                .toList();
+        int current = sumBuckets(buckets, issue.getId(), window.currentStart(), window.currentEnd());
+        int previous = sumBuckets(buckets, issue.getId(), window.previousStart(), window.previousEnd());
+        return evidence(InvestigationToolType.ISSUE_TREND, "trend:" + issue.getCanonicalKey() + ":" + window.type(),
+                "主题趋势（" + window.type() + "）",
+                String.format("来源 issue_metric_bucket；当前窗口 %d 条，前序窗口 %d 条；锚点=%s。", current, previous, window.anchorTime()), true);
+    }
+
+    /** 告警历史以业务 bucketStart 截止锚点，不使用记录写入时间，且绝不泄漏未来告警。 */
+    private InvestigationEvidence alertHistoryForWindow(Long workspaceId, IssueCatalog issue, InvestigationWindow window) {
+        List<Alert> alerts = alertRepository.findByWorkspaceIdAndIssueIdOrderByCreatedAtDesc(workspaceId, issue.getId()).stream()
+                .filter(alert -> !alert.getBucketStart().isAfter(window.anchorTime()))
+                .limit(TOPIC_LIMIT)
+                .toList();
+        if (alerts.isEmpty()) {
+            return insufficient(InvestigationToolType.ALERT_HISTORY, "alerts:" + issue.getCanonicalKey() + ":" + window.type(),
+                    "告警与基线（" + window.type() + "）", "锚点之前没有可复核的同主题告警记录。");
+        }
+        String summary = alerts.stream().map(alert -> String.format("%s: 当前值 %d，z-score %.1f，状态 %s",
+                alert.getBucketStart(), alert.getCurrentCount(), alert.getZScore(), alert.getStatus())).collect(java.util.stream.Collectors.joining("；"));
+        return evidence(InvestigationToolType.ALERT_HISTORY, "alerts:" + issue.getCanonicalKey() + ":" + window.type(),
+                "告警与基线（" + window.type() + "）", "来源 alert；" + summary + "。", true);
+    }
+
+    /** 样本同时按 workspace 与冻结的当前窗口过滤；不足时显式返回不足，不能借用窗口外样本。 */
+    private InvestigationEvidence sampleFeedbackForWindow(Long workspaceId, IssueCatalog issue, InvestigationWindow window) {
+        LinkedHashSet<Long> eventIds = new LinkedHashSet<>();
+        for (CellIssue cellIssue : cellIssueRepository.findByIssueId(issue.getId())) {
+            if (workspaceId.equals(cellIssue.getWorkspaceId())) {
+                eventIds.addAll(parseSampleIds(cellIssue.getSampleEventIdsJson()));
+            }
+        }
+        List<String> samples = eventIds.stream().map(feedbackEventRepository::findById).flatMap(Optional::stream)
+                .filter(event -> workspaceId.equals(event.getWorkspaceId()))
+                .filter(event -> !event.getOccurredAt().isBefore(window.currentStart()) && event.getOccurredAt().isBefore(window.currentEnd()))
+                .map(FeedbackEvent::getSanitizedText).filter(text -> text != null && !text.isBlank())
+                .map(this::capSampleText).limit(SAMPLE_LIMIT).toList();
+        String id = "samples:" + issue.getCanonicalKey() + ":" + window.type();
+        if (samples.isEmpty()) {
+            return insufficient(InvestigationToolType.SAMPLE_FEEDBACK, id, "脱敏样本（" + window.type() + "）",
+                    "冻结窗口内没有可用的脱敏反馈样本；不使用窗口外样本补足。");
+        }
+        return evidence(InvestigationToolType.SAMPLE_FEEDBACK, id, "脱敏样本（" + window.type() + "）",
+                "来源 feedback_event；样本：" + String.join("；", samples), true);
+    }
+
+    /** 比较结果与趋势共用同一冻结边界，避免出现两个 Tool 对“本周”的不同解释。 */
+    private InvestigationEvidence periodComparisonForWindow(Long workspaceId, IssueCatalog issue, InvestigationWindow window) {
+        List<IssueMetricBucket> buckets = metricRepository
+                .findByWorkspaceIdAndBucketStartGreaterThanEqual(workspaceId, window.previousStart()).stream()
+                .filter(bucket -> bucket.getBucketStart().isBefore(window.currentEnd()))
+                .toList();
+        int current = sumBuckets(buckets, issue.getId(), window.currentStart(), window.currentEnd());
+        int previous = sumBuckets(buckets, issue.getId(), window.previousStart(), window.previousEnd());
+        int delta = current - previous;
+        String id = "comparison:" + issue.getCanonicalKey() + ":" + window.type();
+        if (current == 0 && previous == 0) {
+            return insufficient(InvestigationToolType.PERIOD_COMPARISON, id, "时间范围比较（" + window.type() + "）", "冻结窗口内没有可比较的主题日指标。");
+        }
+        return evidence(InvestigationToolType.PERIOD_COMPARISON, id, "时间范围比较（" + window.type() + "）",
+                String.format("来源 issue_metric_bucket；当前窗口 %d 条，前序窗口 %d 条，绝对变化 %s%d 条。", current, previous, delta >= 0 ? "+" : "", delta), true);
     }
 
     /** 统一分派到固定 Tool 实现；没有 default 分支，新增枚举成员必须明确实现其数据边界。 */

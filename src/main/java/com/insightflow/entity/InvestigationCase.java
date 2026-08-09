@@ -9,6 +9,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 由一个不可变告警触发、可异步推进并等待人工复核的调查卡片。
@@ -39,6 +41,16 @@ public class InvestigationCase {
     /** 异步任务内部键仅用于 Worker 领取与完成校验，永不向外部返回。 */
     @Column(name = "async_task_id", unique = true)
     private Long asyncTaskId;
+
+    /**
+     * 首次规划后冻结的调查窗口与 Planner 审计摘要。
+     *
+     * <p>该 JSON 属于 InvestigationCase 聚合而非可重试 AsyncTask payload；Worker 只能读取它，
+     * 因而租约恢复、进程重启和人工重试都不能改变已选窗口。</p>
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "plan_json", columnDefinition = "jsonb")
+    private String planJson;
 
     /** queued / investigating / pending_review / confirmed / failed 的显式可观察流程状态。 */
     @Column(nullable = false, length = 30)
@@ -116,6 +128,20 @@ public class InvestigationCase {
             throw new IllegalStateException("调查任务绑定状态不合法");
         }
         asyncTaskId = taskId;
+        touch();
+    }
+
+    /**
+     * 冻结首次规划的受控 JSON。重复写入意味着重试试图改变同一 Alert 的证据范围，必须拒绝。
+     */
+    public void freezePlan(String frozenPlanJson) {
+        if (frozenPlanJson == null || frozenPlanJson.isBlank()) {
+            throw new IllegalArgumentException("调查计划不能为空");
+        }
+        if (planJson != null) {
+            throw new IllegalStateException("调查计划已冻结，不能覆盖");
+        }
+        planJson = frozenPlanJson;
         touch();
     }
 
@@ -219,6 +245,8 @@ public class InvestigationCase {
     public Long getAlertId() { return alertId; }
     /** 异步任务内部键。 */
     public Long getAsyncTaskId() { return asyncTaskId; }
+    /** 已冻结调查计划 JSON；为空表示尚未完成首次规划，Worker 不得自行推导窗口。 */
+    public String getPlanJson() { return planJson; }
     /** 当前流程状态。 */
     public String getStatus() { return status; }
     /** 可展示的受控摘要。 */

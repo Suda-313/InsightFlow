@@ -44,8 +44,9 @@ public class InvestigationTaskRunner {
 
     /** 终态更新在独立事务处理，确保异常不会留下永久 running。 */
     private final InvestigationTaskCompletionService completionService;
-    /** Investigation stays read-only, while its task ownership is renewed by this separate component. */
+    /** 调查仍只读取告警并冻结证据；任务归属由独立心跳续租，不扩大调查 Worker 的写权限。 */
     private final TaskLeaseHeartbeat leaseHeartbeat;
+    /** 调查取证的业务级最长运行预算，超时后只允许当前领取版本收敛终态。 */
     private final java.time.Duration maxRuntime;
 
     /** 构造器显式声明 Worker 的只读数据来源与受控写入出口。 */
@@ -74,7 +75,9 @@ public class InvestigationTaskRunner {
     @Async("investigationTaskExecutor")
     public void run(UUID taskPublicId, String workerId) { run(taskPublicId, workerId, -1); }
 
-    /** The frozen evidence is written only while the claim version remains current. */
+    /**
+     * 证据快照只在领取版本仍有效时写入；任务被新 Worker 接管后，旧执行必须停止取证与写入。
+     */
     public void run(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = asyncTaskRepository.findByPublicId(taskPublicId).orElse(null);
         int version = executionVersion < 0 ? task == null ? -1 : task.getAttemptCount() : executionVersion;

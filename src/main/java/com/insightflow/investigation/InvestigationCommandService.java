@@ -38,16 +38,21 @@ public class InvestigationCommandService {
     /** 复用已有异步任务表、租约和重试机制，不引入额外队列。 */
     private final AsyncTaskRepository asyncTaskRepository;
 
+    /** 创建任务前冻结调查窗口；Worker 重试只能消费 Case 上的既有计划。 */
+    private final InvestigationPlanFreezer planFreezer;
+
     /** 构造器仅注入授权与持久化边界，任务具体执行由 Worker 负责。 */
     public InvestigationCommandService(
             WorkspaceAccessService accessService,
             AlertRepository alertRepository,
             InvestigationCaseRepository investigationCaseRepository,
-            AsyncTaskRepository asyncTaskRepository) {
+            AsyncTaskRepository asyncTaskRepository,
+            InvestigationPlanFreezer planFreezer) {
         this.accessService = accessService;
         this.alertRepository = alertRepository;
         this.investigationCaseRepository = investigationCaseRepository;
         this.asyncTaskRepository = asyncTaskRepository;
+        this.planFreezer = planFreezer;
     }
 
     /**
@@ -91,7 +96,9 @@ public class InvestigationCommandService {
             return investigationCaseRepository.findByAsyncTaskIdAndWorkspaceId(existingTask.get().getId(), alert.getWorkspaceId())
                     .orElseThrow(() -> new IllegalStateException("调查任务缺少对应卡片"));
         }
-        InvestigationCase investigation = investigationCaseRepository.save(InvestigationCase.queued(alert.getWorkspaceId(), alert.getId()));
+        InvestigationCase investigation = InvestigationCase.queued(alert.getWorkspaceId(), alert.getId());
+        planFreezer.freezeDefaultPlan(investigation, alert);
+        investigation = investigationCaseRepository.save(investigation);
         // IDENTITY 主键须 flush 后才可用；save 未 flush 时 getId() 为 null，attachTask 会拒绝绑定。
         AsyncTask task = asyncTaskRepository.saveAndFlush(AsyncTask.queuedInvestigation(
                 alert.getWorkspaceId(), idempotencyKey, "{\"alert_id\":\"" + alert.getPublicId() + "\"}"));

@@ -46,8 +46,9 @@ public class AnalysisReportTaskRunner {
     private final OperationalReportEvidenceAssembler reportEvidenceAssembler;
     /** 报告风险来自告警产生时冻结的 P0-P3 快照，而非模型推测或当前队列重算。 */
     private final OperationalReportRiskAssembler reportRiskAssembler;
-    /** A report can wait on an LLM, so its lease renews outside the Worker thread. */
+    /** 报告可能等待模型响应，续租必须由 Worker 线程之外的独立心跳负责。 */
     private final TaskLeaseHeartbeat leaseHeartbeat;
+    /** 报告调用模型的最长运行预算，防止可续租任务无限占用报告线程池。 */
     private final java.time.Duration maxRuntime;
 
     public AnalysisReportTaskRunner(
@@ -81,7 +82,9 @@ public class AnalysisReportTaskRunner {
     @Async("analysisReportTaskExecutor")
     public void run(UUID taskPublicId, String workerId) { run(taskPublicId, workerId, -1); }
 
-    /** The generated content is accepted only while this exact execution still owns the lease. */
+    /**
+     * 仅当当前领取版本仍持有租约时才接纳报告内容；被重新领取的旧 Worker 不得覆盖新结果。
+     */
     public void run(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
         int version = executionVersion < 0 ? task == null ? -1 : task.getAttemptCount() : executionVersion;

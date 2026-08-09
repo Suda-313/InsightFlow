@@ -49,7 +49,7 @@ public class InvestigationTaskLeaseService {
         return Optional.of(new ClaimedTask(task.getPublicId(), workerId, task.getAttemptCount()));
     }
 
-    /** The execution version fences a previous owner after this task is reclaimed. */
+    /** 执行版本在任务被重新领取后隔离旧 owner，后续心跳和终态写入均须携带该版本。 */
     public record ClaimedTask(UUID taskId, String workerId, int executionVersion) {
     }
 }

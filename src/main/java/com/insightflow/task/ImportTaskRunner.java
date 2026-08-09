@@ -87,8 +87,9 @@ public class ImportTaskRunner {
      * 共享 CSV 支持确保 Worker 与预览端对重复表头使用相同拒绝规则。
      */
     private final CsvFormatSupport csvFormatSupport;
+    /** 心跳在独立线程续租；CSV 解析阻塞时也能及时发现租约被接管。 */
     private final TaskLeaseHeartbeat leaseHeartbeat;
-    /** Long CSV processing uses its own wall-clock budget. */
+    /** 导入使用独立墙钟上限，防止异常大文件仅靠续租长期占用执行槽位。 */
     private final java.time.Duration maxRuntime;
 
     /**
@@ -131,6 +132,10 @@ public class ImportTaskRunner {
      */
     @Async("importTaskExecutor")
     public void run(UUID taskPublicId, String workerId) { run(taskPublicId, workerId, -1); }
+
+    /**
+     * 带领取版本执行导入。版本必须与 claim 时一致，重试后的旧 Worker 不得继续写入反馈或终态。
+     */
     public void run(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
         int version = executionVersion < 0 ? task == null ? -1 : task.getAttemptCount() : executionVersion;
@@ -178,7 +183,7 @@ public class ImportTaskRunner {
                 CSVParser parser = csvFormatSupport.parse(stream)) {
             Map<String, Integer> headerIndexes = csvFormatSupport.buildHeaderIndexes(parser.getHeaderNames());
             for (CSVRecord record : parser) {
-                // Check before each row so lease loss cannot create additional feedback facts.
+                // 每行写入前校验，租约失效后不再创建任何新的反馈事实。
                 guard.ensureActive();
                 try {
                     FeedbackEvent event = toFeedbackEvent(record, headerIndexes, mapping, file, task);

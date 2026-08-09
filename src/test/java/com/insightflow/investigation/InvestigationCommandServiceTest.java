@@ -5,13 +5,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.insightflow.entity.Alert;
+import com.insightflow.entity.AsyncTask;
 import com.insightflow.entity.InvestigationCase;
 import com.insightflow.entity.Workspace;
+import com.insightflow.investigation.window.InvestigationWindowPolicy;
+import com.insightflow.investigation.window.InvestigationWindowResolver;
 import com.insightflow.repository.AlertRepository;
 import com.insightflow.repository.AsyncTaskRepository;
 import com.insightflow.repository.InvestigationCaseRepository;
 import com.insightflow.security.WorkspaceAccessService;
 import java.time.OffsetDateTime;
+import java.lang.reflect.Field;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -47,5 +51,34 @@ class InvestigationCommandServiceTest {
         InvestigationCase second = service.enqueue(workspaceId, alertId);
 
         assertThat(second.getPublicId()).isEqualTo(first.getPublicId());
+    }
+
+    /** 该测试防止任务先入队、计划后冻结，避免 Worker 在重试或快速调度时读取半成品窗口。 */
+    @Test
+    void freezesDefaultPlanBeforeCreatingAsyncTask() throws Exception {
+        Alert alert = Alert.active(7L, 3L, 5L, OffsetDateTime.parse("2026-08-08T00:00:00Z"), 10, 2, 1, 3, 5, "{}");
+        setId(alert, 9L);
+        AsyncTask task = org.mockito.Mockito.mock(AsyncTask.class);
+        when(task.getId()).thenReturn(11L);
+        when(caseRepository.findByWorkspaceIdAndAlertId(7L, 9L)).thenReturn(Optional.empty());
+        when(taskRepository.findByWorkspaceIdAndTaskTypeAndIdempotencyKey(7L, "investigation", "investigation:" + alert.getPublicId()))
+                .thenReturn(Optional.empty());
+        when(caseRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(taskRepository.saveAndFlush(any())).thenReturn(task);
+        InvestigationCommandService commandService = new InvestigationCommandService(
+                accessService, alertRepository, caseRepository, taskRepository,
+                new InvestigationPlanFreezer(new InvestigationWindowPolicy(), new InvestigationWindowResolver(), new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules()));
+
+        InvestigationCase investigation = commandService.enqueueForAlert(alert);
+
+        assertThat(investigation.getPlanJson()).contains("\"finalWindowType\":\"WEEKLY\"")
+                .contains("2026-08-08T00:00Z");
+        assertThat(investigation.getAsyncTaskId()).isEqualTo(11L);
+    }
+
+    private static void setId(Alert alert, long id) throws Exception {
+        Field field = Alert.class.getDeclaredField("id");
+        field.setAccessible(true);
+        field.set(alert, id);
     }
 }

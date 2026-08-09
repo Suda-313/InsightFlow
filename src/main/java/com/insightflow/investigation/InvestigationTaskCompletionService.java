@@ -45,7 +45,7 @@ public class InvestigationTaskCompletionService {
         complete(taskPublicId, workerId, -1, evidenceCount);
     }
 
-    /** Snapshot completion is fenced so a previous owner cannot close a reclaimed case. */
+    /** 快照完成受执行版本围栏保护，旧 owner 不能关闭已被重新领取的调查卡片。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId, int executionVersion, int evidenceCount) {
         AsyncTask task = asyncTaskRepository.findByPublicId(taskPublicId).orElse(null);
@@ -72,7 +72,7 @@ public class InvestigationTaskCompletionService {
         fail(taskPublicId, workerId, -1, code, message);
     }
 
-    /** The timeout result belongs only to the execution that observed it. */
+    /** 超时结果只属于观测到它的执行版本，不能覆盖后续重新领取的调查。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID taskPublicId, String workerId, int executionVersion, String code, String message) {
         AsyncTask task = asyncTaskRepository.findByPublicId(taskPublicId).orElse(null);

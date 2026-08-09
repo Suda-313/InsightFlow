@@ -31,8 +31,9 @@ public class WorkspaceProjectionTaskRunner {
 
     /** 半完成投影判定；禁止仅有 L1/data_cell 无 L2 时标记 succeeded。 */
     private final ProjectionRequeueSupport requeueSupport;
-    /** Lease renewals are decoupled from projection computation and database writes. */
+    /** 心跳独立于投影计算和事实写入，执行时间较长时仍能维持或及时失去租约。 */
     private final TaskLeaseHeartbeat leaseHeartbeat;
+    /** 投影的业务级最长运行预算，超过后由当前执行版本收敛为受控失败。 */
     private final java.time.Duration maxRuntime;
 
     /** 构造投影 Worker。 */
@@ -56,7 +57,9 @@ public class WorkspaceProjectionTaskRunner {
     @Async("projectionTaskExecutor")
     public void run(UUID taskPublicId, String workerId) { run(taskPublicId, workerId, -1); }
 
-    /** The claim version fences completion when a stalled projector is reclaimed. */
+    /**
+     * 使用领取版本围栏收敛投影结果；停滞任务被重新领取后，旧投影器不能结束或标记失败新执行。
+     */
     public void run(UUID taskPublicId, String workerId, int executionVersion) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
         int version = executionVersion < 0 ? task == null ? -1 : task.getAttemptCount() : executionVersion;

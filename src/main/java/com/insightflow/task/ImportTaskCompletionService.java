@@ -43,7 +43,7 @@ public class ImportTaskCompletionService {
         complete(taskPublicId, workerId, -1, resultJson, result);
     }
 
-    /** Execution version prevents an expired worker from finalizing a task reclaimed by another worker. */
+    /** 执行版本阻止过期 Worker 结束已被其它 Worker 重新领取的导入任务。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId, int executionVersion, String resultJson, ImportTaskResult result) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
@@ -78,7 +78,7 @@ public class ImportTaskCompletionService {
         fail(taskPublicId, workerId, -1, code, message);
     }
 
-    /** A timeout may only fail the exact execution which observed it. */
+    /** 超时结果只能由观测到超时的同一执行版本写入，避免误伤后续重试。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID taskPublicId, String workerId, int executionVersion, String code, String message) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);

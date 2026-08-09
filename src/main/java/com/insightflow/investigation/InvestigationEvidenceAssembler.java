@@ -10,6 +10,7 @@ import com.insightflow.entity.InvestigationCase;
 import com.insightflow.entity.InvestigationEvidenceSnapshot;
 import com.insightflow.entity.IssueCatalog;
 import com.insightflow.entity.Workspace;
+import com.insightflow.investigation.window.InvestigationWindow;
 import com.insightflow.repository.IssueCatalogRepository;
 import com.insightflow.repository.WorkspaceRepository;
 import java.util.ArrayList;
@@ -33,14 +34,19 @@ public class InvestigationEvidenceAssembler {
     /** 通过任务 Workspace 内部键反查公开 UUID，供 Tool 服务继续执行边界校验。 */
     private final WorkspaceRepository workspaceRepository;
 
+    /** 计划读取器拒绝在重试时按当前时间重新推导窗口。 */
+    private final FrozenInvestigationPlanReader planReader;
+
     /** 构造器明确区分受控 Tool、主题目录与 Workspace 解析三类只读依赖。 */
     public InvestigationEvidenceAssembler(
             InvestigationToolService toolService,
             IssueCatalogRepository issueCatalogRepository,
-            WorkspaceRepository workspaceRepository) {
+            WorkspaceRepository workspaceRepository,
+            FrozenInvestigationPlanReader planReader) {
         this.toolService = toolService;
         this.issueCatalogRepository = issueCatalogRepository;
         this.workspaceRepository = workspaceRepository;
+        this.planReader = planReader;
     }
 
     /**
@@ -54,14 +60,8 @@ public class InvestigationEvidenceAssembler {
         if (workspace == null || issue == null || !investigation.getWorkspaceId().equals(issue.getWorkspaceId())) {
             return snapshots;
         }
-        InvestigationPlan plan = new InvestigationPlan(
-                InvestigationIntent.ANOMALY_INVESTIGATION,
-                List.of(
-                        InvestigationToolType.ISSUE_TREND,
-                        InvestigationToolType.ALERT_HISTORY,
-                        InvestigationToolType.SAMPLE_FEEDBACK,
-                        InvestigationToolType.PERIOD_COMPARISON));
-        List<InvestigationEvidence> evidence = toolService.investigate(workspace.getPublicId(), issue.getCanonicalName(), plan).evidence();
+        List<InvestigationWindow> windows = planReader.readWindows(investigation);
+        List<InvestigationEvidence> evidence = toolService.investigateForAlert(workspace.getPublicId(), issue, windows);
         for (InvestigationEvidence item : evidence) {
             snapshots.add(InvestigationEvidenceSnapshot.capture(
                     investigation.getId(), investigation.getWorkspaceId(), item.tool().name(), item.id(),

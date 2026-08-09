@@ -40,7 +40,7 @@ public class AnalysisReportCompletionService {
         complete(taskPublicId, workerId, -1, reportJson, evidenceJson);
     }
 
-    /** Report content is written only by the same leased execution that generated it. */
+    /** 报告内容仅允许由生成它的同一租约执行版本写入，防止旧 Worker 覆盖已重试结果。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void complete(UUID taskPublicId, String workerId, int executionVersion, String reportJson, String evidenceJson) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
@@ -69,7 +69,7 @@ public class AnalysisReportCompletionService {
         fail(taskPublicId, workerId, -1, code, message);
     }
 
-    /** Do not allow an expired report worker to fail a reclaimed task. */
+    /** 已过期的报告 Worker 不得将被重新领取任务标记为失败。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(UUID taskPublicId, String workerId, int executionVersion, String code, String message) {
         AsyncTask task = taskRepository.findByPublicId(taskPublicId).orElse(null);
