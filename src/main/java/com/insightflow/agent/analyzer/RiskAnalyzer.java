@@ -76,7 +76,7 @@ public class RiskAnalyzer implements InsightAgent<RiskResult> {
         }
         LlmMetrics.log("Risk", promptVersion(), start, response);
         try {
-            String content = response.getResult().getOutput().getContent();
+            String content = response.getResult().getOutput().getText();
             RiskResult result = objectMapper.readValue(LlmMetrics.extractJson(content), outputSchema());
             succeed(workspacePublicId, run, content, response, start);
             return result;
@@ -92,9 +92,14 @@ public class RiskAnalyzer implements InsightAgent<RiskResult> {
         if (run == null) return;
         Usage usage = response.getMetadata() == null ? null : response.getMetadata().getUsage();
         agentRunService.succeed(workspacePublicId, run.getPublicId(), new AgentRunService.Completion(
-                output, null, usage == null ? null : usage.getPromptTokens(),
-                usage == null ? null : usage.getGenerationTokens(), usage == null ? null : usage.getTotalTokens(),
+                output, null, toLong(usage == null ? null : usage.getPromptTokens()),
+                toLong(usage == null ? null : usage.getCompletionTokens()), toLong(usage == null ? null : usage.getTotalTokens()),
                 System.currentTimeMillis() - start));
+    }
+
+    /** Spring AI 1.1 返回 Integer token，审计模型使用 Long 以兼容数据库聚合。 */
+    private Long toLong(Integer value) {
+        return value == null ? null : value.longValue();
     }
 
     /** 失败只记录统一码，避免上游异常内容泄露到审计数据。 */

@@ -97,7 +97,7 @@ public class InvestigationCommandService {
                     .orElseThrow(() -> new IllegalStateException("调查任务缺少对应卡片"));
         }
         InvestigationCase investigation = InvestigationCase.queued(alert.getWorkspaceId(), alert.getId());
-        planFreezer.freezeDefaultPlan(investigation, alert);
+        planFreezer.freezePlan(investigation, alert);
         investigation = investigationCaseRepository.save(investigation);
         // IDENTITY 主键须 flush 后才可用；save 未 flush 时 getId() 为 null，attachTask 会拒绝绑定。
         AsyncTask task = asyncTaskRepository.saveAndFlush(AsyncTask.queuedInvestigation(

@@ -37,7 +37,7 @@ class ClassificationAnalyzerTest {
         AssistantMessage assistantMessage = mock(AssistantMessage.class);
 
         // 模型输出必须使用 canonical_key，避免测试掩盖生产 Prompt 与 DTO 的协议偏差。
-        when(assistantMessage.getContent()).thenReturn(
+        when(assistantMessage.getText()).thenReturn(
                 "{\"canonical_key\":\"login_failure\",\"confidence\":0.9,"
                         + "\"reasoning\":\"login failed\",\"keywords\":[\"login\",\"failure\"]}");
         when(generation.getOutput()).thenReturn(assistantMessage);

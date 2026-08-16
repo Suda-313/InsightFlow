@@ -20,10 +20,10 @@ class InvestigationWindowResolverTest {
         assertThat(windows).containsExactly(new InvestigationWindow(
                 InvestigationWindowType.WEEKLY,
                 anchor,
-                OffsetDateTime.parse("2026-08-01T00:00:00Z"),
-                OffsetDateTime.parse("2026-08-08T00:00:00Z"),
-                OffsetDateTime.parse("2026-07-25T00:00:00Z"),
-                OffsetDateTime.parse("2026-08-01T00:00:00Z")));
+                OffsetDateTime.parse("2026-08-02T00:00:00Z"),
+                OffsetDateTime.parse("2026-08-09T00:00:00Z"),
+                OffsetDateTime.parse("2026-07-26T00:00:00Z"),
+                OffsetDateTime.parse("2026-08-02T00:00:00Z")));
     }
 
     /** BOTH 必须展开为固定顺序的两套独立窗口，避免不同窗口的证据互相覆盖。 */
@@ -36,7 +36,8 @@ class InvestigationWindowResolverTest {
 
         assertThat(windows).extracting(InvestigationWindow::type)
                 .containsExactly(InvestigationWindowType.SHORT_TERM, InvestigationWindowType.WEEKLY);
-        assertThat(windows.get(0).currentStart()).isEqualTo(OffsetDateTime.parse("2026-08-07T12:00:00Z"));
-        assertThat(windows.get(0).previousEnd()).isEqualTo(OffsetDateTime.parse("2026-08-07T12:00:00Z"));
+        assertThat(windows.get(0).currentStart()).isEqualTo(OffsetDateTime.parse("2026-08-08T12:00:00Z"));
+        assertThat(windows.get(0).currentEnd()).isEqualTo(OffsetDateTime.parse("2026-08-09T12:00:00Z"));
+        assertThat(windows.get(0).previousEnd()).isEqualTo(OffsetDateTime.parse("2026-08-08T12:00:00Z"));
     }
 }

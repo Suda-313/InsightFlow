@@ -126,7 +126,7 @@ class ChatServiceTest {
                 .thenReturn(response);
         when(response.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistant);
-        when(assistant.getContent()).thenReturn("## 结论\n继续观察。");
+        when(assistant.getText()).thenReturn("## 结论\n继续观察。");
 
         ChatService service = chatService(
                 literalChatModelCaller, conversationService, agentRunService, planner, toolService, knowledgeSearchTool);
@@ -177,7 +177,7 @@ class ChatServiceTest {
         when(literalChatModelCaller.call(anyString(), eq(original))).thenReturn(response);
         when(response.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistant);
-        when(assistant.getContent()).thenReturn("## 结论\n仍在上涨。");
+        when(assistant.getText()).thenReturn("## 结论\n仍在上涨。");
 
         ChatService service = chatService(
                 literalChatModelCaller, conversationService, agentRunService, planner, toolService, knowledgeSearchTool);

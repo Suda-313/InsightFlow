@@ -123,6 +123,9 @@ insightflow:
     dispatch-delay-ms: ${INVESTIGATION_DISPATCH_DELAY_MS:5000}
     lease-seconds: ${INVESTIGATION_TASK_LEASE_SECONDS:180}
     max-dispatch-per-cycle: ${INVESTIGATION_MAX_DISPATCH_PER_CYCLE:2}
+    # 仅首次冻结计划时调用既有 Agent；未显式开启或 Agent 不可用时稳定回退规则默认 WEEKLY。
+    window-planner:
+      enabled: ${INVESTIGATION_WINDOW_PLANNER_ENABLED:false}
     # 首期仅标记站内提醒；不引入派单、外部推送或组织层级升级。
     follow-up-reminder-minutes: ${INVESTIGATION_FOLLOW_UP_REMINDER_MINUTES:30}
     follow-up-reminder-delay-ms: ${INVESTIGATION_FOLLOW_UP_REMINDER_DELAY_MS:60000}

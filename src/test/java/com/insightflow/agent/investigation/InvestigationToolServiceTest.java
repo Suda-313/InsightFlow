@@ -85,6 +85,44 @@ class InvestigationToolServiceTest {
         verify(alertRepository).findByWorkspaceIdAndIssueIdOrderByCreatedAtDesc(7L, 10L);
     }
 
+    /** 历史只描述本次告警之前的事实；BOTH 不得为两个窗口重复生成相同历史。 */
+    @Test
+    void keepsAlertHistoryGlobalAndExcludesCurrentAndFutureAlerts() throws Exception {
+        UUID workspacePublicId = UUID.randomUUID();
+        Workspace workspace = workspace(7L);
+        IssueCatalog gameplay = catalog(10L, "bug_gameplay", "玩法Bug");
+        Alert previous = Alert.active(7L, 10L, 1L, OffsetDateTime.parse("2026-08-06T00:00:00Z"), 11, 2, 1, 3, 5, "[]");
+        Alert current = Alert.active(7L, 10L, 1L, OffsetDateTime.parse("2026-08-08T00:00:00Z"), 80, 2, 1, 12, 5, "[]");
+        Alert future = Alert.active(7L, 10L, 1L, OffsetDateTime.parse("2026-08-09T00:00:00Z"), 99, 2, 1, 15, 5, "[]");
+        setField(previous, "id", 1L);
+        setField(current, "id", 2L);
+        setField(future, "id", 3L);
+        setField(previous, "createdAt", OffsetDateTime.parse("2026-08-06T01:00:00Z"));
+        setField(current, "createdAt", OffsetDateTime.parse("2026-08-08T01:00:00Z"));
+        setField(future, "createdAt", OffsetDateTime.parse("2026-08-09T01:00:00Z"));
+        when(workspaceService.get(workspacePublicId)).thenReturn(workspace);
+        when(alertRepository.findByWorkspaceIdAndIssueIdOrderByCreatedAtDesc(7L, 10L))
+                .thenReturn(List.of(future, current, previous));
+        when(metricRepository.findByWorkspaceIdAndBucketStartGreaterThanEqual(eq(7L), any()))
+                .thenReturn(List.of(bucket(7L, 10L, "2026-08-08T00:00:00Z", 80)));
+        when(cellIssueRepository.findByIssueId(10L)).thenReturn(List.of());
+
+        List<InvestigationEvidence> evidence = service().investigateForAlert(
+                workspacePublicId,
+                current,
+                gameplay,
+                new com.insightflow.investigation.window.InvestigationWindowResolver().resolve(
+                        current.getBucketStart(), com.insightflow.investigation.window.InvestigationWindowSelection.BOTH));
+
+        assertThat(evidence).filteredOn(item -> item.tool() == InvestigationToolType.ALERT_HISTORY)
+                .singleElement()
+                .satisfies(item -> assertThat(item.content()).contains("当前值 11").doesNotContain("当前值 80").doesNotContain("当前值 99"));
+        assertThat(evidence).filteredOn(item -> item.tool() == InvestigationToolType.ISSUE_TREND)
+                .allSatisfy(item -> assertThat(item.content()).contains("bucketStart=").contains("feedbackCount="));
+        assertThat(evidence).filteredOn(item -> item.tool() == InvestigationToolType.PERIOD_COMPARISON)
+                .allSatisfy(item -> assertThat(item.content()).contains("percentageChange=unavailable").contains("newActivity=true"));
+    }
+
     /** 当前没有版本或活动事件来源时，版本比较必须以明确的不足证据结束，不能生成因果结论。 */
     @Test
     void reportsMissingVersionSourceInsteadOfInventingVersionComparison() throws Exception {

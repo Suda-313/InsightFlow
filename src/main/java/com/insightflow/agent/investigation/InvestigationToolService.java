@@ -160,48 +160,59 @@ public class InvestigationToolService {
      * 因此租约丢失后的重试仍查询同一批日桶、告警和样本。</p>
      */
     public List<InvestigationEvidence> investigateForAlert(
-            UUID workspacePublicId, IssueCatalog issue, List<InvestigationWindow> windows) {
+            UUID workspacePublicId, Alert currentAlert, IssueCatalog issue, List<InvestigationWindow> windows) {
         Workspace workspace = workspaceService.get(workspacePublicId);
-        if (!workspace.getId().equals(issue.getWorkspaceId())) {
+        if (!workspace.getId().equals(issue.getWorkspaceId())
+                || !workspace.getId().equals(currentAlert.getWorkspaceId())
+                || !issue.getId().equals(currentAlert.getIssueId())) {
             throw new IllegalArgumentException("主题不属于当前工作区");
         }
         List<InvestigationEvidence> evidence = new ArrayList<>();
+        // 历史是“本次告警之前”的调查级事实，不随 SHORT_TERM/WEEKLY 改变，BOTH 时只生成一次。
+        evidence.add(alertHistoryForAlert(workspace.getId(), issue, currentAlert));
         for (InvestigationWindow window : windows) {
             evidence.add(issueTrendForWindow(workspace.getId(), issue, window));
-            evidence.add(alertHistoryForWindow(workspace.getId(), issue, window));
             evidence.add(sampleFeedbackForWindow(workspace.getId(), issue, window));
             evidence.add(periodComparisonForWindow(workspace.getId(), issue, window));
         }
         return List.copyOf(evidence);
     }
 
-    /** 日桶按半开区间过滤，避免相邻 current/previous 窗口重复计数。 */
+    /** 日桶趋势只展开当前窗口，不把前序汇总混入“窗口内如何变化”的回答。 */
     private InvestigationEvidence issueTrendForWindow(Long workspaceId, IssueCatalog issue, InvestigationWindow window) {
         List<IssueMetricBucket> buckets = metricRepository
-                .findByWorkspaceIdAndBucketStartGreaterThanEqual(workspaceId, window.previousStart()).stream()
+                .findByWorkspaceIdAndBucketStartGreaterThanEqual(workspaceId, window.currentStart()).stream()
+                .filter(bucket -> issue.getId().equals(bucket.getIssueId()))
                 .filter(bucket -> bucket.getBucketStart().isBefore(window.currentEnd()))
+                .sorted(Comparator.comparing(IssueMetricBucket::getBucketStart))
                 .toList();
-        int current = sumBuckets(buckets, issue.getId(), window.currentStart(), window.currentEnd());
-        int previous = sumBuckets(buckets, issue.getId(), window.previousStart(), window.previousEnd());
+        String id = "trend:" + issue.getCanonicalKey() + ":" + window.type();
+        if (buckets.isEmpty()) {
+            return insufficient(InvestigationToolType.ISSUE_TREND, id, "主题趋势（" + window.type() + "）",
+                    windowDescription(window) + "；来源 issue_metric_bucket（日粒度）；当前窗口没有可用日桶。");
+        }
+        String series = buckets.stream()
+                .map(bucket -> String.format("bucketStart=%s，feedbackCount=%d", bucket.getBucketStart(), bucket.getFeedbackCount()))
+                .collect(java.util.stream.Collectors.joining("；"));
         return evidence(InvestigationToolType.ISSUE_TREND, "trend:" + issue.getCanonicalKey() + ":" + window.type(),
                 "主题趋势（" + window.type() + "）",
-                String.format("来源 issue_metric_bucket；当前窗口 %d 条，前序窗口 %d 条；锚点=%s。", current, previous, window.anchorTime()), true);
+                windowDescription(window) + "；来源 issue_metric_bucket（日粒度）；" + series + "。", true);
     }
 
-    /** 告警历史以业务 bucketStart 截止锚点，不使用记录写入时间，且绝不泄漏未来告警。 */
-    private InvestigationEvidence alertHistoryForWindow(Long workspaceId, IssueCatalog issue, InvestigationWindow window) {
+    /** 告警历史严格使用创建顺序，排除当前告警及同一排序点之后的未来告警。 */
+    private InvestigationEvidence alertHistoryForAlert(Long workspaceId, IssueCatalog issue, Alert currentAlert) {
         List<Alert> alerts = alertRepository.findByWorkspaceIdAndIssueIdOrderByCreatedAtDesc(workspaceId, issue.getId()).stream()
-                .filter(alert -> !alert.getBucketStart().isAfter(window.anchorTime()))
+                .filter(alert -> isBeforeCurrentAlert(alert, currentAlert))
                 .limit(TOPIC_LIMIT)
                 .toList();
         if (alerts.isEmpty()) {
-            return insufficient(InvestigationToolType.ALERT_HISTORY, "alerts:" + issue.getCanonicalKey() + ":" + window.type(),
-                    "告警与基线（" + window.type() + "）", "锚点之前没有可复核的同主题告警记录。");
+            return insufficient(InvestigationToolType.ALERT_HISTORY, "alerts:" + issue.getCanonicalKey(),
+                    "历史告警与基线", "当前告警之前没有可复核的同主题告警记录。");
         }
         String summary = alerts.stream().map(alert -> String.format("%s: 当前值 %d，z-score %.1f，状态 %s",
                 alert.getBucketStart(), alert.getCurrentCount(), alert.getZScore(), alert.getStatus())).collect(java.util.stream.Collectors.joining("；"));
-        return evidence(InvestigationToolType.ALERT_HISTORY, "alerts:" + issue.getCanonicalKey() + ":" + window.type(),
-                "告警与基线（" + window.type() + "）", "来源 alert；" + summary + "。", true);
+        return evidence(InvestigationToolType.ALERT_HISTORY, "alerts:" + issue.getCanonicalKey(),
+                "历史告警与基线", "来源 alert；" + summary + "。", true);
     }
 
     /** 样本同时按 workspace 与冻结的当前窗口过滤；不足时显式返回不足，不能借用窗口外样本。 */
@@ -220,10 +231,10 @@ public class InvestigationToolService {
         String id = "samples:" + issue.getCanonicalKey() + ":" + window.type();
         if (samples.isEmpty()) {
             return insufficient(InvestigationToolType.SAMPLE_FEEDBACK, id, "脱敏样本（" + window.type() + "）",
-                    "冻结窗口内没有可用的脱敏反馈样本；不使用窗口外样本补足。");
+                    windowDescription(window) + "；冻结窗口内没有可用的脱敏反馈样本；不使用窗口外样本补足。");
         }
         return evidence(InvestigationToolType.SAMPLE_FEEDBACK, id, "脱敏样本（" + window.type() + "）",
-                "来源 feedback_event；样本：" + String.join("；", samples), true);
+                windowDescription(window) + "；来源 feedback_event；样本：" + String.join("；", samples), true);
     }
 
     /** 比较结果与趋势共用同一冻结边界，避免出现两个 Tool 对“本周”的不同解释。 */
@@ -237,10 +248,29 @@ public class InvestigationToolService {
         int delta = current - previous;
         String id = "comparison:" + issue.getCanonicalKey() + ":" + window.type();
         if (current == 0 && previous == 0) {
-            return insufficient(InvestigationToolType.PERIOD_COMPARISON, id, "时间范围比较（" + window.type() + "）", "冻结窗口内没有可比较的主题日指标。");
+            return insufficient(InvestigationToolType.PERIOD_COMPARISON, id, "时间范围比较（" + window.type() + "）",
+                    windowDescription(window) + "；冻结窗口内没有可比较的主题日指标。");
         }
+        String percentage = previous == 0 ? "percentageChange=unavailable，newActivity=true"
+                : String.format("percentageChange=%+.1f%%，newActivity=false", (delta * 100.0) / previous);
         return evidence(InvestigationToolType.PERIOD_COMPARISON, id, "时间范围比较（" + window.type() + "）",
-                String.format("来源 issue_metric_bucket；当前窗口 %d 条，前序窗口 %d 条，绝对变化 %s%d 条。", current, previous, delta >= 0 ? "+" : "", delta), true);
+                String.format("%s；来源 issue_metric_bucket；currentCount=%d，previousCount=%d，absoluteDelta=%+d，%s。",
+                        windowDescription(window), current, previous, delta, percentage), true);
+    }
+
+    /** 计划中的窗口字段全部写入证据，避免模型或人工把“当前窗口”误解为执行当天。 */
+    private String windowDescription(InvestigationWindow window) {
+        return String.format("windowType=%s，anchorTime=%s，currentStart=%s，currentEnd=%s，previousStart=%s，previousEnd=%s",
+                window.type(), window.anchorTime(), window.currentStart(), window.currentEnd(), window.previousStart(), window.previousEnd());
+    }
+
+    /** createdAt 相同时用持久化 ID 打破平局，保证同桶多告警的历史排序稳定。 */
+    private boolean isBeforeCurrentAlert(Alert candidate, Alert currentAlert) {
+        if (candidate.getId().equals(currentAlert.getId())) {
+            return false;
+        }
+        int createdOrder = candidate.getCreatedAt().compareTo(currentAlert.getCreatedAt());
+        return createdOrder < 0 || (createdOrder == 0 && candidate.getId() < currentAlert.getId());
     }
 
     /** 统一分派到固定 Tool 实现；没有 default 分支，新增枚举成员必须明确实现其数据边界。 */

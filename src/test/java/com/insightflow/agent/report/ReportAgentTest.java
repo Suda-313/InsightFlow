@@ -42,7 +42,7 @@ class ReportAgentTest {
         when(literalChatModelCaller.call(anyString(), anyString())).thenReturn(chatResponse);
         when(chatResponse.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistantMessage);
-        when(assistantMessage.getContent()).thenReturn("report: 100 tickets");
+        when(assistantMessage.getText()).thenReturn("report: 100 tickets");
 
         UUID workspaceId = UUID.randomUUID();
         AgentRun run = AgentRun.start(7L, "report", "report:v1", "qwen-test", "none", "input");
@@ -62,7 +62,7 @@ class ReportAgentTest {
         when(literalChatModelCaller.call(anyString(), anyString())).thenReturn(chatResponse);
         when(chatResponse.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistantMessage);
-        when(assistantMessage.getContent()).thenReturn("report");
+        when(assistantMessage.getText()).thenReturn("report");
 
         OperationalReportRiskAssembler.ReportRisk risk = new OperationalReportRiskAssembler.ReportRisk(
                 UUID.randomUUID(), RiskLevel.P0, 92, "异常强度高", "login_failure", "登录失败", 30,

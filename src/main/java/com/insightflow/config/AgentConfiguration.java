@@ -100,8 +100,12 @@ public class AgentConfiguration {
         OpenAiEmbeddingOptions options = new OpenAiEmbeddingOptions();
         options.setModel(model);
         options.setDimensions(dimensions);
-        return new OpenAiEmbeddingModel(new OpenAiApi(
-                baseUrl, apiKey, withNetworkTimeout(restClientBuilder, httpReadTimeoutSeconds), webClientBuilder),
+        return new OpenAiEmbeddingModel(OpenAiApi.builder()
+                .baseUrl(baseUrl)
+                .apiKey(apiKey)
+                .restClientBuilder(withNetworkTimeout(restClientBuilder, httpReadTimeoutSeconds))
+                .webClientBuilder(webClientBuilder)
+                .build(),
                 org.springframework.ai.document.MetadataMode.NONE, options);
     }
 
@@ -116,11 +120,15 @@ public class AgentConfiguration {
             long httpReadTimeoutSeconds) {
         OpenAiChatOptions options = new OpenAiChatOptions();
         options.setModel(model);
-        options.setTemperature(temperature);
+        options.setTemperature(temperature == null ? null : temperature.doubleValue());
         options.setMaxTokens(maxTokens);
-        OpenAiApi openAiApi = new OpenAiApi(
-                baseUrl, apiKey, withNetworkTimeout(restClientBuilder, httpReadTimeoutSeconds), webClientBuilder);
-        return new OpenAiChatModel(openAiApi, options);
+        OpenAiApi openAiApi = OpenAiApi.builder()
+                .baseUrl(baseUrl)
+                .apiKey(apiKey)
+                .restClientBuilder(withNetworkTimeout(restClientBuilder, httpReadTimeoutSeconds))
+                .webClientBuilder(webClientBuilder)
+                .build();
+        return OpenAiChatModel.builder().openAiApi(openAiApi).defaultOptions(options).build();
     }
 
     /**

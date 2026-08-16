@@ -84,7 +84,7 @@ public class GoldEvaluationRunner {
                     evaluationCase.question());
             long latencyMs = System.currentTimeMillis() - startedAtMs;
             LlmMetrics.log("Evaluation", startedAtMs, response);
-            String output = response.getResult().getOutput().getContent();
+            String output = response.getResult().getOutput().getText();
             EvaluationCaseScore score = scorer.score(evaluationCase, output);
             Usage usage = response.getMetadata() == null ? null : response.getMetadata().getUsage();
             log.info("Gold evaluation case completed: case_id={}, fact_coverage={}/{}, forbidden_hits={}, evidence_citation={}",
@@ -92,9 +92,9 @@ public class GoldEvaluationRunner {
                     score.hitForbiddenClaimCount(), score.evidenceCitationPresent());
             return new EvaluationCaseRunResult(
                     evaluationCase.caseId(), evaluationCase.category(), "succeeded", score, output, latencyMs,
-                    usage == null ? null : usage.getPromptTokens(),
-                    usage == null ? null : usage.getGenerationTokens(),
-                    usage == null ? null : usage.getTotalTokens(), null);
+                    toLong(usage == null ? null : usage.getPromptTokens()),
+                    toLong(usage == null ? null : usage.getCompletionTokens()),
+                    toLong(usage == null ? null : usage.getTotalTokens()), null);
         } catch (RuntimeException exception) {
             long latencyMs = System.currentTimeMillis() - startedAtMs;
             log.warn("Gold evaluation case failed: case_id={}, exception_type={}",
@@ -152,6 +152,11 @@ public class GoldEvaluationRunner {
     /** 安全计算比例，分母为零时不制造 NaN 或无穷值。 */
     private double ratio(long numerator, long denominator) {
         return denominator == 0 ? 0.0 : (double) numerator / denominator;
+    }
+
+    /** Spring AI 1.1 返回 Integer token，评测汇总字段使用 Long。 */
+    private Long toLong(Integer value) {
+        return value == null ? null : value.longValue();
     }
 
     /** 只有所有成功题目都返回相应 Usage 时才给出累计值，避免把部分成本误当成整批成本。 */

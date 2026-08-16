@@ -76,7 +76,7 @@ class ChatServiceEvidenceTest {
         when(literalChatModelCaller.call(anyString(), anyString())).thenReturn(response);
         when(response.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistant);
-        when(assistant.getContent()).thenReturn("## 结论\n反馈增加。\n## 证据\n[证据: trend:gameplay:last_14_days]");
+        when(assistant.getText()).thenReturn("## 结论\n反馈增加。\n## 证据\n[证据: trend:gameplay:last_14_days]");
 
         KnowledgeQueryExpander queryExpander = new KnowledgeQueryExpander();
         ChatService service = new ChatService(

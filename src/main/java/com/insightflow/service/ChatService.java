@@ -145,7 +145,7 @@ public class ChatService {
             response = literalChatModelCaller.call(
                     buildSystemPrompt(investigation, knowledge, history, rollingSummary),
                     message);
-            String content = response.getResult().getOutput().getContent();
+            String content = response.getResult().getOutput().getText();
             finalContent = content == null || content.isBlank() ? "抱歉，暂时无法回答。" : content;
         } catch (RuntimeException exception) {
             long latencyMs = System.currentTimeMillis() - startedAtMs;
@@ -214,9 +214,9 @@ public class ChatService {
             RewriteOutcome rewriteOutcome,
             ChatSessionFocus focusUsed) {
         Usage usage = response.getMetadata() == null ? null : response.getMetadata().getUsage();
-        Long promptTokens = usage == null ? null : usage.getPromptTokens();
-        Long completionTokens = usage == null ? null : usage.getGenerationTokens();
-        Long totalTokens = usage == null ? null : usage.getTotalTokens();
+        Long promptTokens = toLong(usage == null ? null : usage.getPromptTokens());
+        Long completionTokens = toLong(usage == null ? null : usage.getCompletionTokens());
+        Long totalTokens = toLong(usage == null ? null : usage.getTotalTokens());
         return new AgentRunService.Completion(
                 finalContent,
                 serializeEvidence(investigation, knowledge, rewriteOutcome, focusUsed),
@@ -243,8 +243,13 @@ public class ChatService {
                 traceId,
                 latencyMs,
                 usage.getPromptTokens(),
-                usage.getGenerationTokens(),
+                usage.getCompletionTokens(),
                 usage.getTotalTokens());
+    }
+
+    /** Spring AI 1.1 的 Usage token 使用 Integer，领域审计字段保留 Long。 */
+    private Long toLong(Integer value) {
+        return value == null ? null : value.longValue();
     }
 
     /** API 只返回可展示的证据索引和最终文本，既支持用户复核，也不暴露原始推理链。 */

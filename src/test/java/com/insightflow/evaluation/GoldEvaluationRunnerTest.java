@@ -41,7 +41,7 @@ class GoldEvaluationRunnerTest {
         when(literalChatModelCaller.call(anyString(), anyString())).thenReturn(response);
         when(response.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistant);
-        when(assistant.getContent()).thenReturn("玩法 Bug 85 条，需要继续排查。");
+        when(assistant.getText()).thenReturn("玩法 Bug 85 条，需要继续排查。");
         when(response.getMetadata()).thenReturn(null);
 
         GoldEvaluationRunResult result = new GoldEvaluationRunner(

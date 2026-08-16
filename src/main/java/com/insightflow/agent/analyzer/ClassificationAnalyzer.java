@@ -98,7 +98,7 @@ public class ClassificationAnalyzer implements InsightAgent<ClassificationResult
         }
         LlmMetrics.log("Classification", promptVersion(), start, response);
         try {
-            String content = response.getResult().getOutput().getContent();
+            String content = response.getResult().getOutput().getText();
             ClassificationResult result = objectMapper.readValue(LlmMetrics.extractJson(content), outputSchema());
             succeedRun(workspacePublicId, run, content, response, start);
             return result;
@@ -117,10 +117,15 @@ public class ClassificationAnalyzer implements InsightAgent<ClassificationResult
         Usage usage = response.getMetadata() == null ? null : response.getMetadata().getUsage();
         agentRunService.succeed(workspacePublicId, run.getPublicId(), new AgentRunService.Completion(
                 output, null,
-                usage == null ? null : usage.getPromptTokens(),
-                usage == null ? null : usage.getGenerationTokens(),
-                usage == null ? null : usage.getTotalTokens(),
+                toLong(usage == null ? null : usage.getPromptTokens()),
+                toLong(usage == null ? null : usage.getCompletionTokens()),
+                toLong(usage == null ? null : usage.getTotalTokens()),
                 System.currentTimeMillis() - start));
+    }
+
+    /** Spring AI 1.1 返回 Integer token，审计模型使用 Long 以兼容数据库聚合。 */
+    private Long toLong(Integer value) {
+        return value == null ? null : value.longValue();
     }
 
     /** 失败审计使用统一错误码；详细异常仍只在受控服务端日志中出现。 */
