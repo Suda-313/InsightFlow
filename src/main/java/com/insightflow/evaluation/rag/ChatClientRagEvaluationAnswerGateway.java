@@ -42,7 +42,7 @@ public class ChatClientRagEvaluationAnswerGateway implements RagEvaluationAnswer
         ChatResponse response = literalChatModelCaller.call(systemPrompt, question);
         String content = "";
         if (response.getResult() != null && response.getResult().getOutput() != null) {
-            String raw = response.getResult().getOutput().getContent();
+            String raw = response.getResult().getOutput().getText();
             content = raw == null ? "" : raw;
         }
         Usage usage = response.getMetadata() == null ? null : response.getMetadata().getUsage();
@@ -50,6 +50,11 @@ public class ChatClientRagEvaluationAnswerGateway implements RagEvaluationAnswer
             return new RagEvaluationGenerationResult(content, null, null, null);
         }
         return new RagEvaluationGenerationResult(
-                content, usage.getPromptTokens(), usage.getGenerationTokens(), usage.getTotalTokens());
+                content, toLong(usage.getPromptTokens()), toLong(usage.getCompletionTokens()), toLong(usage.getTotalTokens()));
+    }
+
+    /** Spring AI 1.1 返回 Integer token，评估结果使用 Long 便于汇总。 */
+    private Long toLong(Integer value) {
+        return value == null ? null : value.longValue();
     }
 }

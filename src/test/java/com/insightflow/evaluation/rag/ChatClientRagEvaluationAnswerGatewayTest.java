@@ -31,11 +31,11 @@ class ChatClientRagEvaluationAnswerGatewayTest {
         when(literalChatModelCaller.call(anyString(), anyString())).thenReturn(response);
         when(response.getResult()).thenReturn(generation);
         when(generation.getOutput()).thenReturn(assistant);
-        when(assistant.getContent()).thenReturn("ok");
+        when(assistant.getText()).thenReturn("ok");
         when(response.getMetadata().getUsage()).thenReturn(usage);
-        when(usage.getPromptTokens()).thenReturn(100L);
-        when(usage.getGenerationTokens()).thenReturn(20L);
-        when(usage.getTotalTokens()).thenReturn(120L);
+        when(usage.getPromptTokens()).thenReturn(100);
+        when(usage.getCompletionTokens()).thenReturn(20);
+        when(usage.getTotalTokens()).thenReturn(120);
 
         ChatClientRagEvaluationAnswerGateway gateway = new ChatClientRagEvaluationAnswerGateway(
                 literalChatModelCaller, new ChatPromptTemplate());

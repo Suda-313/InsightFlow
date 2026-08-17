@@ -55,7 +55,7 @@ public class ChatTopicPackTopicLlmSkill implements TopicPackTopicLlmSkill {
         }
         LlmMetrics.log("PackTopic", version, start, response);
         try {
-            String content = response.getResult().getOutput().getContent();
+            String content = response.getResult().getOutput().getText();
             TopicPackTopicLlmResult parsed = objectMapper.readValue(
                     LlmMetrics.extractJson(content), TopicPackTopicLlmResult.class);
             if (parsed.canonicalKey() == null || !allowedKeys.contains(parsed.canonicalKey())) {

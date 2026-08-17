@@ -61,7 +61,7 @@ public class InvestigationEvidenceAssembler {
             return snapshots;
         }
         List<InvestigationWindow> windows = planReader.readWindows(investigation);
-        List<InvestigationEvidence> evidence = toolService.investigateForAlert(workspace.getPublicId(), issue, windows);
+        List<InvestigationEvidence> evidence = toolService.investigateForAlert(workspace.getPublicId(), alert, issue, windows);
         for (InvestigationEvidence item : evidence) {
             snapshots.add(InvestigationEvidenceSnapshot.capture(
                     investigation.getId(), investigation.getWorkspaceId(), item.tool().name(), item.id(),

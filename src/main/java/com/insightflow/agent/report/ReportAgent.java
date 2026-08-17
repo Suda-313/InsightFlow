@@ -76,7 +76,7 @@ public class ReportAgent {
             ChatResponse response = literalChatModelCaller.call(
                     promptCatalog.report().systemPrompt(), userPrompt);
             LlmMetrics.log("Report", promptVersion(), start, response);
-            String output = response.getResult().getOutput().getContent();
+            String output = response.getResult().getOutput().getText();
             succeed(workspacePublicId, run, output, response, start);
             return output;
         } catch (RuntimeException exception) {
@@ -91,9 +91,14 @@ public class ReportAgent {
         if (run == null) return;
         Usage usage = response.getMetadata() == null ? null : response.getMetadata().getUsage();
         agentRunService.succeed(workspacePublicId, run.getPublicId(), new AgentRunService.Completion(
-                output, null, usage == null ? null : usage.getPromptTokens(),
-                usage == null ? null : usage.getGenerationTokens(), usage == null ? null : usage.getTotalTokens(),
+                output, null, toLong(usage == null ? null : usage.getPromptTokens()),
+                toLong(usage == null ? null : usage.getCompletionTokens()), toLong(usage == null ? null : usage.getTotalTokens()),
                 System.currentTimeMillis() - start));
+    }
+
+    /** Spring AI 1.1 返回 Integer token，审计模型使用 Long 以兼容数据库聚合。 */
+    private Long toLong(Integer value) {
+        return value == null ? null : value.longValue();
     }
 
     /** 失败记录固定错误码，异常正文只留在服务端受控日志。 */

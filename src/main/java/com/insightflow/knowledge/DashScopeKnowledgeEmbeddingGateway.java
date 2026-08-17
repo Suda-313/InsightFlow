@@ -39,7 +39,13 @@ public class DashScopeKnowledgeEmbeddingGateway implements KnowledgeEmbeddingGat
         List<List<Double>> all = new ArrayList<>(contents.size());
         for (int offset = 0; offset < contents.size(); offset += DASHSCOPE_MAX_BATCH_SIZE) {
             int end = Math.min(offset + DASHSCOPE_MAX_BATCH_SIZE, contents.size());
-            all.addAll(embeddingModel.embed(contents.subList(offset, end)));
+            for (float[] embedding : embeddingModel.embed(contents.subList(offset, end))) {
+                List<Double> vector = new ArrayList<>(embedding.length);
+                for (float value : embedding) {
+                    vector.add((double) value);
+                }
+                all.add(vector);
+            }
         }
         return all;
     }

@@ -41,7 +41,7 @@ public class LiteralChatModelCaller {
         if (response.getResult() == null || response.getResult().getOutput() == null) {
             return "";
         }
-        String content = response.getResult().getOutput().getContent();
+        String content = response.getResult().getOutput().getText();
         return content == null ? "" : content;
     }
 }

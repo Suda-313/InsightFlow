@@ -24,26 +24,38 @@ public class InvestigationWindowResolver {
         };
     }
 
-    /** 生成告警前两个连续的 24 小时窗口。 */
+    /**
+     * 生成包含触发日桶的两个连续 24 小时窗口。
+     *
+     * <p>Alert 锚点是 UTC 日桶起点，而非窗口右边界；先推进一个日桶，才能让
+     * {@code [currentStart, currentEnd)} 覆盖触发当天的日指标与反馈样本。</p>
+     */
     private InvestigationWindow shortTerm(OffsetDateTime anchor) {
-        OffsetDateTime currentStart = anchor.minusHours(24);
+        OffsetDateTime currentEnd = anchor.plusDays(1);
+        OffsetDateTime currentStart = anchor;
         return new InvestigationWindow(
                 InvestigationWindowType.SHORT_TERM,
                 anchor,
                 currentStart,
-                anchor,
+                currentEnd,
                 currentStart.minusHours(24),
                 currentStart);
     }
 
-    /** 生成告警前两个连续的七天窗口。 */
+    /**
+     * 生成包含触发日桶的两个连续七天窗口。
+     *
+     * <p>日桶使用 UTC 00:00 起点，故当前窗口右端取锚点次日 00:00；previous 与
+     * current 在 currentStart 相接，不重叠也不留缺口。</p>
+     */
     private InvestigationWindow weekly(OffsetDateTime anchor) {
-        OffsetDateTime currentStart = anchor.minusDays(7);
+        OffsetDateTime currentEnd = anchor.plusDays(1);
+        OffsetDateTime currentStart = currentEnd.minusDays(7);
         return new InvestigationWindow(
                 InvestigationWindowType.WEEKLY,
                 anchor,
                 currentStart,
-                anchor,
+                currentEnd,
                 currentStart.minusDays(7),
                 currentStart);
     }

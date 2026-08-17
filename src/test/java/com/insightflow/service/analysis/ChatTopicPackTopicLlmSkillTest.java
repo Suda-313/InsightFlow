@@ -31,7 +31,7 @@ class ChatTopicPackTopicLlmSkillTest {
         ChatResponse chatResponse = mock(ChatResponse.class);
         Generation generation = mock(Generation.class);
         AssistantMessage assistantMessage = mock(AssistantMessage.class);
-        when(assistantMessage.getContent()).thenReturn(
+        when(assistantMessage.getText()).thenReturn(
                 "{\"canonical_key\":\"topic_matchmaking\",\"confidence\":0.88,\"reasoning\":\"匹配慢\"}");
         when(generation.getOutput()).thenReturn(assistantMessage);
         when(chatResponse.getResult()).thenReturn(generation);
@@ -56,7 +56,7 @@ class ChatTopicPackTopicLlmSkillTest {
         ChatResponse chatResponse = mock(ChatResponse.class);
         Generation generation = mock(Generation.class);
         AssistantMessage assistantMessage = mock(AssistantMessage.class);
-        when(assistantMessage.getContent()).thenReturn(
+        when(assistantMessage.getText()).thenReturn(
                 "{\"canonical_key\":\"topic_unknown\",\"confidence\":0.95,\"reasoning\":\"幻觉键\"}");
         when(generation.getOutput()).thenReturn(assistantMessage);
         when(chatResponse.getResult()).thenReturn(generation);
@@ -70,4 +70,4 @@ class ChatTopicPackTopicLlmSkillTest {
         assertThat(skill.classify("随便说说", pack)).isEmpty();
     }
 }
-
+

@@ -45,7 +45,7 @@ public final class LlmMetrics {
             log.info("LLM[{}] status=succeeded, latency_ms={}, prompt_tokens={}, completion_tokens={}, total_tokens={}",
                     agentName, elapsed,
                     usage.getPromptTokens(),
-                    usage.getGenerationTokens(),
+                    usage.getCompletionTokens(),
                     usage.getTotalTokens());
         } else {
             log.info("LLM[{}] status=succeeded, latency_ms={}, token 信息不可用", agentName, elapsed);
@@ -62,7 +62,7 @@ public final class LlmMetrics {
         if (usage != null) {
             log.info("LLM[{}] status=succeeded, prompt_version={}, latency_ms={}, prompt_tokens={}, completion_tokens={}, total_tokens={}",
                     agentName, promptVersion, elapsed,
-                    usage.getPromptTokens(), usage.getGenerationTokens(), usage.getTotalTokens());
+                    usage.getPromptTokens(), usage.getCompletionTokens(), usage.getTotalTokens());
         } else {
             log.info("LLM[{}] status=succeeded, prompt_version={}, latency_ms={}, token 信息不可用",
                     agentName, promptVersion, elapsed);
