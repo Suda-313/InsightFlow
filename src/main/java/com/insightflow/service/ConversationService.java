@@ -66,7 +66,7 @@ public class ConversationService {
      */
     public List<ChatMessage> listMessages(UUID workspacePublicId, UUID sessionPublicId) {
         ChatSession session = requireSession(workspacePublicId, sessionPublicId);
-        return messageRepository.findByWorkspaceIdAndSessionIdOrderByCreatedAtAsc(
+        return messageRepository.findByWorkspaceIdAndSessionIdOrderByIdAsc(
                 session.getWorkspaceId(), session.getId());
     }
 
@@ -91,10 +91,12 @@ public class ConversationService {
     /** 保存模型最终答案；此处的边界确保思维链和中间推理不会进入数据库。 */
     @Transactional
     public ChatMessage appendAssistantMessage(UUID workspacePublicId, UUID sessionPublicId, String content) {
-        ChatSession session = requireSession(workspacePublicId, sessionPublicId);
+        Long workspaceId = resolveWorkspaceId(workspacePublicId);
+        ChatSession session = sessionRepository.findByPublicIdAndWorkspaceIdForUpdate(sessionPublicId, workspaceId)
+                .orElseThrow(() -> new ChatSessionNotFoundException(sessionPublicId));
         ChatMessage message = ChatMessage.assistant(session.getWorkspaceId(), session.getId(), content);
         session.touch();
-        messageRepository.save(message);
+        messageRepository.saveAndFlush(message);
         refreshRollingSummary(session);
         sessionRepository.save(session);
         return message;
@@ -111,19 +113,52 @@ public class ConversationService {
     private void refreshRollingSummary(ChatSession session) {
         long total = messageRepository.countByWorkspaceIdAndSessionId(session.getWorkspaceId(), session.getId());
         if (total <= SessionRollingSummaryBuilder.RECENT_MESSAGE_WINDOW) {
-            session.updateRollingSummary(null);
+            session.updateRollingSummary(null, null);
             return;
         }
-        List<ChatMessage> all = messageRepository.findByWorkspaceIdAndSessionIdOrderByCreatedAtAsc(
+        List<ChatMessage> latestFirst = messageRepository.findTop12ByWorkspaceIdAndSessionIdOrderByIdDesc(
                 session.getWorkspaceId(), session.getId());
-        session.updateRollingSummary(rollingSummaryBuilder.buildFromAllMessages(all));
+        if (latestFirst.isEmpty()) {
+            return;
+        }
+        Long recentWindowFirstId = latestFirst.get(latestFirst.size() - 1).getId();
+        if (session.getRollingSummary() != null && session.getSummaryUntilMessageId() == null) {
+            initializeLegacySummaryCursor(session, recentWindowFirstId);
+            return;
+        }
+        List<ChatMessage> newlyEvicted = findNewlyEvictedMessages(session, recentWindowFirstId);
+        if (newlyEvicted.isEmpty()) {
+            return;
+        }
+        String summary = rollingSummaryBuilder.appendIncrementally(session.getRollingSummary(), newlyEvicted);
+        session.updateRollingSummary(summary, newlyEvicted.get(newlyEvicted.size() - 1).getId());
+    }
+
+    /** 迁移前已有摘要但无游标时，完整重建一次并标记已消费边界，后续恢复增量更新。 */
+    private void initializeLegacySummaryCursor(ChatSession session, Long recentWindowFirstId) {
+        List<ChatMessage> all = messageRepository.findByWorkspaceIdAndSessionIdOrderByIdAsc(
+                session.getWorkspaceId(), session.getId());
+        List<ChatMessage> older = all.stream().filter(message -> message.getId() < recentWindowFirstId).toList();
+        String summary = rollingSummaryBuilder.buildFromAllMessages(all);
+        Long cursor = older.isEmpty() ? null : older.get(older.size() - 1).getId();
+        session.updateRollingSummary(summary, cursor);
+    }
+
+    /** 通过 nullable 游标区分首次淘汰与后续增量淘汰，不将任意用户输入用于查询边界。 */
+    private List<ChatMessage> findNewlyEvictedMessages(ChatSession session, Long recentWindowFirstId) {
+        if (session.getSummaryUntilMessageId() == null) {
+            return messageRepository.findByWorkspaceIdAndSessionIdAndIdLessThanOrderByIdAsc(
+                    session.getWorkspaceId(), session.getId(), recentWindowFirstId);
+        }
+        return messageRepository.findByWorkspaceIdAndSessionIdAndIdGreaterThanAndIdLessThanOrderByIdAsc(
+                session.getWorkspaceId(), session.getId(), session.getSummaryUntilMessageId(), recentWindowFirstId);
     }
 
     /** 返回最近 12 条正序消息，供 ChatService 注入短期上下文而不无限增长 token。 */
     public List<ChatMessage> recentMessagesForModel(UUID workspacePublicId, UUID sessionPublicId) {
         ChatSession session = requireSession(workspacePublicId, sessionPublicId);
         List<ChatMessage> latestFirst = new ArrayList<>(messageRepository
-                .findTop12ByWorkspaceIdAndSessionIdOrderByCreatedAtDesc(session.getWorkspaceId(), session.getId()));
+                .findTop12ByWorkspaceIdAndSessionIdOrderByIdDesc(session.getWorkspaceId(), session.getId()));
         Collections.reverse(latestFirst);
         return latestFirst;
     }

@@ -75,6 +75,15 @@ public class ChatSession {
     @Column(name = "rolling_summary", columnDefinition = "TEXT")
     private String rollingSummary;
 
+    /**
+     * 已被 rolling summary 消费的最后一条消息内部键。
+     *
+     * <p>这是处理进度而不是领域关联，因此不建立外键；它必须与 {@link #rollingSummary} 在一次领域更新中
+     * 同时变化，防止重试重复追加或只推进游标导致历史缺失。</p>
+     */
+    @Column(name = "summary_until_message_id")
+    private Long summaryUntilMessageId;
+
     /** 仅供 JPA 反射使用；业务代码必须通过 {@link #create(Long)} 创建会话。 */
     protected ChatSession() {
     }
@@ -157,14 +166,20 @@ public class ChatSession {
         return rollingSummary;
     }
 
-    /** 更新滚动摘要；null 或空白表示清除（例如消息数回落到窗口内时）。 */
-    public void updateRollingSummary(String summary) {
+    /** 原子更新摘要正文与已消费游标，调用方不得拆分为两次持久化修改。 */
+    public void updateRollingSummary(String summary, Long untilMessageId) {
         if (summary == null || summary.isBlank()) {
             this.rollingSummary = null;
         } else {
             this.rollingSummary = summary.trim();
         }
+        this.summaryUntilMessageId = untilMessageId;
         touch();
+    }
+
+    /** 已消费到的最后一条消息内部键；为空表示尚未初始化摘要游标。 */
+    public Long getSummaryUntilMessageId() {
+        return summaryUntilMessageId;
     }
 
     /** 记录会话有新内容，用于恢复最近会话；归档状态不会因新消息被自动撤销。 */

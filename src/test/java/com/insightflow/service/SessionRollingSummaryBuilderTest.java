@@ -56,4 +56,24 @@ class SessionRollingSummaryBuilderTest {
         assertThat(summary).hasSizeLessThanOrEqualTo(SessionRollingSummaryBuilder.ROLLING_SUMMARY_MAX_CHARS + 1);
         assertThat(summary).endsWith("…");
     }
+
+    /** 增量路径只能压缩本次滑出短期窗口的消息，不能再次遍历或重复拼接旧历史。 */
+    @Test
+    void appendsOnlyNewlyEvictedMessagesToExistingSummary() {
+        ChatMessage newlyEvicted = ChatMessage.assistant(WS, SESSION, "## 结论\n新增结论");
+
+        String summary = builder.appendIncrementally("user: 已处理的问题", List.of(newlyEvicted));
+
+        assertThat(summary).isEqualTo("user: 已处理的问题；assistant: 新增结论");
+    }
+
+    /** 达到既有上限后仍保留最早的 600 字符，增量消息不改变兼容的截断语义。 */
+    @Test
+    void keepsEarliestSummaryPrefixWhenIncrementalAppendExceedsLimit() {
+        String existing = "早".repeat(SessionRollingSummaryBuilder.ROLLING_SUMMARY_MAX_CHARS);
+
+        String summary = builder.appendIncrementally(existing, List.of(ChatMessage.user(WS, SESSION, "后续消息")));
+
+        assertThat(summary).isEqualTo(existing + "…");
+    }
 }

@@ -43,14 +43,26 @@ public class SessionRollingSummaryBuilder {
         for (ChatMessage message : older) {
             appendSegment(summary, historyCompactor.compactLine(message));
         }
-        if (summary.isEmpty()) {
-            return null;
+        return finalizeSummary(summary);
+    }
+
+    /**
+     * 在已冻结的摘要后仅追加本次滑出短期窗口的消息。
+     *
+     * <p>该方法不读取仓储，也不推导时间范围；调用方通过摘要游标保证传入消息从未被消费过。
+     * 追加后仍保留最早 600 字符，与全量构建的历史截断语义一致。</p>
+     */
+    public String appendIncrementally(String existingSummary, List<ChatMessage> newlyEvictedMessages) {
+        StringBuilder summary = new StringBuilder();
+        if (existingSummary != null && !existingSummary.isBlank()) {
+            summary.append(existingSummary.trim());
         }
-        String text = summary.toString().trim();
-        if (text.length() <= ROLLING_SUMMARY_MAX_CHARS) {
-            return text;
+        if (newlyEvictedMessages != null) {
+            for (ChatMessage message : newlyEvictedMessages) {
+                appendSegment(summary, historyCompactor.compactLine(message));
+            }
         }
-        return text.substring(0, ROLLING_SUMMARY_MAX_CHARS).trim() + "…";
+        return finalizeSummary(summary);
     }
 
     private void appendSegment(StringBuilder summary, String segment) {
@@ -65,5 +77,17 @@ public class SessionRollingSummaryBuilder {
             summary.append("；");
         }
         summary.append(line);
+    }
+
+    /** 统一全量和增量路径的空值与总长度语义，避免两条摘要规则分叉。 */
+    private String finalizeSummary(StringBuilder summary) {
+        if (summary.isEmpty()) {
+            return null;
+        }
+        String text = summary.toString().trim();
+        if (text.length() <= ROLLING_SUMMARY_MAX_CHARS) {
+            return text;
+        }
+        return text.substring(0, ROLLING_SUMMARY_MAX_CHARS).trim() + "…";
     }
 }
